@@ -24,21 +24,10 @@
 ---
 
 <p align="center">
-  <img src="docs/img/sc-2.png" alt="LWTS Kanban Board" width="100%" />
+  <img src="docs/img/sc-2.png" alt="Kanban Board" width="32%" />
+  <img src="docs/img/sc-1.png" alt="Card Detail" width="32%" />
+  <img src="docs/img/sc-3.png" alt="Settings" width="32%" />
 </p>
-
-<details>
-<summary><strong>More screenshots</strong></summary>
-<br>
-<p align="center">
-  <em>Card detail view with activity, subtasks, and metadata</em><br>
-  <img src="docs/img/sc-1.png" alt="Card Detail View" width="100%" />
-</p>
-<p align="center">
-  <em>Team management and settings</em><br>
-  <img src="docs/img/sc-3.png" alt="Settings" width="100%" />
-</p>
-</details>
 
 ---
 
