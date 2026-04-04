@@ -136,7 +136,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	wh.Secret = maskSecret(wh.Secret)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(wh)
+	_ = json.NewEncoder(w).Encode(wh)
 }
 
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -175,7 +175,7 @@ func (h *Handler) Test(w http.ResponseWriter, r *http.Request) {
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "test event queued"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "test event queued"})
 }
 
 func (h *Handler) Deliveries(w http.ResponseWriter, r *http.Request) {
@@ -198,7 +198,7 @@ func (h *Handler) Deliveries(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(deliveries)
+	_ = json.NewEncoder(w).Encode(deliveries)
 }
 
 func maskSecret(s string) string {
