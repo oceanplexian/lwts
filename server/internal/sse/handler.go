@@ -90,7 +90,7 @@ func PresenceHandler(hub *Hub, jwtSecret string) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(users)
+		_ = json.NewEncoder(w).Encode(users)
 	}
 }
 

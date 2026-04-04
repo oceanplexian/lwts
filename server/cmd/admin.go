@@ -716,9 +716,9 @@ func runRestore() {
 	}
 
 	// Wipe in FK order (comments, cards, boards — not users per spec)
-	ds.Exec(ctx, "DELETE FROM comments")
-	ds.Exec(ctx, "DELETE FROM cards")
-	ds.Exec(ctx, "DELETE FROM boards")
+	_, _ = ds.Exec(ctx, "DELETE FROM comments")
+	_, _ = ds.Exec(ctx, "DELETE FROM cards")
+	_, _ = ds.Exec(ctx, "DELETE FROM boards")
 
 	// Insert boards
 	for _, b := range data.Boards {

@@ -55,8 +55,8 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
-      - run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-      - run: golangci-lint run ./...
+      - run: GOBIN=/home/runner/.cache/gobin go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+      - run: /home/runner/.cache/gobin/golangci-lint run ./...
 
   frontend-build:
     name: Frontend Build

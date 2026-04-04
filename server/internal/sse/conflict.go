@@ -15,7 +15,7 @@ type ConflictResponse struct {
 func WriteConflict(w http.ResponseWriter, current any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusConflict)
-	json.NewEncoder(w).Encode(ConflictResponse{
+	_ = json.NewEncoder(w).Encode(ConflictResponse{
 		Error:   "version conflict: card was modified by another user",
 		Current: current,
 	})

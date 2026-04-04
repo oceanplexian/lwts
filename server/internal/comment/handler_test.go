@@ -64,7 +64,7 @@ func TestCommentCreate(t *testing.T) {
 	}
 
 	var cmt repo.Comment
-	json.Unmarshal(w.Body.Bytes(), &cmt)
+	_ = json.Unmarshal(w.Body.Bytes(), &cmt)
 	if cmt.Body != "Hello world" {
 		t.Errorf("body: %s", cmt.Body)
 	}
@@ -96,7 +96,7 @@ func TestCommentList(t *testing.T) {
 	mux.ServeHTTP(w, req)
 
 	var list []repo.Comment
-	json.Unmarshal(w.Body.Bytes(), &list)
+	_ = json.Unmarshal(w.Body.Bytes(), &list)
 	if len(list) != 3 {
 		t.Fatalf("count: %d", len(list))
 	}

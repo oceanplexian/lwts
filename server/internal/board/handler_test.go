@@ -66,7 +66,7 @@ func TestBoardCreate(t *testing.T) {
 	}
 
 	var b repo.Board
-	json.Unmarshal(w.Body.Bytes(), &b)
+	_ = json.Unmarshal(w.Body.Bytes(), &b)
 	if b.Name != "Sprint 1" {
 		t.Errorf("name: %s", b.Name)
 	}
