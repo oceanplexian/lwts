@@ -49,7 +49,7 @@ func scanDiscordRow(h *Handler, r *http.Request) (discordConfig, error) {
 	cfg.Enabled = enabled != 0
 	cfg.Notify = defaultNotify
 	if notifyJSON != "" {
-		json.Unmarshal([]byte(notifyJSON), &cfg.Notify)
+		_ = json.Unmarshal([]byte(notifyJSON), &cfg.Notify)
 	}
 	return cfg, err
 }
@@ -180,7 +180,7 @@ func (h *Handler) TestDiscord(w http.ResponseWriter, r *http.Request) {
 			Message string `json:"message"`
 			Code    int    `json:"code"`
 		}
-		json.Unmarshal(body, &discordErr)
+		_ = json.Unmarshal(body, &discordErr)
 		msg := "Discord API error"
 		if discordErr.Message != "" {
 			msg = discordErr.Message

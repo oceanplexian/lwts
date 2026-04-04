@@ -65,7 +65,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(wh)
+	_ = json.NewEncoder(w).Encode(wh)
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
@@ -86,7 +86,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(webhooks)
+	_ = json.NewEncoder(w).Encode(webhooks)
 }
 
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
@@ -105,7 +105,7 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	wh.Secret = maskSecret(wh.Secret)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(wh)
+	_ = json.NewEncoder(w).Encode(wh)
 }
 
 type updateRequest struct {

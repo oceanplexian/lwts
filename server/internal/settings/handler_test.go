@@ -183,7 +183,7 @@ func TestExport(t *testing.T) {
 	ctx := context.Background()
 
 	user, _ := users.Create(ctx, "User", "u@t.com", "h")
-	boards.Create(ctx, "Board1", "B1", user.ID)
+	_, _ = boards.Create(ctx, "Board1", "B1", user.ID)
 
 	req := httptest.NewRequest("GET", "/api/v1/export", nil)
 	req = withUser(req, user)
@@ -212,7 +212,7 @@ func TestResetWorkspace(t *testing.T) {
 	ctx := context.Background()
 
 	user, _ := users.Create(ctx, "Admin", "a@t.com", "h")
-	boards.Create(ctx, "Board1", "B1", user.ID)
+	_, _ = boards.Create(ctx, "Board1", "B1", user.ID)
 
 	req := httptest.NewRequest("POST", "/api/v1/settings/reset", nil)
 	req = withUser(req, user)

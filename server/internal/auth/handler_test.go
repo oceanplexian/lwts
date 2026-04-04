@@ -74,7 +74,7 @@ func TestRegister_Success(t *testing.T) {
 	}
 
 	var resp authResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
 	if resp.User == nil {
 		t.Fatal("user is nil")
 	}
@@ -163,7 +163,7 @@ func TestLogin_Success(t *testing.T) {
 		t.Fatalf("status = %d, want 200, body: %s", rec.Code, rec.Body.String())
 	}
 	var resp authResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
 	if resp.AccessToken == "" {
 		t.Error("access token missing")
 	}
@@ -203,7 +203,7 @@ func TestRefresh_Success(t *testing.T) {
 	users.users["user-123"] = &repo.User{ID: "user-123", Email: "alice@test.com", Role: "member"}
 
 	pair, jti, _ := IssueTokens(testSecret, "user-123", "alice@test.com", "member")
-	tokens.SaveRefreshToken(context.Background(), "user-123", jti, time.Now().Add(RefreshTokenTTL))
+	_ = tokens.SaveRefreshToken(context.Background(), "user-123", jti, time.Now().Add(RefreshTokenTTL))
 
 	body := jsonBody(map[string]string{"refresh_token": pair.RefreshToken})
 	req := httptest.NewRequest("POST", "/api/auth/refresh", body)

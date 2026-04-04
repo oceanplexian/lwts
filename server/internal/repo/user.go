@@ -183,7 +183,7 @@ func (r *UserRepository) Delete(ctx context.Context, id string) error {
 	_, _ = r.ds.Exec(ctx, `DELETE FROM refresh_tokens WHERE user_id = $1`, id)
 	_, _ = r.ds.Exec(ctx, `DELETE FROM settings WHERE user_id = $1`, id)
 	_, _ = r.ds.Exec(ctx, `DELETE FROM api_keys WHERE user_id = $1`, id)
-	r.ds.Exec(ctx, `DELETE FROM comments WHERE author_id = $1`, id)
+	_, _ = r.ds.Exec(ctx, `DELETE FROM comments WHERE author_id = $1`, id)
 	_, err := r.ds.Exec(ctx, `DELETE FROM users WHERE id = $1`, id)
 	return err
 }

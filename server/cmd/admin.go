@@ -138,7 +138,7 @@ func runResetPassword() {
 		os.Exit(1)
 	}
 
-	ds.Exec(ctx, "DELETE FROM refresh_tokens WHERE user_id = (SELECT id FROM users WHERE LOWER(email) = LOWER($1))", email)
+	_, _ = ds.Exec(ctx, "DELETE FROM refresh_tokens WHERE user_id = (SELECT id FROM users WHERE LOWER(email) = LOWER($1))", email)
 	fmt.Printf("password reset for %s\n", email)
 }
 
@@ -167,7 +167,7 @@ func runBoards() {
 			ownerName = u.Name
 		}
 		var count int
-		ds.QueryRow(ctx, "SELECT COUNT(*) FROM cards WHERE board_id = $1", b.ID).Scan(&count)
+		_ = ds.QueryRow(ctx, "SELECT COUNT(*) FROM cards WHERE board_id = $1", b.ID).Scan(&count)
 		fmt.Printf("%-36s  %-25s  %-10s  %-20s  %d\n",
 			b.ID, truncate(b.Name, 25), b.ProjectKey, truncate(ownerName, 20), count)
 	}
@@ -215,9 +215,9 @@ func runBoardDelete() {
 	defer ds.Close()
 
 	// Delete comments on cards in this board
-	ds.Exec(ctx, "DELETE FROM comments WHERE card_id IN (SELECT id FROM cards WHERE board_id = $1)", boardID)
+	_, _ = ds.Exec(ctx, "DELETE FROM comments WHERE card_id IN (SELECT id FROM cards WHERE board_id = $1)", boardID)
 	// Delete cards
-	ds.Exec(ctx, "DELETE FROM cards WHERE board_id = $1", boardID)
+	_, _ = ds.Exec(ctx, "DELETE FROM cards WHERE board_id = $1", boardID)
 	// Delete the board
 	boards := repo.NewBoardRepository(ds)
 	if err := boards.Delete(ctx, boardID); err != nil {
@@ -545,10 +545,10 @@ func runStats() {
 	defer ds.Close()
 
 	var userCount, boardCount, cardCount, commentCount int
-	ds.QueryRow(ctx, "SELECT COUNT(*) FROM users").Scan(&userCount)
-	ds.QueryRow(ctx, "SELECT COUNT(*) FROM boards").Scan(&boardCount)
-	ds.QueryRow(ctx, "SELECT COUNT(*) FROM cards").Scan(&cardCount)
-	ds.QueryRow(ctx, "SELECT COUNT(*) FROM comments").Scan(&commentCount)
+	_ = ds.QueryRow(ctx, "SELECT COUNT(*) FROM users").Scan(&userCount)
+	_ = ds.QueryRow(ctx, "SELECT COUNT(*) FROM boards").Scan(&boardCount)
+	_ = ds.QueryRow(ctx, "SELECT COUNT(*) FROM cards").Scan(&cardCount)
+	_ = ds.QueryRow(ctx, "SELECT COUNT(*) FROM comments").Scan(&commentCount)
 
 	fmt.Printf("Users:       %d\n", userCount)
 	fmt.Printf("Boards:      %d\n", boardCount)
@@ -563,7 +563,7 @@ func runStats() {
 		for rows.Next() {
 			var col string
 			var cnt int
-			rows.Scan(&col, &cnt)
+			_ = rows.Scan(&col, &cnt)
 			fmt.Printf("  %-20s %d\n", col, cnt)
 		}
 	}
@@ -576,7 +576,7 @@ func runStats() {
 		for rows2.Next() {
 			var pri string
 			var cnt int
-			rows2.Scan(&pri, &cnt)
+			_ = rows2.Scan(&pri, &cnt)
 			fmt.Printf("  %-20s %d\n", pri, cnt)
 		}
 	}
@@ -786,7 +786,7 @@ func runAPIKey() {
 	}
 
 	rawKey := make([]byte, 32)
-	rand.Read(rawKey)
+	_, _ = rand.Read(rawKey)
 	fullKey := "lwts_sk_" + hex.EncodeToString(rawKey)
 	prefix := "lwts_sk_" + "••••••••" + fullKey[len(fullKey)-4:]
 

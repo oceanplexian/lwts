@@ -48,7 +48,7 @@ func StreamHandler(hub *Hub, jwtSecret string) http.HandlerFunc {
 
 		// Send initial connected event
 		connData, _ := json.Marshal(map[string]string{"status": "connected", "board_id": boardID})
-		w.Write(formatSSE("connected", connData))
+		_, _ = w.Write(formatSSE("connected", connData))
 		flusher.Flush()
 
 		ctx := r.Context()
@@ -59,7 +59,7 @@ func StreamHandler(hub *Hub, jwtSecret string) http.HandlerFunc {
 					// Channel closed (slow client disconnect)
 					return
 				}
-				w.Write(msg)
+				_, _ = w.Write(msg)
 				flusher.Flush()
 			case <-ctx.Done():
 				return
