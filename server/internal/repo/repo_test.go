@@ -68,7 +68,7 @@ func TestUserGetByEmail(t *testing.T) {
 	repo := NewUserRepository(ds)
 	ctx := context.Background()
 
-	repo.Create(ctx, "Alice Smith", "Alice@LWTS.dev", "hash")
+	_, _ = repo.Create(ctx, "Alice Smith", "Alice@LWTS.dev", "hash")
 	got, err := repo.GetByEmail(ctx, "alice@lwts.dev")
 	if err != nil {
 		t.Fatalf("get by email: %v", err)
@@ -105,9 +105,9 @@ func TestUserList(t *testing.T) {
 	repo := NewUserRepository(ds)
 	ctx := context.Background()
 
-	repo.Create(ctx, "A", "a@test.com", "h")
-	repo.Create(ctx, "B", "b@test.com", "h")
-	repo.Create(ctx, "C", "c@test.com", "h")
+	_, _ = repo.Create(ctx, "A", "a@test.com", "h")
+	_, _ = repo.Create(ctx, "B", "b@test.com", "h")
+	_, _ = repo.Create(ctx, "C", "c@test.com", "h")
 
 	users, err := repo.List(ctx)
 	if err != nil {
@@ -163,8 +163,8 @@ func TestBoardCRUD(t *testing.T) {
 	ctx := context.Background()
 
 	owner, _ := users.Create(ctx, "Owner", "owner@test.com", "hash")
-	boards.Create(ctx, "Board A", "BA", owner.ID)
-	boards.Create(ctx, "Board B", "BB", owner.ID)
+	_, _ = boards.Create(ctx, "Board A", "BA", owner.ID)
+	_, _ = boards.Create(ctx, "Board B", "BB", owner.ID)
 
 	list, err := boards.List(ctx)
 	if err != nil {
@@ -237,9 +237,9 @@ func TestCardListByBoard(t *testing.T) {
 	owner, _ := users.Create(ctx, "Owner", "owner@test.com", "hash")
 	board, _ := boards.Create(ctx, "Board", "LWTS", owner.ID)
 
-	cards.Create(ctx, board.ID, CardCreate{ColumnID: "backlog", Title: "C1"})
-	cards.Create(ctx, board.ID, CardCreate{ColumnID: "todo", Title: "C2"})
-	cards.Create(ctx, board.ID, CardCreate{ColumnID: "backlog", Title: "C3"})
+	_, _ = cards.Create(ctx, board.ID, CardCreate{ColumnID: "backlog", Title: "C1"})
+	_, _ = cards.Create(ctx, board.ID, CardCreate{ColumnID: "todo", Title: "C2"})
+	_, _ = cards.Create(ctx, board.ID, CardCreate{ColumnID: "backlog", Title: "C3"})
 
 	list, err := cards.ListByBoard(ctx, board.ID)
 	if err != nil {
@@ -354,8 +354,8 @@ func TestCommentCRUD(t *testing.T) {
 		t.Errorf("body = %q", c1.Body)
 	}
 
-	comments.Create(ctx, card.ID, owner.ID, "Second")
-	comments.Create(ctx, card.ID, owner.ID, "Third")
+	_, _ = comments.Create(ctx, card.ID, owner.ID, "Second")
+	_, _ = comments.Create(ctx, card.ID, owner.ID, "Third")
 
 	list, err := comments.ListByCard(ctx, card.ID)
 	if err != nil {
@@ -427,10 +427,10 @@ func TestBoardDeleteCascadesCards(t *testing.T) {
 
 	owner, _ := users.Create(ctx, "Owner", "owner@test.com", "hash")
 	board, _ := boards.Create(ctx, "Board", "LWTS", owner.ID)
-	cards.Create(ctx, board.ID, CardCreate{ColumnID: "todo", Title: "C1"})
-	cards.Create(ctx, board.ID, CardCreate{ColumnID: "todo", Title: "C2"})
+	_, _ = cards.Create(ctx, board.ID, CardCreate{ColumnID: "todo", Title: "C1"})
+	_, _ = cards.Create(ctx, board.ID, CardCreate{ColumnID: "todo", Title: "C2"})
 
-	boards.Delete(ctx, board.ID)
+	_ = boards.Delete(ctx, board.ID)
 
 	list, _ := cards.ListByBoard(ctx, board.ID)
 	if len(list) != 0 {
@@ -449,9 +449,9 @@ func TestCardDeleteCascadesComments(t *testing.T) {
 	owner, _ := users.Create(ctx, "Owner", "owner@test.com", "hash")
 	board, _ := boards.Create(ctx, "Board", "LWTS", owner.ID)
 	card, _ := cards.Create(ctx, board.ID, CardCreate{ColumnID: "todo", Title: "C"})
-	comments.Create(ctx, card.ID, owner.ID, "comment")
+	_, _ = comments.Create(ctx, card.ID, owner.ID, "comment")
 
-	cards.Delete(ctx, card.ID)
+	_ = cards.Delete(ctx, card.ID)
 
 	list, _ := comments.ListByCard(ctx, card.ID)
 	if len(list) != 0 {

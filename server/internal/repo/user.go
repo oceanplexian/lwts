@@ -177,12 +177,12 @@ func (r *UserRepository) Update(ctx context.Context, id string, fields UserUpdat
 
 func (r *UserRepository) Delete(ctx context.Context, id string) error {
 	// Nullify FK references before deleting
-	r.ds.Exec(ctx, `UPDATE cards SET assignee_id = NULL WHERE assignee_id = $1`, id)
-	r.ds.Exec(ctx, `UPDATE cards SET reporter_id = NULL WHERE reporter_id = $1`, id)
-	r.ds.Exec(ctx, `UPDATE boards SET owner_id = (SELECT id FROM users WHERE role = 'owner' LIMIT 1) WHERE owner_id = $1`, id)
-	r.ds.Exec(ctx, `DELETE FROM refresh_tokens WHERE user_id = $1`, id)
-	r.ds.Exec(ctx, `DELETE FROM settings WHERE user_id = $1`, id)
-	r.ds.Exec(ctx, `DELETE FROM api_keys WHERE user_id = $1`, id)
+	_, _ = r.ds.Exec(ctx, `UPDATE cards SET assignee_id = NULL WHERE assignee_id = $1`, id)
+	_, _ = r.ds.Exec(ctx, `UPDATE cards SET reporter_id = NULL WHERE reporter_id = $1`, id)
+	_, _ = r.ds.Exec(ctx, `UPDATE boards SET owner_id = (SELECT id FROM users WHERE role = 'owner' LIMIT 1) WHERE owner_id = $1`, id)
+	_, _ = r.ds.Exec(ctx, `DELETE FROM refresh_tokens WHERE user_id = $1`, id)
+	_, _ = r.ds.Exec(ctx, `DELETE FROM settings WHERE user_id = $1`, id)
+	_, _ = r.ds.Exec(ctx, `DELETE FROM api_keys WHERE user_id = $1`, id)
 	r.ds.Exec(ctx, `DELETE FROM comments WHERE author_id = $1`, id)
 	_, err := r.ds.Exec(ctx, `DELETE FROM users WHERE id = $1`, id)
 	return err

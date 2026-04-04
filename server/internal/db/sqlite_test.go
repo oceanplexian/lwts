@@ -45,8 +45,8 @@ func TestSQLiteSelectOne(t *testing.T) {
 func TestSQLitePlaceholderConversion(t *testing.T) {
 	ds := newTestSQLite(t)
 	ctx := context.Background()
-	ds.Exec(ctx, "CREATE TABLE test (a TEXT, b TEXT)")
-	ds.Exec(ctx, "INSERT INTO test (a, b) VALUES ($1, $2)", "hello", "world")
+	_, _ = ds.Exec(ctx, "CREATE TABLE test (a TEXT, b TEXT)")
+	_, _ = ds.Exec(ctx, "INSERT INTO test (a, b) VALUES ($1, $2)", "hello", "world")
 
 	var a, b string
 	if err := ds.QueryRow(ctx, "SELECT a, b FROM test WHERE a = $1", "hello").Scan(&a, &b); err != nil {
@@ -72,8 +72,8 @@ func TestSQLiteWALMode(t *testing.T) {
 func TestSQLiteForeignKeys(t *testing.T) {
 	ds := newTestSQLite(t)
 	ctx := context.Background()
-	ds.Exec(ctx, "CREATE TABLE parent (id INTEGER PRIMARY KEY)")
-	ds.Exec(ctx, "CREATE TABLE child (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES parent(id))")
+	_, _ = ds.Exec(ctx, "CREATE TABLE parent (id INTEGER PRIMARY KEY)")
+	_, _ = ds.Exec(ctx, "CREATE TABLE child (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES parent(id))")
 
 	_, err := ds.Exec(ctx, "INSERT INTO child (id, parent_id) VALUES (1, 999)")
 	if err == nil {
@@ -84,28 +84,28 @@ func TestSQLiteForeignKeys(t *testing.T) {
 func TestSQLiteTransaction(t *testing.T) {
 	ds := newTestSQLite(t)
 	ctx := context.Background()
-	ds.Exec(ctx, "CREATE TABLE txtest (val TEXT)")
+	_, _ = ds.Exec(ctx, "CREATE TABLE txtest (val TEXT)")
 
 	tx, err := ds.Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	tx.Exec(ctx, "INSERT INTO txtest (val) VALUES ($1)", "committed")
-	tx.Commit(ctx)
+	_, _ = tx.Exec(ctx, "INSERT INTO txtest (val) VALUES ($1)", "committed")
+	_ = tx.Commit(ctx)
 
 	var val string
-	ds.QueryRow(ctx, "SELECT val FROM txtest").Scan(&val)
+	_ = ds.QueryRow(ctx, "SELECT val FROM txtest").Scan(&val)
 	if val != "committed" {
 		t.Fatalf("expected committed, got %s", val)
 	}
 
 	// Test rollback
 	tx2, _ := ds.Begin(ctx)
-	tx2.Exec(ctx, "INSERT INTO txtest (val) VALUES ($1)", "rolled-back")
-	tx2.Rollback(ctx)
+	_, _ = tx2.Exec(ctx, "INSERT INTO txtest (val) VALUES ($1)", "rolled-back")
+	_ = tx2.Rollback(ctx)
 
 	var count int
-	ds.QueryRow(ctx, "SELECT COUNT(*) FROM txtest").Scan(&count)
+	_ = ds.QueryRow(ctx, "SELECT COUNT(*) FROM txtest").Scan(&count)
 	if count != 1 {
 		t.Fatalf("expected 1 row after rollback, got %d", count)
 	}
@@ -114,7 +114,7 @@ func TestSQLiteTransaction(t *testing.T) {
 func TestSQLiteNoRows(t *testing.T) {
 	ds := newTestSQLite(t)
 	ctx := context.Background()
-	ds.Exec(ctx, "CREATE TABLE empty (id INTEGER)")
+	_, _ = ds.Exec(ctx, "CREATE TABLE empty (id INTEGER)")
 
 	var id int
 	err := ds.QueryRow(ctx, "SELECT id FROM empty WHERE id = 1").Scan(&id)
@@ -143,7 +143,7 @@ func TestSQLiteMigrateAll(t *testing.T) {
 
 	// Verify schema_migrations
 	var count int
-	ds.QueryRow(ctx, "SELECT COUNT(*) FROM schema_migrations").Scan(&count)
+	_ = ds.QueryRow(ctx, "SELECT COUNT(*) FROM schema_migrations").Scan(&count)
 	if count != 16 {
 		t.Fatalf("expected 16 migrations, got %d", count)
 	}
@@ -161,7 +161,7 @@ func TestSQLiteMigrateIdempotent(t *testing.T) {
 	}
 
 	var count int
-	ds.QueryRow(ctx, "SELECT COUNT(*) FROM schema_migrations").Scan(&count)
+	_ = ds.QueryRow(ctx, "SELECT COUNT(*) FROM schema_migrations").Scan(&count)
 	if count != 16 {
 		t.Fatalf("expected 16 migrations after idempotent run, got %d", count)
 	}
@@ -170,7 +170,7 @@ func TestSQLiteMigrateIdempotent(t *testing.T) {
 func TestSQLiteInsertAndQueryUser(t *testing.T) {
 	ds := newTestSQLite(t)
 	ctx := context.Background()
-	Migrate(ctx, ds, migrations.FS)
+	_ = Migrate(ctx, ds, migrations.FS)
 
 	id := "550e8400-e29b-41d4-a716-446655440000"
 	_, err := ds.Exec(ctx,
@@ -194,23 +194,23 @@ func TestSQLiteInsertAndQueryUser(t *testing.T) {
 func TestSQLiteCascadeDelete(t *testing.T) {
 	ds := newTestSQLite(t)
 	ctx := context.Background()
-	Migrate(ctx, ds, migrations.FS)
+	_ = Migrate(ctx, ds, migrations.FS)
 
 	// Create user -> board -> card -> comment, then delete board
 	uid := "550e8400-e29b-41d4-a716-446655440001"
 	bid := "550e8400-e29b-41d4-a716-446655440002"
 	cid := "550e8400-e29b-41d4-a716-446655440003"
 
-	ds.Exec(ctx, "INSERT INTO users (id, email, name, password_hash) VALUES ($1, $2, $3, $4)", uid, "a@b.com", "A", "h")
-	ds.Exec(ctx, "INSERT INTO boards (id, name, owner_id) VALUES ($1, $2, $3)", bid, "Board", uid)
-	ds.Exec(ctx, "INSERT INTO cards (id, board_id, column_id, title, key) VALUES ($1, $2, $3, $4, $5)", cid, bid, "todo", "Card", "LWTS-1")
-	ds.Exec(ctx, "INSERT INTO comments (id, card_id, author_id, body) VALUES ($1, $2, $3, $4)", "550e8400-e29b-41d4-a716-446655440004", cid, uid, "hello")
+	_, _ = ds.Exec(ctx, "INSERT INTO users (id, email, name, password_hash) VALUES ($1, $2, $3, $4)", uid, "a@b.com", "A", "h")
+	_, _ = ds.Exec(ctx, "INSERT INTO boards (id, name, owner_id) VALUES ($1, $2, $3)", bid, "Board", uid)
+	_, _ = ds.Exec(ctx, "INSERT INTO cards (id, board_id, column_id, title, key) VALUES ($1, $2, $3, $4, $5)", cid, bid, "todo", "Card", "LWTS-1")
+	_, _ = ds.Exec(ctx, "INSERT INTO comments (id, card_id, author_id, body) VALUES ($1, $2, $3, $4)", "550e8400-e29b-41d4-a716-446655440004", cid, uid, "hello")
 
-	ds.Exec(ctx, "DELETE FROM boards WHERE id = $1", bid)
+	_, _ = ds.Exec(ctx, "DELETE FROM boards WHERE id = $1", bid)
 
 	var cardCount, commentCount int
-	ds.QueryRow(ctx, "SELECT COUNT(*) FROM cards").Scan(&cardCount)
-	ds.QueryRow(ctx, "SELECT COUNT(*) FROM comments").Scan(&commentCount)
+	_ = ds.QueryRow(ctx, "SELECT COUNT(*) FROM cards").Scan(&cardCount)
+	_ = ds.QueryRow(ctx, "SELECT COUNT(*) FROM comments").Scan(&commentCount)
 	if cardCount != 0 || commentCount != 0 {
 		t.Fatalf("cascade failed: cards=%d, comments=%d", cardCount, commentCount)
 	}
@@ -219,12 +219,12 @@ func TestSQLiteCascadeDelete(t *testing.T) {
 func TestSQLiteCheckConstraint(t *testing.T) {
 	ds := newTestSQLite(t)
 	ctx := context.Background()
-	Migrate(ctx, ds, migrations.FS)
+	_ = Migrate(ctx, ds, migrations.FS)
 
 	uid := "550e8400-e29b-41d4-a716-446655440010"
 	bid := "550e8400-e29b-41d4-a716-446655440011"
-	ds.Exec(ctx, "INSERT INTO users (id, email, name, password_hash) VALUES ($1, $2, $3, $4)", uid, "c@d.com", "C", "h")
-	ds.Exec(ctx, "INSERT INTO boards (id, name, owner_id) VALUES ($1, $2, $3)", bid, "Board", uid)
+	_, _ = ds.Exec(ctx, "INSERT INTO users (id, email, name, password_hash) VALUES ($1, $2, $3, $4)", uid, "c@d.com", "C", "h")
+	_, _ = ds.Exec(ctx, "INSERT INTO boards (id, name, owner_id) VALUES ($1, $2, $3)", bid, "Board", uid)
 
 	_, err := ds.Exec(ctx,
 		"INSERT INTO cards (id, board_id, column_id, title, key, priority) VALUES ($1, $2, $3, $4, $5, $6)",

@@ -42,10 +42,10 @@ func createTestBoard(t *testing.T, ds db.Datasource) string {
 	now := time.Now().UTC()
 	userID := "test-user-id"
 	boardID := "test-board-id"
-	ds.Exec(ctx, `INSERT INTO users (id, email, name, password_hash, avatar_color, initials, role, created_at, updated_at)
+	_, _ = ds.Exec(ctx, `INSERT INTO users (id, email, name, password_hash, avatar_color, initials, role, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 		userID, "test@test.com", "Test", "hash", "#82B1FF", "T", "owner", now, now)
-	ds.Exec(ctx, `INSERT INTO boards (id, name, project_key, owner_id, columns, settings, created_at, updated_at)
+	_, _ = ds.Exec(ctx, `INSERT INTO boards (id, name, project_key, owner_id, columns, settings, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 		boardID, "Test Board", "TST", userID, "[]", "{}", now, now)
 	return boardID
@@ -170,13 +170,13 @@ func TestListEnabledForBoard(t *testing.T) {
 	store := NewStore(ds)
 	ctx := context.Background()
 
-	store.CreateWebhook(ctx, boardID, "https://a.com/hook", EventCardCreated)
-	store.CreateWebhook(ctx, boardID, "https://b.com/hook", EventWildcard)
+	_, _ = store.CreateWebhook(ctx, boardID, "https://a.com/hook", EventCardCreated)
+	_, _ = store.CreateWebhook(ctx, boardID, "https://b.com/hook", EventWildcard)
 	wh3, _ := store.CreateWebhook(ctx, boardID, "https://c.com/hook", EventCommentAdded)
 
 	// Disable one
 	disabled := false
-	store.UpdateWebhook(ctx, wh3.ID, WebhookUpdate{Enabled: &disabled})
+	_, _ = store.UpdateWebhook(ctx, wh3.ID, WebhookUpdate{Enabled: &disabled})
 
 	// Query for card.created — should match: a (exact) + b (wildcard), not c (disabled, wrong type)
 	matched, err := store.ListEnabledForBoard(ctx, boardID, EventCardCreated)
@@ -304,8 +304,8 @@ func TestDispatcherFanOut(t *testing.T) {
 	defer srv.Close()
 
 	ctx := context.Background()
-	store.CreateWebhook(ctx, boardID, srv.URL+"/a", EventWildcard)
-	store.CreateWebhook(ctx, boardID, srv.URL+"/b", EventCardCreated)
+	_, _ = store.CreateWebhook(ctx, boardID, srv.URL+"/a", EventWildcard)
+	_, _ = store.CreateWebhook(ctx, boardID, srv.URL+"/b", EventCardCreated)
 
 	d := NewDispatcher(store, slog.Default())
 	d.Run()
@@ -338,7 +338,7 @@ func TestDispatcherTimeout(t *testing.T) {
 	defer srv.Close()
 
 	ctx := context.Background()
-	store.CreateWebhook(ctx, boardID, srv.URL, EventCardCreated)
+	_, _ = store.CreateWebhook(ctx, boardID, srv.URL, EventCardCreated)
 
 	d := NewDispatcher(store, slog.Default())
 	d.Run()
@@ -358,7 +358,7 @@ func TestDispatcherTimeout(t *testing.T) {
 	for rows.Next() {
 		var status string
 		var attempts int
-		rows.Scan(&status, &attempts)
+		_ = rows.Scan(&status, &attempts)
 		if attempts > 0 {
 			found = true
 		}
@@ -378,7 +378,7 @@ func TestRetryAndFail(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts.Add(1)
 		w.WriteHeader(500)
-		w.Write([]byte("Internal Server Error"))
+		_, _ = w.Write([]byte("Internal Server Error"))
 	}))
 	defer srv.Close()
 
@@ -455,7 +455,7 @@ func TestHandlerCRUD(t *testing.T) {
 	}
 
 	var created Webhook
-	json.Unmarshal(w.Body.Bytes(), &created)
+	_ = json.Unmarshal(w.Body.Bytes(), &created)
 	if created.Secret == "" {
 		t.Error("secret should be included in create response")
 	}
@@ -466,7 +466,7 @@ func TestHandlerCRUD(t *testing.T) {
 	mux.ServeHTTP(w, req)
 
 	var listed []Webhook
-	json.Unmarshal(w.Body.Bytes(), &listed)
+	_ = json.Unmarshal(w.Body.Bytes(), &listed)
 	if len(listed) != 1 {
 		t.Fatalf("listed %d, want 1", len(listed))
 	}
@@ -483,7 +483,7 @@ func TestHandlerCRUD(t *testing.T) {
 	mux.ServeHTTP(w, req)
 
 	var got Webhook
-	json.Unmarshal(w.Body.Bytes(), &got)
+	_ = json.Unmarshal(w.Body.Bytes(), &got)
 	if got.Secret == created.Secret {
 		t.Error("secret should be masked in get response")
 	}
@@ -495,7 +495,7 @@ func TestHandlerCRUD(t *testing.T) {
 	mux.ServeHTTP(w, req)
 
 	var updated Webhook
-	json.Unmarshal(w.Body.Bytes(), &updated)
+	_ = json.Unmarshal(w.Body.Bytes(), &updated)
 	if updated.Enabled {
 		t.Error("should be disabled")
 	}
@@ -559,15 +559,15 @@ func TestHandlerDeliveries(t *testing.T) {
 
 	ctx := context.Background()
 	wh, _ := store.CreateWebhook(ctx, boardID, "https://example.com/hook", EventCardCreated)
-	store.CreateDelivery(ctx, wh.ID, EventCardCreated, `{"test":1}`)
-	store.CreateDelivery(ctx, wh.ID, EventCardCreated, `{"test":2}`)
+	_, _ = store.CreateDelivery(ctx, wh.ID, EventCardCreated, `{"test":1}`)
+	_, _ = store.CreateDelivery(ctx, wh.ID, EventCardCreated, `{"test":2}`)
 
 	req := httptest.NewRequest("GET", "/api/v1/boards/"+boardID+"/webhooks/"+wh.ID+"/deliveries?limit=1", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
 	var deliveries []Delivery
-	json.Unmarshal(w.Body.Bytes(), &deliveries)
+	_ = json.Unmarshal(w.Body.Bytes(), &deliveries)
 	if len(deliveries) != 1 {
 		t.Errorf("deliveries = %d, want 1 (limit=1)", len(deliveries))
 	}

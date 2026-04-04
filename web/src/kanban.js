@@ -1400,8 +1400,7 @@ function saveDescription() {
           detailCard.version = updated.version;
           cardIndex[detailCard.id] = updated;
         }).catch(err => {
-          if (err.status === 409) // 409 conflict — silently refresh
-
+          if (err.status === 409) { /* 409 conflict — silently refresh */ }
           else window.Toast.error('Failed to save description');
         });
       }

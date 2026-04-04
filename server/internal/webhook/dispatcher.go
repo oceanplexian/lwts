@@ -113,7 +113,7 @@ func (d *Dispatcher) handleEvent(evt Event) {
 		pending, _ := d.store.CountPending(ctx, wh.ID)
 		if pending >= autoDisableLimit {
 			disabled := false
-			d.store.UpdateWebhook(ctx, wh.ID, WebhookUpdate{Enabled: &disabled})
+			_, _ = d.store.UpdateWebhook(ctx, wh.ID, WebhookUpdate{Enabled: &disabled})
 			d.logger.Warn("auto-disabled webhook", "webhook_id", wh.ID, "pending", pending)
 			continue
 		}
@@ -148,7 +148,7 @@ func (d *Dispatcher) deliver(ctx context.Context, wh Webhook, delivery Delivery,
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, wh.URL, bytes.NewReader(body))
 	if err != nil {
 		d.logger.Error("build request", "error", err, "url", wh.URL)
-		d.store.MarkFailed(ctx, delivery.ID, 0, err.Error())
+		_ = d.store.MarkFailed(ctx, delivery.ID, 0, err.Error())
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -166,7 +166,7 @@ func (d *Dispatcher) deliver(ctx context.Context, wh Webhook, delivery Delivery,
 	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		d.store.MarkDelivered(ctx, delivery.ID, resp.StatusCode, string(respBody))
+		_ = d.store.MarkDelivered(ctx, delivery.ID, resp.StatusCode, string(respBody))
 	} else {
 		d.scheduleRetryOrFail(ctx, delivery, resp.StatusCode, string(respBody))
 	}
@@ -175,13 +175,13 @@ func (d *Dispatcher) deliver(ctx context.Context, wh Webhook, delivery Delivery,
 func (d *Dispatcher) scheduleRetryOrFail(ctx context.Context, delivery Delivery, code int, body string) {
 	attempt := delivery.Attempts // 0-indexed current attempt
 	if attempt+1 >= maxAttempts {
-		d.store.MarkFailed(ctx, delivery.ID, code, body)
+		_ = d.store.MarkFailed(ctx, delivery.ID, code, body)
 		return
 	}
 
 	nextBackoff := backoffs[attempt+1]
 	nextRetry := time.Now().UTC().Add(nextBackoff)
-	d.store.MarkRetry(ctx, delivery.ID, code, body, nextRetry)
+	_ = d.store.MarkRetry(ctx, delivery.ID, code, body, nextRetry)
 }
 
 func (d *Dispatcher) retryLoop() {
@@ -211,11 +211,11 @@ func (d *Dispatcher) processRetries() {
 		wh, err := d.store.GetWebhook(ctx, del.WebhookID)
 		if err != nil {
 			d.logger.Error("get webhook for retry", "error", err, "webhook_id", del.WebhookID)
-			d.store.MarkFailed(ctx, del.ID, 0, fmt.Sprintf("webhook lookup failed: %v", err))
+			_ = d.store.MarkFailed(ctx, del.ID, 0, fmt.Sprintf("webhook lookup failed: %v", err))
 			continue
 		}
 		if !wh.Enabled {
-			d.store.MarkFailed(ctx, del.ID, 0, "webhook disabled")
+			_ = d.store.MarkFailed(ctx, del.ID, 0, "webhook disabled")
 			continue
 		}
 

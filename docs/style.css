@@ -5,7 +5,7 @@
    ============================================================ */
 
 /* Import the app's actual theme so all variables match exactly */
-@import url('../theme.css');
+@import url('theme.css');
 
 :root {
   /* Landing-page-only additions (not in theme.css) */
