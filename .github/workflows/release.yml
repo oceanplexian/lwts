@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build frontend
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Load settings
+        run: |
+          source settings.sh
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "COMMIT=$COMMIT" >> $GITHUB_ENV
+          echo "BUILD_DATE=$DATE" >> $GITHUB_ENV
+
+      - name: Cross-compile
+        run: |
+          LDFLAGS="-s -w -X main.version=${{ env.VERSION }} -X main.commit=${{ env.COMMIT }} -X main.buildDate=${{ env.BUILD_DATE }}"
+
+          declare -a TARGETS=(
+            "linux/amd64"
+            "linux/arm64"
+            "darwin/amd64"
+            "darwin/arm64"
+            "windows/amd64"
+          )
+
+          mkdir -p dist
+
+          for target in "${TARGETS[@]}"; do
+            GOOS="${target%%/*}"
+            GOARCH="${target##*/}"
+            BIN="lwts"
+            if [ "$GOOS" = "windows" ]; then
+              BIN="lwts.exe"
+            fi
+
+            echo "Building $GOOS/$GOARCH..."
+            CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="$LDFLAGS" -o "dist/$BIN" ./server/cmd
+
+            ARCHIVE="lwts-${GOOS}-${GOARCH}"
+            mkdir -p "dist/$ARCHIVE"
+            mv "dist/$BIN" "dist/$ARCHIVE/"
+            cp -r web/dist "dist/$ARCHIVE/static"
+
+            if [ "$GOOS" = "windows" ]; then
+              (cd dist && zip -r "$ARCHIVE.zip" "$ARCHIVE")
+            else
+              tar -czf "dist/$ARCHIVE.tar.gz" -C dist "$ARCHIVE"
+            fi
+
+            rm -rf "dist/$ARCHIVE"
+          done
+
+      - name: Generate checksums
+        working-directory: dist
+        run: sha256sum *.tar.gz *.zip > sha256sums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/sha256sums.txt

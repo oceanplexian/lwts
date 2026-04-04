@@ -10,9 +10,11 @@ PID_FILE = /tmp/lwts-dev.pid
 APP_NAME := lwts
 REGISTRY := docker.io/lwts
 IMAGE_NAME := $(REGISTRY)/$(APP_NAME)
-VERSION := $(shell git describe --tags --always 2>/dev/null || echo "dev")
-BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-BUILD_COMMIT := $(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
+# Source build metadata
+SETTINGS := $(shell bash -c 'source settings.sh && echo "$$VERSION|$$COMMIT|$$DATE"')
+VERSION := $(word 1,$(subst |, ,$(SETTINGS)))
+BUILD_COMMIT := $(word 2,$(subst |, ,$(SETTINGS)))
+BUILD_DATE := $(word 3,$(subst |, ,$(SETTINGS)))
 PLATFORMS := linux/amd64,linux/arm64
 BUILDER_NAME := $(APP_NAME)-multiarch-builder
 
@@ -25,7 +27,7 @@ export LOG_LEVEL ?= info
 # ── Development ──────────────────────────────────────────────
 
 build:
-	CGO_ENABLED=0 go build -ldflags="-s -w" -o $(BIN) ./server/cmd
+	CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=$(VERSION) -X main.commit=$(BUILD_COMMIT) -X main.buildDate=$(BUILD_DATE)" -o $(BIN) ./server/cmd
 
 run: build stop
 	@$(BIN) migrate
@@ -114,6 +116,8 @@ push: setup-buildx
 	docker buildx build \
 		--platform $(PLATFORMS) \
 		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT=$(BUILD_COMMIT) \
+		--build-arg BUILD_DATE=$(BUILD_DATE) \
 		--tag $(IMAGE_NAME):$(VERSION) \
 		--tag $(IMAGE_NAME):latest \
 		--push \

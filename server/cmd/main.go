@@ -29,6 +29,8 @@ import (
 )
 
 var version = "dev"
+var commit = "unknown"
+var buildDate = "unknown"
 
 func main() {
 	// Handle CLI subcommands that don't need full config
@@ -118,7 +120,12 @@ func main() {
 	// Health endpoints
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		json.NewEncoder(w).Encode(map[string]string{
+			"status":    "ok",
+			"version":   version,
+			"commit":    commit,
+			"buildDate": buildDate,
+		})
 	})
 	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
 		// TODO: check DB connectivity once datasource is wired
