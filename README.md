@@ -11,9 +11,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/oceanplexian/lwts/actions/workflows/test-and-lint.yml"><img src="https://img.shields.io/github/actions/workflow/status/oceanplexian/lwts/test-and-lint.yml?branch=main&style=flat-square&label=tests" alt="Tests"></a>
+  <a href="https://github.com/oceanplexian/lwts/actions/workflows/test-and-lint.yml"><img src="https://img.shields.io/github/actions/workflow/status/oceanplexian/lwts/test-and-lint.yml?style=flat-square&label=tests" alt="Tests"></a>
   <a href="https://github.com/oceanplexian/lwts/actions/workflows/docker.yml"><img src="https://img.shields.io/github/actions/workflow/status/oceanplexian/lwts/docker.yml?branch=main&style=flat-square&label=docker" alt="Docker Build"></a>
-  <a href="https://github.com/oceanplexian/lwts/releases"><img src="https://img.shields.io/github/v/release/oceanplexian/lwts?style=flat-square" alt="Release"></a>
+  <img src="https://img.shields.io/badge/go-1.25-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go 1.25">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/oceanplexian/lwts?style=flat-square" alt="License"></a>
 </p>
 
@@ -24,21 +24,10 @@
 ---
 
 <p align="center">
-  <img src="docs/img/sc-2.png" alt="LWTS Kanban Board" width="100%" />
+  <img src="docs/img/sc-2.png" alt="Kanban Board" width="32%" />
+  <img src="docs/img/sc-1.png" alt="Card Detail" width="32%" />
+  <img src="docs/img/sc-3.png" alt="Settings" width="32%" />
 </p>
-
-<details>
-<summary><strong>More screenshots</strong></summary>
-<br>
-<p align="center">
-  <em>Card detail view with activity, subtasks, and metadata</em><br>
-  <img src="docs/img/sc-1.png" alt="Card Detail View" width="100%" />
-</p>
-<p align="center">
-  <em>Team management and settings</em><br>
-  <img src="docs/img/sc-3.png" alt="Settings" width="100%" />
-</p>
-</details>
 
 ---
 
