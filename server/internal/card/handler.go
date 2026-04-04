@@ -201,7 +201,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		current, _ := h.cards.GetByID(r.Context(), id)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusConflict)
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"error":   "version conflict",
 			"current": current,
 		})
@@ -306,7 +306,7 @@ func (h *Handler) Move(w http.ResponseWriter, r *http.Request) {
 		current, _ := h.cards.GetByID(r.Context(), id)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusConflict)
-		json.NewEncoder(w).Encode(map[string]any{"error": "version conflict", "current": current})
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": "version conflict", "current": current})
 		return
 	}
 	if err != nil {
@@ -360,7 +360,7 @@ func (h *Handler) getTransitionRules(ctx context.Context, boardID string) Transi
 		return TransitionRules{}
 	}
 	var rules TransitionRules
-	json.Unmarshal(raw, &rules)
+	_ = json.Unmarshal(raw, &rules)
 	return rules
 }
 
@@ -458,7 +458,7 @@ func broadcast(hub *sse.Hub, boardID, eventType string, payload any) {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	_ = json.NewEncoder(w).Encode(v)
 }
 
 func writeErr(w http.ResponseWriter, status int, msg string) {

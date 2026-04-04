@@ -120,7 +120,7 @@ func main() {
 	// Health endpoints
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"status":    "ok",
 			"version":   version,
 			"commit":    commit,
@@ -130,7 +130,7 @@ func main() {
 	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
 		// TODO: check DB connectivity once datasource is wired
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 
 	// Database — auto-setup tables on startup
@@ -201,14 +201,14 @@ func main() {
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "internal server error"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "internal server error"})
 			return
 		}
 		if users == nil {
 			users = []repo.User{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(users)
+		_ = json.NewEncoder(w).Encode(users)
 	})))
 
 	// Seed function — creates demo board+cards for a user
