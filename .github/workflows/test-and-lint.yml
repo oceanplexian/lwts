@@ -10,10 +10,7 @@ permissions:
 jobs:
   go-test:
     name: Go Tests
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: arc-runner-set
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -23,7 +20,7 @@ jobs:
 
   go-test-postgres:
     name: Go Tests (PostgreSQL)
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set
     services:
       postgres:
         image: postgres:16-alpine
@@ -49,7 +46,7 @@ jobs:
 
   golangci-lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -60,7 +57,7 @@ jobs:
 
   frontend-build:
     name: Frontend Build
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set
     defaults:
       run:
         working-directory: web
