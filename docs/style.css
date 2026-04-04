@@ -1421,9 +1421,6 @@ body.light-theme .demo-list-row:hover { background: rgba(43,125,233,0.04); }
 @media (max-width: 1024px) {
   .demo-filter-bar { flex-wrap: wrap; }
   .search-showcase-grid { grid-template-columns: 1fr; gap: 32px; }
-  .search-showcase-info { text-align: center; }
-  .search-showcase-info h2 { text-align: center; }
-  .search-feature-list { align-items: center; }
 }
 
 @media (max-width: 768px) {
@@ -1884,6 +1881,8 @@ body.light-theme .mini-col {
    ============================================================ */
 
 /* ── Author Section ── */
+.mobile-only { display: none; }
+
 .author-section {
   padding: 80px 0;
   position: relative;
@@ -2115,6 +2114,8 @@ body.light-theme .author-linkedin:hover {
 
   .tab-bar { flex-direction: column; }
   .code-block pre { font-size: 12px; padding: 12px; }
+  .desktop-only { display: none; }
+  .mobile-only { display: inline; }
 }
 
 @media (max-width: 480px) {
