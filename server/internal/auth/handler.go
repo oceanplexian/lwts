@@ -271,7 +271,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	if req.RefreshToken != "" {
 		claims, err := ParseRefreshToken(h.jwtSecret, req.RefreshToken)
 		if err == nil {
-			h.tokens.RevokeRefreshToken(r.Context(), claims.ID)
+			_ = h.tokens.RevokeRefreshToken(r.Context(), claims.ID)
 		}
 	}
 
@@ -329,7 +329,7 @@ func (h *Handler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Email string `json:"email"`
 	}
-	json.NewDecoder(r.Body).Decode(&body)
+	_ = json.NewDecoder(r.Body).Decode(&body)
 
 	// Always 200 — log reset token for dev
 	if email, err := SanitizeEmail(body.Email); err == nil {

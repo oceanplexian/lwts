@@ -82,9 +82,9 @@ func TestCommentList(t *testing.T) {
 	board, _ := boards.Create(ctx, "B", "B", user.ID)
 	card, _ := cards.Create(ctx, board.ID, repo.CardCreate{ColumnID: "todo", Title: "Card"})
 
-	comments.Create(ctx, card.ID, user.ID, "First")
-	comments.Create(ctx, card.ID, user.ID, "Second")
-	comments.Create(ctx, card.ID, user.ID, "Third")
+	_, _ = comments.Create(ctx, card.ID, user.ID, "First")
+	_, _ = comments.Create(ctx, card.ID, user.ID, "Second")
+	_, _ = comments.Create(ctx, card.ID, user.ID, "Third")
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /api/v1/cards/{cardId}/comments", noopAuth(http.HandlerFunc(h.ListByCard)))

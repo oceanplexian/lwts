@@ -97,8 +97,8 @@ func TestBoardList(t *testing.T) {
 	user := createTestUser(t, users)
 	ctx := context.Background()
 
-	boards.Create(ctx, "B1", "B1", user.ID)
-	boards.Create(ctx, "B2", "B2", user.ID)
+	_, _ = boards.Create(ctx, "B1", "B1", user.ID)
+	_, _ = boards.Create(ctx, "B2", "B2", user.ID)
 
 	req := httptest.NewRequest("GET", "/api/v1/boards", nil)
 	req = withUser(req, user)
@@ -120,9 +120,9 @@ func TestBoardGet(t *testing.T) {
 	ctx := context.Background()
 
 	b, _ := boards.Create(ctx, "B", "B", user.ID)
-	cards.Create(ctx, b.ID, repo.CardCreate{ColumnID: "todo", Title: "C1"})
-	cards.Create(ctx, b.ID, repo.CardCreate{ColumnID: "todo", Title: "C2"})
-	cards.Create(ctx, b.ID, repo.CardCreate{ColumnID: "done", Title: "C3"})
+	_, _ = cards.Create(ctx, b.ID, repo.CardCreate{ColumnID: "todo", Title: "C1"})
+	_, _ = cards.Create(ctx, b.ID, repo.CardCreate{ColumnID: "todo", Title: "C2"})
+	_, _ = cards.Create(ctx, b.ID, repo.CardCreate{ColumnID: "done", Title: "C3"})
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /api/v1/boards/{id}", noopAuth(http.HandlerFunc(h.Get)))

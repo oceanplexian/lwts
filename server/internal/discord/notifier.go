@@ -167,7 +167,7 @@ func (n *Notifier) loadConfig() config {
 	cfg.Enabled = enabled != 0
 	cfg.Notify = notifyPrefs{Assigned: true, Done: true, Comment: true, Priority: true}
 	if notifyJSON != "" {
-		json.Unmarshal([]byte(notifyJSON), &cfg.Notify)
+		_ = json.Unmarshal([]byte(notifyJSON), &cfg.Notify)
 	}
 
 	// Load base URL from general settings

@@ -441,12 +441,12 @@ func TestTransitionBlockedToDone(t *testing.T) {
 
 	// Enable no_blocked_to_done rule
 	settings := `{"transition_rules":{"no_blocked_to_done":true}}`
-	boards.Update(ctx, board.ID, repo.BoardUpdate{Settings: &settings})
+	_, _ = boards.Update(ctx, board.ID, repo.BoardUpdate{Settings: &settings})
 
 	// Create a card with blocked dependencies
 	card, _ := cards.Create(ctx, board.ID, repo.CardCreate{ColumnID: "todo", Title: "Blocked Card"})
 	blockedIDs := `["some-blocking-card-id"]`
-	cards.Update(ctx, card.ID, card.Version, repo.CardUpdate{BlockedCardIDs: &blockedIDs})
+	_, _ = cards.Update(ctx, card.ID, card.Version, repo.CardUpdate{BlockedCardIDs: &blockedIDs})
 	card, _ = cards.GetByID(ctx, card.ID) // refresh version
 
 	body, _ := json.Marshal(moveCardReq{ColumnID: "done", Position: 0, Version: card.Version})
@@ -478,7 +478,7 @@ func TestTransitionRequireCommentDone(t *testing.T) {
 	board, _ := boards.Create(ctx, "B", "LWTS", user.ID)
 
 	settings := `{"transition_rules":{"require_comment_done":true}}`
-	boards.Update(ctx, board.ID, repo.BoardUpdate{Settings: &settings})
+	_, _ = boards.Update(ctx, board.ID, repo.BoardUpdate{Settings: &settings})
 
 	card, _ := cards.Create(ctx, board.ID, repo.CardCreate{ColumnID: "todo", Title: "No Comments"})
 
@@ -520,7 +520,7 @@ func TestTransitionRequireAssigneeInProgress(t *testing.T) {
 	board, _ := boards.Create(ctx, "B", "LWTS", user.ID)
 
 	settings := `{"transition_rules":{"require_assignee_prog":true}}`
-	boards.Update(ctx, board.ID, repo.BoardUpdate{Settings: &settings})
+	_, _ = boards.Update(ctx, board.ID, repo.BoardUpdate{Settings: &settings})
 
 	card, _ := cards.Create(ctx, board.ID, repo.CardCreate{ColumnID: "todo", Title: "Unassigned"})
 
@@ -541,7 +541,7 @@ func TestTransitionRequireAssigneeInProgress(t *testing.T) {
 	// Assign and retry
 	assignee := user.ID
 	assigneePtr := &assignee
-	cards.Update(ctx, card.ID, card.Version, repo.CardUpdate{AssigneeID: &assigneePtr})
+	_, _ = cards.Update(ctx, card.ID, card.Version, repo.CardUpdate{AssigneeID: &assigneePtr})
 	card, _ = cards.GetByID(ctx, card.ID)
 
 	body2, _ := json.Marshal(moveCardReq{ColumnID: "in-progress", Position: 0, Version: card.Version})

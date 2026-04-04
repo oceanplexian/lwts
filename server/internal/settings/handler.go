@@ -115,7 +115,7 @@ func (h *Handler) GetSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(val))
+	_, _ = w.Write([]byte(val))
 }
 
 func (h *Handler) PutSettings(w http.ResponseWriter, r *http.Request) {
@@ -321,7 +321,7 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update role and avatar_color
-	h.users.Update(r.Context(), user.ID, repo.UserUpdate{
+	_, _ = h.users.Update(r.Context(), user.ID, repo.UserUpdate{
 		Role:        &body.Role,
 		AvatarColor: &avatarColor,
 	})
@@ -358,7 +358,7 @@ func (h *Handler) CreateBot(w http.ResponseWriter, r *http.Request) {
 	// Generate bot email and random password
 	email := "bot-" + uuid.New().String()[:8] + "@bots.local"
 	pwBytes := make([]byte, 32)
-	rand.Read(pwBytes)
+	_, _ = rand.Read(pwBytes)
 	password := hex.EncodeToString(pwBytes)
 
 	hash, err := auth.HashPassword(password)
@@ -374,7 +374,7 @@ func (h *Handler) CreateBot(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update role
-	h.users.Update(r.Context(), user.ID, repo.UserUpdate{Role: &body.Role})
+	_, _ = h.users.Update(r.Context(), user.ID, repo.UserUpdate{Role: &body.Role})
 	user.Role = body.Role
 
 	writeJSON(w, http.StatusCreated, user)
@@ -524,7 +524,7 @@ func (h *Handler) CreateKey(w http.ResponseWriter, r *http.Request) {
 
 	// Generate random API key
 	rawKey := make([]byte, 32)
-	rand.Read(rawKey)
+	_, _ = rand.Read(rawKey)
 	fullKey := "lwts_sk_" + hex.EncodeToString(rawKey)
 	prefix := "lwts_sk_" + "••••••••" + fullKey[len(fullKey)-4:]
 
@@ -746,7 +746,7 @@ func (h *Handler) ClearAllCards(w http.ResponseWriter, r *http.Request) {
 	for _, b := range boards {
 		cards, _ := h.cards.ListByBoard(ctx, b.ID)
 		for _, c := range cards {
-			h.cards.Delete(ctx, c.ID)
+			_ = h.cards.Delete(ctx, c.ID)
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "all cards cleared"})
@@ -769,27 +769,27 @@ func (h *Handler) ResetWorkspace(w http.ResponseWriter, r *http.Request) {
 	// Delete all boards (cascades to cards, comments, webhooks)
 	boards, _ := h.boards.List(ctx)
 	for _, b := range boards {
-		h.boards.Delete(ctx, b.ID)
+		_ = h.boards.Delete(ctx, b.ID)
 	}
 
 	// Delete all users except the requesting user
 	users, _ := h.users.List(ctx)
 	for _, u := range users {
 		if u.ID != currentUser.ID {
-			h.users.Delete(ctx, u.ID)
+			_ = h.users.Delete(ctx, u.ID)
 		}
 	}
 
 	// Clear ancillary data
-	h.ds.Exec(ctx, "DELETE FROM settings")
-	h.ds.Exec(ctx, "DELETE FROM api_keys")
-	h.ds.Exec(ctx, "DELETE FROM invites")
+	_, _ = h.ds.Exec(ctx, "DELETE FROM settings")
+	_, _ = h.ds.Exec(ctx, "DELETE FROM api_keys")
+	_, _ = h.ds.Exec(ctx, "DELETE FROM invites")
 	// Clear refresh tokens for deleted users (keep current user's)
-	h.ds.Exec(ctx, "DELETE FROM refresh_tokens WHERE user_id != $1", currentUser.ID)
+	_, _ = h.ds.Exec(ctx, "DELETE FROM refresh_tokens WHERE user_id != $1", currentUser.ID)
 
 	// Ensure requesting user is owner
 	ownerRole := "owner"
-	h.users.Update(ctx, currentUser.ID, repo.UserUpdate{Role: &ownerRole})
+	_, _ = h.users.Update(ctx, currentUser.ID, repo.UserUpdate{Role: &ownerRole})
 
 	// Re-seed demo data if requested
 	if body.Mode == "demo" && h.seedFunc != nil {
