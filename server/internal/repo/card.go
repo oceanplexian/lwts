@@ -283,7 +283,7 @@ func (r *CardRepository) Move(ctx context.Context, id string, version int, toCol
 	if err != nil {
 		return Card{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Shift cards in the target column to make room
 	_, err = tx.Exec(ctx,

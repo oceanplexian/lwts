@@ -11,7 +11,7 @@ func BodyLimit(maxBytes int64) func(http.Handler) http.Handler {
 			if r.ContentLength > maxBytes {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusRequestEntityTooLarge)
-				json.NewEncoder(w).Encode(map[string]string{
+				_ = json.NewEncoder(w).Encode(map[string]string{
 					"error": "request body too large",
 				})
 				return

@@ -79,7 +79,7 @@ func Migrate(ctx context.Context, ds Datasource, migrations fs.FS) error {
 				continue
 			}
 			if _, err := tx.Exec(ctx, stmt); err != nil {
-				tx.Rollback(ctx)
+				_ = tx.Rollback(ctx)
 				return fmt.Errorf("migration %d (%s): %w", entry.Version, entry.Name, err)
 			}
 		}
@@ -93,7 +93,7 @@ func Migrate(ctx context.Context, ds Datasource, migrations fs.FS) error {
 		}
 		_ = now
 		if _, err := tx.Exec(ctx, insertSQL, entry.Version); err != nil {
-			tx.Rollback(ctx)
+			_ = tx.Rollback(ctx)
 			return fmt.Errorf("record migration %d: %w", entry.Version, err)
 		}
 
@@ -172,7 +172,7 @@ func acquireLock(ctx context.Context, ds Datasource) error {
 
 func releaseLock(ctx context.Context, ds Datasource) {
 	if ds.DBType() == "postgres" {
-		ds.Exec(ctx, "SELECT pg_advisory_unlock(42)")
+		_, _ = ds.Exec(ctx, "SELECT pg_advisory_unlock(42)")
 	}
 }
 

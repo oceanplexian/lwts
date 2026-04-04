@@ -106,7 +106,6 @@ func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 	if priority != "" {
 		conditions = append(conditions, "c.priority = $"+strconv.Itoa(argN))
 		args = append(args, priority)
-		argN++
 	}
 
 	where := ""

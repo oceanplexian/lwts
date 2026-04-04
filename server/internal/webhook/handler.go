@@ -123,11 +123,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wh, err := h.store.UpdateWebhook(r.Context(), webhookID, WebhookUpdate{
-		URL:       req.URL,
-		EventType: req.EventType,
-		Enabled:   req.Enabled,
-	})
+	wh, err := h.store.UpdateWebhook(r.Context(), webhookID, WebhookUpdate(req))
 	if err == db.ErrNoRows {
 		writeError(w, http.StatusNotFound, "webhook not found")
 		return
