@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache: true
+          cache: false
       - run: go test -v -count=1 ./...
 
   go-test-postgres:
@@ -41,7 +41,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache: true
+          cache: false
       - run: go test -v -count=1 -tags=integration ./...
         env:
           DB_URL: postgres://lwts_test:lwts_test@localhost:5432/lwts_test?sslmode=disable
@@ -54,12 +54,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache: true
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/golangci-lint
-          key: golangci-lint-${{ hashFiles('go.sum') }}
-          restore-keys: golangci-lint-
+          cache: false
       - run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
       - run: golangci-lint run ./...
 
@@ -74,7 +69,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-          cache-dependency-path: web/package-lock.json
       - run: npm ci
       - run: npm run build
