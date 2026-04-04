@@ -107,7 +107,7 @@ func TestBoardList(t *testing.T) {
 	h.List(w, req)
 
 	var list []repo.Board
-	json.Unmarshal(w.Body.Bytes(), &list)
+	_ = json.Unmarshal(w.Body.Bytes(), &list)
 	if len(list) != 2 {
 		t.Fatalf("count: %d", len(list))
 	}
@@ -138,9 +138,9 @@ func TestBoardGet(t *testing.T) {
 	}
 
 	var resp map[string]json.RawMessage
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	var counts map[string]int
-	json.Unmarshal(resp["card_counts"], &counts)
+	_ = json.Unmarshal(resp["card_counts"], &counts)
 	if counts["todo"] != 2 {
 		t.Errorf("todo count: %d", counts["todo"])
 	}

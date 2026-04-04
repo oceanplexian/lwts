@@ -87,7 +87,7 @@ func TestPutAndGetSettings(t *testing.T) {
 	mux.ServeHTTP(w, req)
 
 	var result map[string]any
-	json.Unmarshal(w.Body.Bytes(), &result)
+	_ = json.Unmarshal(w.Body.Bytes(), &result)
 	if result["workspace_name"] != "TestWorkspace" {
 		t.Errorf("workspace_name: %v", result["workspace_name"])
 	}
@@ -133,7 +133,7 @@ func TestAPIKeyCreateListDelete(t *testing.T) {
 		t.Fatalf("create status: %d, body: %s", w.Code, w.Body.String())
 	}
 	var created map[string]string
-	json.Unmarshal(w.Body.Bytes(), &created)
+	_ = json.Unmarshal(w.Body.Bytes(), &created)
 	if created["key"] == "" {
 		t.Error("key should be returned on create")
 	}
@@ -149,7 +149,7 @@ func TestAPIKeyCreateListDelete(t *testing.T) {
 	mux.ServeHTTP(w, req)
 
 	var keys []map[string]any
-	json.Unmarshal(w.Body.Bytes(), &keys)
+	_ = json.Unmarshal(w.Body.Bytes(), &keys)
 	if len(keys) != 1 {
 		t.Fatalf("expected 1 key, got %d", len(keys))
 	}
@@ -170,7 +170,7 @@ func TestAPIKeyCreateListDelete(t *testing.T) {
 	w = httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
-	json.Unmarshal(w.Body.Bytes(), &keys)
+	_ = json.Unmarshal(w.Body.Bytes(), &keys)
 	if len(keys) != 0 {
 		t.Fatalf("expected 0 keys after delete, got %d", len(keys))
 	}
@@ -195,7 +195,7 @@ func TestExport(t *testing.T) {
 	}
 
 	var export map[string]any
-	json.Unmarshal(w.Body.Bytes(), &export)
+	_ = json.Unmarshal(w.Body.Bytes(), &export)
 	if export["exported_at"] == nil {
 		t.Error("missing exported_at")
 	}

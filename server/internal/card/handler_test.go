@@ -63,7 +63,7 @@ func TestCardCreate(t *testing.T) {
 	}
 
 	var card repo.Card
-	json.Unmarshal(w.Body.Bytes(), &card)
+	_ = json.Unmarshal(w.Body.Bytes(), &card)
 	if card.Key != "LWTS-1" {
 		t.Errorf("key: %s", card.Key)
 	}
@@ -146,7 +146,7 @@ func TestCardUpdateSuccess(t *testing.T) {
 	}
 
 	var updated repo.Card
-	json.Unmarshal(w.Body.Bytes(), &updated)
+	_ = json.Unmarshal(w.Body.Bytes(), &updated)
 	if updated.Title != "Updated" {
 		t.Errorf("title: %s", updated.Title)
 	}
@@ -179,7 +179,7 @@ func TestCardMove(t *testing.T) {
 	}
 
 	var moved repo.Card
-	json.Unmarshal(w.Body.Bytes(), &moved)
+	_ = json.Unmarshal(w.Body.Bytes(), &moved)
 	if moved.ColumnID != "done" {
 		t.Errorf("column: %s", moved.ColumnID)
 	}
@@ -243,10 +243,10 @@ func TestCardGetWithComments(t *testing.T) {
 	}
 
 	var resp map[string]json.RawMessage
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 
 	var cmts []repo.Comment
-	json.Unmarshal(resp["comments"], &cmts)
+	_ = json.Unmarshal(resp["comments"], &cmts)
 	if len(cmts) != 2 {
 		t.Errorf("comments: %d", len(cmts))
 	}
@@ -275,7 +275,7 @@ func TestCreateEpicCard(t *testing.T) {
 		t.Fatalf("status: %d, body: %s", w.Code, w.Body.String())
 	}
 	var epic repo.Card
-	json.Unmarshal(w.Body.Bytes(), &epic)
+	_ = json.Unmarshal(w.Body.Bytes(), &epic)
 	if epic.Tag != "epic" {
 		t.Errorf("tag: %s, want epic", epic.Tag)
 	}
@@ -306,7 +306,7 @@ func TestCreateCardWithEpicID(t *testing.T) {
 		t.Fatalf("status: %d, body: %s", w.Code, w.Body.String())
 	}
 	var child repo.Card
-	json.Unmarshal(w.Body.Bytes(), &child)
+	_ = json.Unmarshal(w.Body.Bytes(), &child)
 	if child.EpicID == nil || *child.EpicID != epic.ID {
 		t.Errorf("epic_id: %v, want %s", child.EpicID, epic.ID)
 	}
@@ -338,7 +338,7 @@ func TestMoveCardIntoEpic(t *testing.T) {
 	}
 
 	var moved repo.Card
-	json.Unmarshal(w.Body.Bytes(), &moved)
+	_ = json.Unmarshal(w.Body.Bytes(), &moved)
 	if moved.ColumnID != "todo" {
 		t.Errorf("column: %s, want todo", moved.ColumnID)
 	}
@@ -374,7 +374,7 @@ func TestMoveCardOutOfEpic(t *testing.T) {
 	}
 
 	var moved repo.Card
-	json.Unmarshal(w.Body.Bytes(), &moved)
+	_ = json.Unmarshal(w.Body.Bytes(), &moved)
 	if moved.EpicID != nil {
 		t.Errorf("epic_id should be nil after removing from epic, got: %v", *moved.EpicID)
 	}
@@ -405,7 +405,7 @@ func TestUpdateCardEpicID(t *testing.T) {
 	}
 
 	var updated repo.Card
-	json.Unmarshal(w.Body.Bytes(), &updated)
+	_ = json.Unmarshal(w.Body.Bytes(), &updated)
 	if updated.EpicID == nil || *updated.EpicID != epic.ID {
 		t.Errorf("epic_id: %v, want %s", updated.EpicID, epic.ID)
 	}
@@ -423,7 +423,7 @@ func TestUpdateCardEpicID(t *testing.T) {
 	}
 
 	var cleared repo.Card
-	json.Unmarshal(w2.Body.Bytes(), &cleared)
+	_ = json.Unmarshal(w2.Body.Bytes(), &cleared)
 	if cleared.EpicID != nil {
 		t.Errorf("epic_id should be nil after clear, got: %v", *cleared.EpicID)
 	}
@@ -463,7 +463,7 @@ func TestTransitionBlockedToDone(t *testing.T) {
 	}
 
 	var resp map[string]any
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	if resp["error"] != "transition_blocked" {
 		t.Errorf("error: %v, want transition_blocked", resp["error"])
 	}

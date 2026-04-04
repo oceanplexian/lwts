@@ -288,7 +288,7 @@ func runCards() {
 		Label string `json:"label"`
 	}
 	var cols []col
-	json.Unmarshal([]byte(board.Columns), &cols)
+	_ = json.Unmarshal([]byte(board.Columns), &cols)
 
 	// Build column label map
 	colLabels := make(map[string]string)

@@ -614,7 +614,7 @@ func (h *Handler) Export(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Disposition", "attachment; filename=lwts-export.json")
-	json.NewEncoder(w).Encode(map[string]any{
+	_ = json.NewEncoder(w).Encode(map[string]any{
 		"users":      users,
 		"boards":     boardExports,
 		"exported_at": time.Now().UTC().Format(time.RFC3339),
@@ -837,7 +837,7 @@ func toLower(s string) string {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	_ = json.NewEncoder(w).Encode(v)
 }
 
 func writeErr(w http.ResponseWriter, status int, msg string) {
