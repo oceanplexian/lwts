@@ -5,10 +5,12 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -17,14 +19,14 @@ import (
 	boardhandler "github.com/oceanplexian/lwts/server/internal/board"
 	cardhandler "github.com/oceanplexian/lwts/server/internal/card"
 	commenthandler "github.com/oceanplexian/lwts/server/internal/comment"
-	discordnotifier "github.com/oceanplexian/lwts/server/internal/discord"
-	settingshandler "github.com/oceanplexian/lwts/server/internal/settings"
-	webhookhandler "github.com/oceanplexian/lwts/server/internal/webhook"
 	"github.com/oceanplexian/lwts/server/internal/config"
 	"github.com/oceanplexian/lwts/server/internal/db"
+	discordnotifier "github.com/oceanplexian/lwts/server/internal/discord"
 	"github.com/oceanplexian/lwts/server/internal/middleware"
 	"github.com/oceanplexian/lwts/server/internal/repo"
+	settingshandler "github.com/oceanplexian/lwts/server/internal/settings"
 	"github.com/oceanplexian/lwts/server/internal/sse"
+	webhookhandler "github.com/oceanplexian/lwts/server/internal/webhook"
 	"github.com/oceanplexian/lwts/server/migrations"
 )
 
@@ -132,14 +134,28 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
+	mux.HandleFunc("GET /api/v1/lambda-demo", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]bool{"lambda_demo": cfg.LambdaDemo})
+	})
 
-	// Database — auto-setup tables on startup
+	if cfg.LambdaDemo {
+		if err := prepareLambdaDemoDB(cfg); err != nil {
+			logger.Error("lambda demo database setup failed", "error", err)
+			os.Exit(1)
+		}
+	}
+
+	// Database
 	ctx := context.Background()
 	ds := getDS(ctx)
 	defer ds.Close()
-	if err := db.Migrate(ctx, ds, migrations.FS); err != nil {
-		logger.Error("database setup failed", "error", err)
-		os.Exit(1)
+	if !cfg.LambdaDemo {
+		// Auto-setup tables in standard mode.
+		if err := db.Migrate(ctx, ds, migrations.FS); err != nil {
+			logger.Error("database setup failed", "error", err)
+			os.Exit(1)
+		}
 	}
 
 	// SSE hub
@@ -165,9 +181,12 @@ func main() {
 		return authMW(auth.RequireRole("member")(next))
 	}
 
-	// Discord notifier
-	discordN := discordnotifier.NewNotifier(ds, userRepo, logger)
-	go discordN.Run()
+	// Discord notifier is disabled in lambda demo mode.
+	var discordN *discordnotifier.Notifier
+	if !cfg.LambdaDemo {
+		discordN = discordnotifier.NewNotifier(ds, userRepo, logger)
+		go discordN.Run()
+	}
 
 	// Board routes
 	bh := boardhandler.NewHandler(boardRepo, cardRepo, commentRepo, sseHub)
@@ -219,6 +238,7 @@ func main() {
 	// Settings routes
 	stg := settingshandler.NewHandler(ds, userRepo, boardRepo, cardRepo, commentRepo)
 	stg.SetSeedFunc(settingshandler.SeedFunc(seedFunc))
+	stg.SetLambdaDemo(cfg.LambdaDemo)
 	adminMW := func(next http.Handler) http.Handler {
 		return authMW(auth.RequireRole("admin")(next))
 	}
@@ -311,10 +331,11 @@ func main() {
 		logger.Error("shutdown error", "error", err)
 	}
 	sseHub.Stop()
-	discordN.Stop()
+	if discordN != nil {
+		discordN.Stop()
+	}
 	logger.Info("server stopped")
 }
-
 
 func getDS(ctx context.Context) db.Datasource {
 	dbURL := os.Getenv("DB_URL")
@@ -357,7 +378,6 @@ func runSeed() {
 	fmt.Println("seed data applied")
 }
 
-
 func parseLogLevel(s string) slog.Level {
 	switch s {
 	case "debug":
@@ -369,4 +389,40 @@ func parseLogLevel(s string) slog.Level {
 	default:
 		return slog.LevelInfo
 	}
+}
+
+func prepareLambdaDemoDB(cfg *config.Config) error {
+	if !strings.HasPrefix(cfg.DBURL, "sqlite://") {
+		return fmt.Errorf("lambda demo requires sqlite DB_URL, got %q", cfg.DBURL)
+	}
+
+	dst := strings.TrimPrefix(cfg.DBURL, "sqlite://")
+	if dst == "" || dst == ":memory:" {
+		return fmt.Errorf("invalid sqlite destination for lambda demo: %q", cfg.DBURL)
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return fmt.Errorf("create sqlite destination dir: %w", err)
+	}
+	if err := copyFile(cfg.DemoDBPath, dst); err != nil {
+		return fmt.Errorf("copy demo db from %q to %q: %w", cfg.DemoDBPath, dst, err)
+	}
+	return nil
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		_ = out.Close()
+		return err
+	}
+	return out.Close()
 }

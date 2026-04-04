@@ -10,22 +10,23 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/oceanplexian/lwts/server/internal/auth"
 	"github.com/oceanplexian/lwts/server/internal/db"
 	"github.com/oceanplexian/lwts/server/internal/repo"
-	"github.com/google/uuid"
 )
 
 // SeedFunc creates demo data for a given owner user ID.
 type SeedFunc func(ctx context.Context, ownerID string) error
 
 type Handler struct {
-	ds       db.Datasource
-	users    *repo.UserRepository
-	boards   *repo.BoardRepository
-	cards    *repo.CardRepository
-	comments *repo.CommentRepository
-	seedFunc SeedFunc
+	ds         db.Datasource
+	users      *repo.UserRepository
+	boards     *repo.BoardRepository
+	cards      *repo.CardRepository
+	comments   *repo.CommentRepository
+	seedFunc   SeedFunc
+	lambdaDemo bool
 }
 
 func NewHandler(ds db.Datasource, users *repo.UserRepository, boards *repo.BoardRepository, cards *repo.CardRepository, comments *repo.CommentRepository) *Handler {
@@ -35,6 +36,19 @@ func NewHandler(ds db.Datasource, users *repo.UserRepository, boards *repo.Board
 // SetSeedFunc sets the function used to seed demo data on reset.
 func (h *Handler) SetSeedFunc(fn SeedFunc) {
 	h.seedFunc = fn
+}
+
+// SetLambdaDemo toggles behavior specific to Lambda demo mode.
+func (h *Handler) SetLambdaDemo(enabled bool) {
+	h.lambdaDemo = enabled
+}
+
+func (h *Handler) blockIfLambdaDemo(w http.ResponseWriter, feature string) bool {
+	if !h.lambdaDemo {
+		return false
+	}
+	writeErr(w, http.StatusForbidden, feature+" disabled in lambda demo mode")
+	return true
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMW, adminMW func(http.Handler) http.Handler) {
@@ -450,6 +464,10 @@ func (h *Handler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 // ── API Keys ──
 
 func (h *Handler) ListKeys(w http.ResponseWriter, r *http.Request) {
+	if h.blockIfLambdaDemo(w, "API keys") {
+		return
+	}
+
 	user := auth.UserFromContext(r.Context())
 
 	var rows *db.Rows
@@ -493,6 +511,10 @@ func (h *Handler) ListKeys(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CreateKey(w http.ResponseWriter, r *http.Request) {
+	if h.blockIfLambdaDemo(w, "API keys") {
+		return
+	}
+
 	user := auth.UserFromContext(r.Context())
 	var body struct {
 		Name        string `json:"name"`
@@ -546,13 +568,17 @@ func (h *Handler) CreateKey(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]string{
 		"id":         id,
 		"key":        fullKey,
-		"key_masked":  prefix,
+		"key_masked": prefix,
 		"name":       body.Name,
 		"created_at": now.Format(time.RFC3339),
 	})
 }
 
 func (h *Handler) RevealKey(w http.ResponseWriter, r *http.Request) {
+	if h.blockIfLambdaDemo(w, "API keys") {
+		return
+	}
+
 	id := r.PathValue("id")
 	var fullKey string
 	err := h.ds.QueryRow(r.Context(), "SELECT key_full FROM api_keys WHERE id = $1", id).Scan(&fullKey)
@@ -568,6 +594,10 @@ func (h *Handler) RevealKey(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeleteKey(w http.ResponseWriter, r *http.Request) {
+	if h.blockIfLambdaDemo(w, "API keys") {
+		return
+	}
+
 	id := r.PathValue("id")
 	n, err := h.ds.Exec(r.Context(), "DELETE FROM api_keys WHERE id = $1", id)
 	if err != nil {
@@ -584,6 +614,10 @@ func (h *Handler) DeleteKey(w http.ResponseWriter, r *http.Request) {
 // ── Export ──
 
 func (h *Handler) Export(w http.ResponseWriter, r *http.Request) {
+	if h.blockIfLambdaDemo(w, "Import/export") {
+		return
+	}
+
 	ctx := r.Context()
 
 	users, _ := h.users.List(ctx)
@@ -615,8 +649,8 @@ func (h *Handler) Export(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Disposition", "attachment; filename=lwts-export.json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"users":      users,
-		"boards":     boardExports,
+		"users":       users,
+		"boards":      boardExports,
 		"exported_at": time.Now().UTC().Format(time.RFC3339),
 	})
 }
@@ -624,6 +658,10 @@ func (h *Handler) Export(w http.ResponseWriter, r *http.Request) {
 // ── Import ──
 
 func (h *Handler) ImportJira(w http.ResponseWriter, r *http.Request) {
+	if h.blockIfLambdaDemo(w, "Import/export") {
+		return
+	}
+
 	user := auth.UserFromContext(r.Context())
 	ctx := r.Context()
 
@@ -679,6 +717,10 @@ func (h *Handler) ImportJira(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ImportTrello(w http.ResponseWriter, r *http.Request) {
+	if h.blockIfLambdaDemo(w, "Import/export") {
+		return
+	}
+
 	user := auth.UserFromContext(r.Context())
 	ctx := r.Context()
 

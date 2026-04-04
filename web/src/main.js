@@ -60,29 +60,58 @@ document.addEventListener('DOMContentLoaded', () => {
   function showAuthFlow() {
     document.getElementById('app-auth').style.display = '';
 
-    fetch('/api/v1/registration-status')
-      .then(r => r.json())
-      .then(data => {
-        if (data.first_run) {
+    Promise.allSettled([
+      fetch('/api/v1/registration-status').then(r => r.json()),
+      fetch('/api/v1/lambda-demo').then(r => r.json()),
+    ])
+      .then(([registrationResult, lambdaDemoResult]) => {
+        const registration = registrationResult.status === 'fulfilled' ? registrationResult.value : null;
+        const lambdaDemoEnabled =
+          lambdaDemoResult.status === 'fulfilled' &&
+          lambdaDemoResult.value &&
+          lambdaDemoResult.value.lambda_demo === true;
+
+        if (registration && registration.first_run) {
           LP.showInitialView('register');
           const subtitle = document.getElementById('auth-subtitle');
           if (subtitle) subtitle.textContent = 'Create your admin account';
           document.querySelectorAll('.auth-footer').forEach(f => { f.style.display = 'none'; });
-        } else {
-          if (!data.allowed) {
-            const regView = document.getElementById('view-register');
-            if (regView) {
-              regView.classList.add('auth-disabled');
-              regView.querySelectorAll('.auth-input').forEach(inp => { inp.disabled = true; });
-              const btn = regView.querySelector('.auth-btn');
-              if (btn) btn.disabled = true;
-            }
+          return;
+        }
+
+        if (registration && !registration.allowed) {
+          const regView = document.getElementById('view-register');
+          if (regView) {
+            regView.classList.add('auth-disabled');
+            regView.querySelectorAll('.auth-input').forEach(inp => { inp.disabled = true; });
+            const btn = regView.querySelector('.auth-btn');
+            if (btn) btn.disabled = true;
           }
-          LP.showInitialView('login');
+        }
+
+        LP.showInitialView('login');
+        if (lambdaDemoEnabled) {
+          applyLambdaDemoLoginDefaults();
         }
       })
       .catch(() => {
         LP.showInitialView('login');
       });
+  }
+
+  function applyLambdaDemoLoginDefaults() {
+    const emailInput = document.getElementById('login-email');
+    const passwordInput = document.getElementById('login-password');
+    const subtitle = document.getElementById('auth-subtitle');
+
+    if (emailInput && !emailInput.value) {
+      emailInput.value = 'demo@demo.com';
+    }
+    if (passwordInput && !passwordInput.value) {
+      passwordInput.value = 'demo';
+    }
+    if (subtitle) {
+      subtitle.textContent = 'Demo - click Sign in to explore';
+    }
   }
 });

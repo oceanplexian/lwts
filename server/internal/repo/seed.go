@@ -502,8 +502,32 @@ func Seed(ctx context.Context, ds db.Datasource) error {
 	if err != nil {
 		return fmt.Errorf("check existing users: %w", err)
 	}
-	if len(existing) > 0 {
+	if len(existing) == 0 {
+		// Keep legacy behavior for fresh DBs where no user exists yet.
+		// Callers can create a user first, then run seed again.
 		return nil
+	}
+
+	boards := NewBoardRepository(ds)
+	existingBoards, err := boards.List(ctx)
+	if err != nil {
+		return fmt.Errorf("check existing boards: %w", err)
+	}
+	if len(existingBoards) > 0 {
+		// Idempotent by default: if workspace data already exists, skip.
+		return nil
+	}
+
+	ownerID := existing[0].ID
+	for _, u := range existing {
+		if u.Role == "owner" {
+			ownerID = u.ID
+			break
+		}
+	}
+
+	if err := SeedDemo(ctx, ds, ownerID); err != nil {
+		return fmt.Errorf("seed demo: %w", err)
 	}
 	return nil
 }

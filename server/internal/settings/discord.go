@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/oceanplexian/lwts/server/internal/db"
 	"github.com/google/uuid"
+	"github.com/oceanplexian/lwts/server/internal/db"
 )
 
 // ── Discord Integration ──
@@ -55,6 +55,10 @@ func scanDiscordRow(h *Handler, r *http.Request) (discordConfig, error) {
 }
 
 func (h *Handler) GetDiscord(w http.ResponseWriter, r *http.Request) {
+	if h.blockIfLambdaDemo(w, "Integrations") {
+		return
+	}
+
 	cfg, err := scanDiscordRow(h, r)
 	if err == db.ErrNoRows {
 		writeJSON(w, http.StatusOK, discordConfig{Notify: defaultNotify})
@@ -72,6 +76,10 @@ func (h *Handler) GetDiscord(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) PutDiscord(w http.ResponseWriter, r *http.Request) {
+	if h.blockIfLambdaDemo(w, "Integrations") {
+		return
+	}
+
 	var body struct {
 		BotToken  *string      `json:"bot_token"`
 		GuildID   *string      `json:"guild_id"`
@@ -141,6 +149,10 @@ func (h *Handler) PutDiscord(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) TestDiscord(w http.ResponseWriter, r *http.Request) {
+	if h.blockIfLambdaDemo(w, "Integrations") {
+		return
+	}
+
 	cfg, err := scanDiscordRow(h, r)
 	if err == db.ErrNoRows {
 		writeErr(w, http.StatusBadRequest, "Discord integration not configured yet. Save your settings first.")
