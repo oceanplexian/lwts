@@ -1,0 +1,17 @@
+version: "3.9"
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: lwts_test
+      POSTGRES_PASSWORD: lwts_test
+      POSTGRES_DB: lwts_test
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lwts_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 10

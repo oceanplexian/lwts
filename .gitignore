@@ -1,0 +1,14 @@
+.env
+tmp/
+bin/
+*.exe
+/lwts
+/cmd
+vendor/
+web/node_modules/
+web/dist/
+__pycache__/
+.DS_Store
+.vite/
+*.db
+server/tmp/

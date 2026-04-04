@@ -1,0 +1,325 @@
+/* fn2 Kanban — List View */
+
+/* ── View Switcher ── */
+.view-switcher {
+  display: flex;
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--border-faint);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  height: var(--btn-height);
+  transition: border-color 0.2s ease;
+}
+.view-switcher:hover {
+  border-color: var(--border-light);
+}
+.view-switcher button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text-dimmed);
+  cursor: pointer;
+  transition: var(--transition-snappy);
+}
+.view-switcher button:hover {
+  color: var(--text-secondary);
+}
+.view-switcher button.active {
+  color: var(--text-primary);
+}
+.view-switcher button svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── List Container ── */
+#list-view {
+  height: calc(100vh - 104px);
+  padding: var(--list-padding);
+  overflow-y: auto;
+}
+.list-view-hidden {
+  display: none;
+}
+
+/* ── List Table ── */
+.list-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface-01);
+  border: 1px solid var(--border-faint);
+  border-radius: var(--list-radius);
+  overflow: hidden;
+}
+
+/* ── Table Header ── */
+.list-header {
+  position: sticky;
+  top: 0;
+  background: var(--surface-02);
+  border-bottom: 1px solid var(--border-faint);
+  z-index: 10;
+}
+.list-header-cell {
+  padding: var(--list-header-padding);
+  font-size: var(--list-header-font);
+  font-weight: 600;
+  color: var(--text-dimmed);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: left;
+  white-space: nowrap;
+}
+.list-header-cell.sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease;
+}
+.list-header-cell.sortable:hover {
+  color: var(--text-secondary);
+}
+.list-header-cell.sort-asc::after {
+  content: " ▲";
+  font-size: 0.6rem;
+  color: var(--text-dimmed);
+}
+.list-header-cell.sort-desc::after {
+  content: " ▼";
+  font-size: 0.6rem;
+  color: var(--text-dimmed);
+}
+
+/* ── Table Rows ── */
+.list-row {
+  border-bottom: 1px solid var(--border-faint);
+  transition: background 0.15s ease;
+  cursor: pointer;
+}
+.list-row:last-child {
+  border-bottom: none;
+}
+.list-row:hover {
+  background: var(--surface-hover);
+}
+.list-row[draggable="true"] {
+  cursor: grab;
+}
+.list-row[draggable="true"]:active {
+  cursor: grabbing;
+}
+.list-row.dragging {
+  opacity: 0.3;
+  transform: scale(0.98);
+}
+.list-row.drop-target {
+  background: rgba(43,125,233,0.06);
+  border-color: #579DFF;
+  border-style: dashed;
+  border-width: 2px;
+  box-shadow: 0 0 0 3px rgba(87,157,255,0.2), 0 0 12px rgba(87,157,255,0.1);
+}
+
+/* ── Table Cells ── */
+.list-cell {
+  padding: var(--list-cell-padding);
+  vertical-align: middle;
+  font-size: var(--list-cell-font);
+}
+.list-cell-key {
+  width: 100px;
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  color: var(--text-tertiary);
+}
+.list-cell-title {
+  color: var(--text-primary);
+  font-weight: 400;
+}
+.list-cell-status {
+  width: 120px;
+}
+.list-cell-status .list-status-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.list-cell-tag {
+  width: 90px;
+}
+.list-cell-priority {
+  width: 110px;
+}
+.list-cell-assignee {
+  width: 140px;
+}
+.list-cell-assignee .card-bubble {
+  --card-bubble-size: 26px;
+}
+.list-cell-points {
+  width: 50px;
+  text-align: center;
+}
+.list-cell-points .card-points {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-dimmed);
+  background: var(--surface-02);
+  border: 2px solid var(--border-faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+}
+.list-cell-date {
+  width: 130px;
+  color: var(--text-dimmed);
+}
+
+/* ── Status Dot ── */
+.list-status-dot {
+  width: var(--list-dot-size);
+  height: var(--list-dot-size);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.list-status-dot.backlog     { background: var(--text-dimmed); }
+.list-status-dot.todo        { background: var(--accent-blue); }
+.list-status-dot.in-progress { background: var(--accent-orange); }
+.list-status-dot.done        { background: var(--accent-green); }
+
+/* ── Cleared / Archived Rows ── */
+.list-row.cleared {
+  opacity: 0.4;
+}
+.list-row.cleared .list-cell-title {
+  text-decoration: line-through;
+}
+.list-row.cleared .list-cell-status .list-status-text {
+  color: var(--text-dimmed);
+}
+
+/* ── List Search Filter ── */
+.list-row.search-hidden {
+  display: none;
+}
+.list-row.search-reveal {
+  animation: cardUnfurl 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+/* ── Epic Group Headers ── */
+.list-epic-header td {
+  padding: 12px 16px;
+  border-radius: 8px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 3px rgba(0,0,0,0.1);
+}
+body.light-theme .list-epic-header td {
+  border-color: rgba(255,255,255,0.5);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 1px 4px rgba(0,0,0,0.06);
+}
+.list-epic-header td > * {
+  vertical-align: middle;
+  margin-right: 10px;
+}
+.list-epic-key {
+  font-family: var(--font-mono, var(--font));
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-dimmed);
+  background: var(--surface-02);
+  border: 1px solid var(--border-faint);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.list-epic-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 400px;
+  display: inline-block;
+}
+.list-epic-count {
+  font-size: 0.7rem;
+  color: var(--text-dimmed);
+  float: right;
+  margin-right: 0;
+}
+.list-epic-header:hover .list-epic-key {
+  border-color: var(--border-medium);
+}
+.list-epic-header:hover .list-epic-title {
+  color: var(--text-primary);
+}
+.list-epic-child {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.list-epic-ungrouped .list-epic-title {
+  color: var(--text-dimmed);
+  font-weight: 500;
+}
+
+/* ── Row Unfurl Animation ── */
+.list-row.unfurl {
+  animation: cardUnfurl 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+.list-row.cleared.unfurl {
+  animation: cardUnfurlDimmed 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+@keyframes cardUnfurlDimmed {
+  0%   { opacity: 0; transform: translateY(8px) scale(0.97); }
+  100% { opacity: 0.4; transform: translateY(0) scale(1); }
+}
+
+/* ── Empty State ── */
+.list-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dimmed);
+  font-size: 0.75rem;
+  font-weight: 300;
+  min-height: 200px;
+}
+
+/* ── Group Headers ── */
+.list-group-header {
+  background: var(--surface-01);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  position: sticky;
+  top: 37px; /* below header row */
+  z-index: 9;
+}
+.list-group-header td {
+  padding: 8px 16px;
+}
+
+/* ── Scrollbar ── */
+#list-view::-webkit-scrollbar { width: 4px; }
+#list-view::-webkit-scrollbar-track { background: transparent; }
+#list-view::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
+
+/* ── Light Theme ── */
+body.light-theme .list-row.drop-target {
+  background: rgba(43,125,233,0.06);
+  border-color: #2B7DE9;
+  box-shadow: 0 0 0 3px rgba(43,125,233,0.15), 0 0 12px rgba(43,125,233,0.08);
+}

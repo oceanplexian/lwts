@@ -1,0 +1,2 @@
+ALTER TABLE cards DROP COLUMN IF EXISTS related_card_ids;
+ALTER TABLE cards ADD COLUMN subtasks JSONB NOT NULL DEFAULT '[]';

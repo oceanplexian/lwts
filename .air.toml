@@ -1,0 +1,18 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/lwts ./server/cmd"
+  bin = "./tmp/lwts"
+  delay = 1000
+  exclude_dir = ["tmp", "vendor", "node_modules", "PLAN", "tests"]
+  exclude_regex = ["_test\\.go$"]
+  include_dir = ["server", "web"]
+  include_ext = ["go", "html", "css", "js"]
+  kill_delay = 500
+
+[log]
+  time = false
+
+[misc]
+  clean_on_exit = true

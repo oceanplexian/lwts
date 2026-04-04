@@ -1,0 +1,132 @@
+/* LWTS WYSIWYG Editor */
+
+.lwts-editor {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--page-bg);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3), inset 0 1px 0 var(--surface-01);
+  transition: border-color 0.2s ease;
+}
+
+.lwts-editor:focus-within {
+  border-color: rgba(130,177,255,0.5);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3), 0 0 0 2px rgba(130,177,255,0.15);
+}
+
+.lwts-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-faint);
+  background: var(--surface-01);
+  flex-shrink: 0;
+}
+
+.lwts-editor-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--text-dimmed);
+  cursor: pointer;
+  transition: var(--transition-snappy);
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 0;
+}
+
+.lwts-editor-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+}
+
+.lwts-editor-btn.active {
+  background: var(--surface-active);
+  color: var(--text-primary);
+}
+
+.lwts-editor-btn svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lwts-editor-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border-faint);
+  margin: 0 4px;
+}
+
+.lwts-editor-body {
+  flex: 1;
+  min-height: 120px;
+  padding: 12px 14px;
+  color: var(--text-primary);
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  outline: none;
+  overflow-y: auto;
+  border: none;
+  background: transparent;
+  resize: none;
+  width: 100%;
+  tab-size: 2;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.lwts-editor-body::placeholder {
+  color: var(--text-dimmed);
+}
+.compact .lwts-editor-body {
+  min-height: 60px;
+  font-family: inherit;
+  font-size: 0.88rem;
+}
+
+/* Legacy rich text styles — kept for rendered views, not used in editor textarea */
+.lwts-editor-body-legacy blockquote {
+  border-left: 3px solid var(--border-subtle);
+  margin: 8px 0;
+  padding: 4px 12px;
+  color: var(--text-secondary);
+}
+
+.lwts-editor-body a {
+  color: var(--accent-blue);
+  text-decoration: underline;
+}
+
+/* Compact variant for comment input */
+.lwts-editor.compact {
+  min-height: 0;
+}
+.lwts-editor.compact .lwts-editor-body {
+  min-height: 40px;
+  padding: 10px 12px;
+}
+.lwts-editor.compact .lwts-editor-toolbar {
+  padding: 4px 6px;
+}
+.lwts-editor.compact .lwts-editor-btn {
+  width: 24px;
+  height: 24px;
+}
+.lwts-editor.compact .lwts-editor-btn svg {
+  width: 13px;
+  height: 13px;
+}

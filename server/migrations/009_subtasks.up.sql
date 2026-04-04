@@ -1,0 +1,1 @@
+ALTER TABLE cards ADD COLUMN subtasks JSONB NOT NULL DEFAULT '[]';

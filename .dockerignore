@@ -1,0 +1,11 @@
+.git
+.env
+*.md
+PLAN/
+tests/
+tmp/
+node_modules/
+web/node_modules/
+old/
+dist/
+web/dist/

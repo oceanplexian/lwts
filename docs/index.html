@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LWTS — Lightweight Task Server</title>
+  <meta name="description" content="A real-time kanban board built with Go and vanilla JS. Single binary, zero dependencies, production-ready.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Libre+Franklin:wght@400;500;600;700&family=Roboto:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* Prevent FOUC — hide body until fonts ready, with fallback timeout */
+    body { opacity: 0; transition: opacity 0.15s ease; }
+    body.fonts-ready { opacity: 1; }
+  </style>
+  <script>
+    // Show body immediately if fonts cached, or after load, or after 300ms max
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(function() { document.body.classList.add('fonts-ready'); });
+    }
+    setTimeout(function() { document.body.classList.add('fonts-ready'); }, 300);
+  </script>
+</head>
+<body>
+  <!-- Nav -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="#" class="nav-logo">
+        <span class="logo-box"><svg class="pages-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><g transform="rotate(270 12 12)"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M8 7v9"/><path d="M12 7v4"/><path d="M16 7v7"/></g></svg></span>
+        <span class="logo-text">LWTS</span>
+      </a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#quickstart">Quick Start</a>
+        <a href="#api">API</a>
+        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme" onclick="toggleTheme()">
+          <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+        <a href="https://github.com/oceanplexian/lwts" class="nav-github" aria-label="GitHub">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          <span>GitHub</span>
+        </a>
+      </div>
+      <button class="nav-mobile-toggle" aria-label="Toggle menu" onclick="document.querySelector('.nav-links').classList.toggle('open')">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-glow"></div>
+    <div class="container">
+      <h1>Lightweight<br>Task Server</h1>
+      <p class="hero-tagline">Free &amp; open source forever. No subscriptions. No per-seat pricing. No limits.</p>
+      <p class="hero-sub">A real-time kanban board that ships as a single binary. Built with Go and vanilla JS. No Node.js, no webpack, no runtime dependencies.</p>
+      <div class="hero-actions">
+        <a href="#quickstart" class="btn btn-primary">Get Started &mdash; It's Free</a>
+        <a href="https://github.com/oceanplexian/lwts" class="btn btn-outline">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+          View on GitHub
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Demo Board — full HTML5 drag-and-drop like the real app -->
+  <section class="demo-board-section">
+    <div class="container">
+      <p class="demo-label">Try it &mdash; drag cards between columns</p>
+      <div class="demo-board">
+        <div class="demo-board-header">
+          <div class="demo-board-logo"><span class="logo-box demo-logo-box"><svg class="demo-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><g transform="rotate(270 12 12)"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M8 7v9"/><path d="M12 7v4"/><path d="M16 7v7"/></g></svg></span><span style="font-family:var(--font-brand);font-size:0.85rem;text-transform:uppercase;letter-spacing:0.02em;">LWTS</span> <span class="demo-board-name">kanban</span></div>
+        </div>
+        <div class="demo-cols" id="demo-cols">
+          <div class="mini-col" data-col="backlog">
+            <div class="mini-col-header"><span class="mini-col-label"><span class="mini-col-dot" style="background:var(--text-dimmed)"></span> Backlog</span><span class="mini-col-count"></span></div>
+            <div class="mini-col-body">
+              <div class="mini-card" draggable="true">
+                <div class="epic-card-avatar" style="background:rgba(92,107,192,0.15);color:#5c6bc0;border-color:rgba(92,107,192,0.25)"><img src="img/admin.png"></div>
+                <div class="mini-card-title">Investigate ES shard rebalancing after disk watermark breach</div>
+                <span class="epic-card-tag tag-orange">INFRA</span>
+                <div class="epic-card-footer"><span class="mini-card-key">LWTS-2</span><span class="epic-card-due"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> APR 12</span><span class="epic-card-points">5</span><span class="epic-card-priority"><svg viewBox="0 0 16 16" width="14" height="14"><path d="M8 3l5 8H3z" fill="#f44336" opacity="0.8"/></svg></span></div>
+              </div>
+              <div class="mini-card" draggable="true">
+                <div class="epic-card-avatar" style="background:rgba(38,166,154,0.15);color:#26a69a;border-color:rgba(38,166,154,0.25)"><img src="img/sarah.png"></div>
+                <div class="mini-card-title">Mobile responsive layout for board and list views</div>
+                <span class="epic-card-tag tag-blue">FEATURE</span>
+                <div class="epic-card-footer"><span class="mini-card-key">LWTS-3</span><span class="epic-card-due"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> APR 20</span><span class="epic-card-points">8</span><span class="epic-card-priority"><svg viewBox="0 0 16 16" width="14" height="14"><rect x="4" y="6.5" width="8" height="3" rx="1" fill="#fb8c00" opacity="0.7"/></svg></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="mini-col" data-col="todo">
+            <div class="mini-col-header"><span class="mini-col-label"><span class="mini-col-dot" style="background:var(--accent-blue)"></span> To Do</span><span class="mini-col-count"></span></div>
+            <div class="mini-col-body">
+              <div class="mini-card" draggable="true">
+                <div class="epic-card-avatar" style="background:rgba(239,83,80,0.15);color:#ef5350;border-color:rgba(239,83,80,0.25)"><img src="img/marcus.png"></div>
+                <div class="mini-card-title">Deploy polygon streamer v2</div>
+                <span class="epic-card-tag tag-green">FIX</span>
+                <div class="epic-card-footer"><span class="mini-card-key">LWTS-7</span><span class="epic-card-due"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> APR 6</span><span class="epic-card-points">2</span><span class="epic-card-priority"><svg viewBox="0 0 16 16" width="14" height="14"><rect x="4" y="6.5" width="8" height="3" rx="1" fill="#fb8c00" opacity="0.7"/></svg></span></div>
+              </div>
+              <div class="mini-card" draggable="true">
+                <div class="epic-card-avatar" style="background:rgba(92,107,192,0.15);color:#5c6bc0;border-color:rgba(92,107,192,0.25)"><img src="img/admin.png"></div>
+                <div class="mini-card-title">Fix webhook retry backoff</div>
+                <span class="epic-card-tag tag-red">BUG</span>
+                <div class="epic-card-footer"><span class="mini-card-key">LWTS-26</span><span class="epic-card-due due-today"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> TODAY</span><span class="epic-card-points">3</span><span class="epic-card-priority"><svg viewBox="0 0 16 16" width="14" height="14"><path d="M8 3l5 8H3z" fill="#f44336" opacity="0.8"/></svg></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="mini-col" data-col="in-progress">
+            <div class="mini-col-header"><span class="mini-col-label"><span class="mini-col-dot" style="background:var(--accent-orange)"></span> In Progress</span><span class="mini-col-count"></span></div>
+            <div class="mini-col-body">
+              <div class="mini-card" draggable="true">
+                <div class="epic-card-avatar" style="background:rgba(66,165,245,0.15);color:#42a5f5;border-color:rgba(66,165,245,0.25)"><img src="img/priya.png"></div>
+                <div class="mini-card-title">Fix SSE heartbeat timeout on slow connections</div>
+                <span class="epic-card-tag tag-red">BUG</span>
+                <div class="epic-card-footer"><span class="mini-card-key">LWTS-4</span><span class="epic-card-due due-overdue"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> APR 1</span><span class="epic-card-points">5</span><span class="epic-card-priority"><svg viewBox="0 0 16 16" width="14" height="14"><path d="M8 3l5 8H3z" fill="#f44336"/><path d="M8 5l3 5H5z" fill="#f44336"/></svg></span></div>
+              </div>
+              <div class="mini-card" draggable="true">
+                <div class="epic-card-avatar" style="background:rgba(38,166,154,0.15);color:#26a69a;border-color:rgba(38,166,154,0.25)"><img src="img/sarah.png"></div>
+                <div class="mini-card-title">Add dark/light theme toggle</div>
+                <span class="epic-card-tag tag-blue">FEATURE</span>
+                <div class="epic-card-footer"><span class="mini-card-key">LWTS-5</span><span class="epic-card-due"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> APR 15</span><span class="epic-card-points">5</span><span class="epic-card-priority"><svg viewBox="0 0 16 16" width="14" height="14"><path d="M8 13l5-8H3z" fill="#4caf50" opacity="0.7"/></svg></span></div>
+              </div>
+              <div class="mini-card" draggable="true">
+                <div class="epic-card-avatar" style="background:rgba(239,83,80,0.15);color:#ef5350;border-color:rgba(239,83,80,0.25)"><img src="img/marcus.png"></div>
+                <div class="mini-card-title">Add FRED series to macro dashboard</div>
+                <span class="epic-card-tag tag-blue">FEATURE</span>
+                <div class="epic-card-footer"><span class="mini-card-key">LWTS-8</span><span class="epic-card-due due-overdue"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> APR 1</span><span class="epic-card-points">3</span><span class="epic-card-priority"><svg viewBox="0 0 16 16" width="14" height="14"><rect x="4" y="6.5" width="8" height="3" rx="1" fill="#fb8c00" opacity="0.7"/></svg></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="mini-col" data-col="done">
+            <div class="mini-col-header"><span class="mini-col-label"><span class="mini-col-dot" style="background:var(--accent-green)"></span> Done</span><span class="mini-col-count"></span></div>
+            <div class="mini-col-body">
+              <div class="mini-card" draggable="true">
+                <div class="epic-card-avatar" style="background:rgba(239,83,80,0.15);color:#ef5350;border-color:rgba(239,83,80,0.25)"><img src="img/marcus.png"></div>
+                <div class="mini-card-title">JWT token refresh race condition</div>
+                <span class="epic-card-tag tag-green">FIX</span>
+                <div class="epic-card-footer"><span class="mini-card-key">LWTS-9</span><span class="epic-card-due"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> MAR 28</span><span class="epic-card-points">2</span><span class="epic-card-priority"><svg viewBox="0 0 16 16" width="14" height="14"><path d="M8 3l5 8H3z" fill="#f44336" opacity="0.8"/></svg></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tech Logos -->
+  <section class="tech-strip">
+    <div class="container">
+      <div class="tech-logos">
+        <div class="tech-item">
+          <svg role="img" viewBox="0 8 24 9" width="52" height="28" fill="currentColor"><path d="M1.811 10.231c-.047 0-.058-.023-.035-.059l.246-.315c.023-.035.081-.058.128-.058h4.172c.046 0 .058.035.035.07l-.199.303c-.023.036-.082.07-.117.07zM.047 11.306c-.047 0-.059-.023-.035-.058l.245-.316c.023-.035.082-.058.129-.058h5.328c.047 0 .07.035.058.07l-.093.28c-.012.047-.058.07-.105.07zm2.828 1.075c-.047 0-.059-.035-.035-.07l.163-.292c.023-.035.07-.07.117-.07h2.337c.047 0 .07.035.07.082l-.023.28c0 .047-.047.082-.082.082zm12.129-2.36c-.736.187-1.239.327-1.963.514-.176.046-.187.058-.34-.117-.174-.199-.303-.327-.548-.444-.737-.362-1.45-.257-2.115.175-.795.514-1.204 1.274-1.192 2.22.011.935.654 1.706 1.577 1.835.795.105 1.46-.175 1.987-.77.105-.13.198-.27.315-.434H10.47c-.245 0-.304-.152-.222-.35.152-.362.432-.97.596-1.274a.315.315 0 01.292-.187h4.253c-.023.316-.023.631-.07.947a4.983 4.983 0 01-.958 2.29c-.841 1.11-1.94 1.8-3.33 1.986-1.145.152-2.209-.07-3.143-.77-.865-.655-1.356-1.52-1.484-2.595-.152-1.274.222-2.419.993-3.424.83-1.086 1.928-1.776 3.272-2.02 1.098-.2 2.15-.07 3.096.571.62.41 1.063.97 1.356 1.648.07.105.023.164-.117.2m3.868 6.461c-1.064-.024-2.034-.328-2.852-1.029a3.665 3.665 0 01-1.262-2.255c-.21-1.32.152-2.489.947-3.529.853-1.122 1.881-1.706 3.272-1.95 1.192-.21 2.314-.095 3.33.595.923.63 1.496 1.484 1.648 2.605.198 1.578-.257 2.863-1.344 3.962-.771.783-1.718 1.273-2.805 1.495-.315.06-.63.07-.934.106zm2.78-4.72c-.011-.153-.011-.27-.034-.387-.21-1.157-1.274-1.81-2.384-1.554-1.087.245-1.788.935-2.045 2.033-.21.912.234 1.835 1.075 2.21.643.28 1.285.244 1.905-.07.923-.48 1.425-1.228 1.484-2.233z"/></svg>
+          <span>Go</span>
+        </div>
+        <div class="tech-item">
+          <svg role="img" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="m8.286 10.578.512-8.657a.306.306 0 0 1 .247-.282L17.377.006a.306.306 0 0 1 .353.385l-1.558 5.403a.306.306 0 0 0 .352.385l2.388-.46a.306.306 0 0 1 .332.438l-6.79 13.55-.123.19a.294.294 0 0 1-.252.14c-.177 0-.35-.152-.305-.369l1.095-5.301a.306.306 0 0 0-.388-.355l-1.433.435a.306.306 0 0 1-.389-.354l.69-3.375a.306.306 0 0 0-.37-.36l-1.577.402a.306.306 0 0 1-.382-.318l.166-4.84Z"/></svg>
+          <span>Vite</span>
+        </div>
+        <div class="tech-item">
+          <svg role="img" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M13.983 11.078h2.119a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.119a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.954-5.43h2.118a.186.186 0 00.186-.186V3.574a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185m0 2.716h2.118a.187.187 0 00.186-.186V6.29a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.887c0 .102.082.185.185.186m-2.93 0h2.12a.186.186 0 00.184-.186V6.29a.185.185 0 00-.185-.185H8.1a.185.185 0 00-.185.185v1.887c0 .102.083.185.185.186m-2.964 0h2.119a.186.186 0 00.185-.186V6.29a.185.185 0 00-.185-.185H5.136a.186.186 0 00-.186.185v1.887c0 .102.084.185.186.186m5.893 2.715h2.118a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185m-2.93 0h2.12a.185.185 0 00.184-.185V9.006a.185.185 0 00-.184-.186h-2.12a.185.185 0 00-.184.185v1.888c0 .102.083.185.185.185m-2.964 0h2.119a.185.185 0 00.185-.185V9.006a.185.185 0 00-.184-.186h-2.12a.186.186 0 00-.186.186v1.887c0 .102.084.185.186.185m-2.92 0h2.12a.185.185 0 00.184-.185V9.006a.185.185 0 00-.184-.186h-2.12a.185.185 0 00-.184.185v1.888c0 .102.082.185.185.185M23.763 9.89c-.065-.051-.672-.51-1.954-.51-.338.001-.676.03-1.01.087-.248-1.7-1.653-2.53-1.716-2.566l-.344-.199-.226.327c-.284.438-.49.922-.612 1.43-.23.97-.09 1.882.403 2.661-.595.332-1.55.413-1.744.42H.751a.751.751 0 00-.75.748 11.376 11.376 0 00.692 4.062c.545 1.428 1.355 2.48 2.41 3.124 1.18.723 3.1 1.137 5.275 1.137.983.003 1.963-.086 2.93-.266a12.248 12.248 0 003.823-1.389c.98-.567 1.86-1.288 2.61-2.136 1.252-1.418 1.998-2.997 2.553-4.4h.221c1.372 0 2.215-.549 2.68-1.009.309-.293.55-.65.707-1.046l.098-.288Z"/></svg>
+          <span>Docker</span>
+        </div>
+        <div class="tech-item">
+          <svg role="img" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M23.5594 14.7228a.5269.5269 0 0 0-.0563-.1191c-.139-.2632-.4768-.3418-1.0074-.2321-1.6533.3411-2.2935.1312-2.5256-.0191 1.342-2.0482 2.445-4.522 3.0411-6.8297.2714-1.0507.7982-3.5237.1222-4.7316a1.5641 1.5641 0 0 0-.1509-.235C21.6931.9086 19.8007.0248 17.5099.0005c-1.4947-.0158-2.7705.3461-3.1161.4794a9.449 9.449 0 0 0-.5159-.0816 8.044 8.044 0 0 0-1.3114-.1278c-1.1822-.0184-2.2038.2642-3.0498.8406-.8573-.3211-4.7888-1.645-7.2219.0788C.9359 2.1526.3086 3.8733.4302 6.3043c.0409.818.5069 3.334 1.2423 5.7436.4598 1.5065.9387 2.7019 1.4334 3.582.553.9942 1.1259 1.5933 1.7143 1.7895.4474.1491 1.1327.1441 1.8581-.7279.8012-.9635 1.5903-1.8258 1.9446-2.2069.4351.2355.9064.3625 1.39.3772a.0569.0569 0 0 0 .0004.0041 11.0312 11.0312 0 0 0-.2472.3054c-.3389.4302-.4094.5197-1.5002.7443-.3102.064-1.1344.2339-1.1464.8115-.0025.1224.0329.2309.0919.3268.2269.4231.9216.6097 1.015.6331 1.3345.3335 2.5044.092 3.3714-.6787-.017 2.231.0775 4.4174.3454 5.0874.2212.5529.7618 1.9045 2.4692 1.9043.2505 0 .5263-.0291.8296-.0941 1.7819-.3821 2.5557-1.1696 2.855-2.9059.1503-.8707.4016-2.8753.5388-4.1012.0169-.0703.0357-.1207.057-.1362.0007-.0005.0697-.0471.4272.0307a.3673.3673 0 0 0 .0443.0068l.2539.0223.0149.001c.8468.0384 1.9114-.1426 2.5312-.4308.6438-.2988 1.8057-1.0323 1.5951-1.6698zM2.371 11.8765c-.7435-2.4358-1.1779-4.8851-1.2123-5.5719-.1086-2.1714.4171-3.6829 1.5623-4.4927 1.8367-1.2986 4.8398-.5408 6.108-.13-.0032.0032-.0066.0061-.0098.0094-2.0238 2.044-1.9758 5.536-1.9708 5.7495-.0002.0823.0066.1989.0162.3593.0348.5873.0996 1.6804-.0735 2.9184-.1609 1.1504.1937 2.2764.9728 3.0892.0806.0841.1648.1631.2518.2374-.3468.3714-1.1004 1.1926-1.9025 2.1576-.5677.6825-.9597.5517-1.0886.5087-.3919-.1307-.813-.5871-1.2381-1.3223-.4796-.839-.9635-2.0317-1.4155-3.5126zm6.0072 5.0871c-.1711-.0428-.3271-.1132-.4322-.1772.0889-.0394.2374-.0902.4833-.1409 1.2833-.2641 1.4815-.4506 1.9143-1.0002.0992-.126.2116-.2687.3673-.4426a.3549.3549 0 0 0 .0737-.1298c.1708-.1513.2724-.1099.4369-.0417.156.0646.3078.26.3695.4752.0291.1016.0619.2945-.0452.4444-.9043 1.2658-2.2216 1.2494-3.1676 1.0128zm2.094-3.988-.0525.141c-.133.3566-.2567.6881-.3334 1.003-.6674-.0021-1.3168-.2872-1.8105-.8024-.6279-.6551-.9131-1.5664-.7825-2.5004.1828-1.3079.1153-2.4468.079-3.0586-.005-.0857-.0095-.1607-.0122-.2199.2957-.2621 1.6659-.9962 2.6429-.7724.4459.1022.7176.4057.8305.928.5846 2.7038.0774 3.8307-.3302 4.7363-.084.1866-.1633.3629-.2311.5454zm7.3637 4.5725c-.0169.1768-.0358.376-.0618.5959l-.146.4383a.3547.3547 0 0 0-.0182.1077c-.0059.4747-.054.6489-.115.8693-.0634.2292-.1353.4891-.1794 1.0575-.11 1.4143-.8782 2.2267-2.4172 2.5565-1.5155.3251-1.7843-.4968-2.0212-1.2217a6.5824 6.5824 0 0 0-.0769-.2266c-.2154-.5858-.1911-1.4119-.1574-2.5551.0165-.5612-.0249-1.9013-.3302-2.6462.0044-.2932.0106-.5909.019-.8918a.3529.3529 0 0 0-.0153-.1126 1.4927 1.4927 0 0 0-.0439-.208c-.1226-.4283-.4213-.7866-.7797-.9351-.1424-.059-.4038-.1672-.7178-.0869.067-.276.1831-.5875.309-.9249l.0529-.142c.0595-.16.134-.3257.213-.5012.4265-.9476 1.0106-2.2453.3766-5.1772-.2374-1.0981-1.0304-1.6343-2.2324-1.5098-.7207.0746-1.3799.3654-1.7088.5321a5.6716 5.6716 0 0 0-.1958.1041c.0918-1.1064.4386-3.1741 1.7357-4.4823a4.0306 4.0306 0 0 1 .3033-.276.3532.3532 0 0 0 .1447-.0644c.7524-.5706 1.6945-.8506 2.802-.8325.4091.0067.8017.0339 1.1742.081 1.939.3544 3.2439 1.4468 4.0359 2.3827.8143.9623 1.2552 1.9315 1.4312 2.4543-1.3232-.1346-2.2234.1268-2.6797.779-.9926 1.4189.543 4.1729 1.2811 5.4964.1353.2426.2522.4522.2889.5413.2403.5825.5515.9713.7787 1.2552.0696.087.1372.1714.1885.245-.4008.1155-1.1208.3825-1.0552 1.717-.0123.1563-.0423.4469-.0834.8148-.0461.2077-.0702.4603-.0994.7662zm.8905-1.6211c-.0405-.8316.2691-.9185.5967-1.0105a2.8566 2.8566 0 0 0 .135-.0406 1.202 1.202 0 0 0 .1342.103c.5703.3765 1.5823.4213 3.0068.1344-.2016.1769-.5189.3994-.9533.6011-.4098.1903-1.0957.333-1.7473.3636-.7197.0336-1.0859-.0807-1.1721-.151zm.5695-9.2712c-.0059.3508-.0542.6692-.1054 1.0017-.055.3576-.112.7274-.1264 1.1762-.0142.4368.0404.8909.0932 1.3301.1066.887.216 1.8003-.2075 2.7014a3.5272 3.5272 0 0 1-.1876-.3856c-.0527-.1276-.1669-.3326-.3251-.6162-.6156-1.1041-2.0574-3.6896-1.3193-4.7446.3795-.5427 1.3408-.5661 2.1781-.463zm.2284 7.0137a12.3762 12.3762 0 0 0-.0853-.1074l-.0355-.0444c.7262-1.1995.5842-2.3862.4578-3.4385-.0519-.4318-.1009-.8396-.0885-1.2226.0129-.4061.0666-.7543.1185-1.0911.0639-.415.1288-.8443.1109-1.3505.0134-.0531.0188-.1158.0118-.1902-.0457-.4855-.5999-1.938-1.7294-3.253-.6076-.7073-1.4896-1.4972-2.6889-2.0395.5251-.1066 1.2328-.2035 2.0244-.1859 2.0515.0456 3.6746.8135 4.8242 2.2824a.908.908 0 0 1 .0667.1002c.7231 1.3556-.2762 6.2751-2.9867 10.5405zm-8.8166-6.1162c-.025.1794-.3089.4225-.6211.4225a.5821.5821 0 0 1-.0809-.0056c-.1873-.026-.3765-.144-.5059-.3156-.0458-.0605-.1203-.178-.1055-.2844.0055-.0401.0261-.0985.0925-.1488.1182-.0894.3518-.1226.6096-.0867.3163.0441.6426.1938.6113.4186zm7.9305-.4114c.0111.0792-.049.201-.1531.3102-.0683.0717-.212.1961-.4079.2232a.5456.5456 0 0 1-.075.0052c-.2935 0-.5414-.2344-.5607-.3717-.024-.1765.2641-.3106.5611-.352.297-.0414.6111.0088.6356.1851z"/></svg>
+          <span>PostgreSQL</span>
+        </div>
+        <div class="tech-item">
+          <svg role="img" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M21.678.521c-1.032-.92-2.28-.55-3.513.544a8.71 8.71 0 0 0-.547.535c-2.109 2.237-4.066 6.38-4.674 9.544.237.48.422 1.093.544 1.561a13.044 13.044 0 0 1 .164.703s-.019-.071-.096-.296l-.05-.146a1.689 1.689 0 0 0-.033-.08c-.138-.32-.518-.995-.686-1.289-.143.423-.27.818-.376 1.176.484.884.778 2.4.778 2.4s-.025-.099-.147-.442c-.107-.303-.644-1.244-.772-1.464-.217.804-.304 1.346-.226 1.478.152.256.296.698.422 1.186.286 1.1.485 2.44.485 2.44l.017.224a22.41 22.41 0 0 0 .056 2.748c.095 1.146.273 2.13.5 2.657l.155-.084c-.334-1.038-.47-2.399-.41-3.967.09-2.398.642-5.29 1.661-8.304 1.723-4.55 4.113-8.201 6.3-9.945-1.993 1.8-4.692 7.63-5.5 9.788-.904 2.416-1.545 4.684-1.931 6.857.666-2.037 2.821-2.912 2.821-2.912s1.057-1.304 2.292-3.166c-.74.169-1.955.458-2.362.629-.6.251-.762.337-.762.337s1.945-1.184 3.613-1.72C21.695 7.9 24.195 2.767 21.678.521m-18.573.543A1.842 1.842 0 0 0 1.27 2.9v16.608a1.84 1.84 0 0 0 1.835 1.834h9.418a22.953 22.953 0 0 1-.052-2.707c-.006-.062-.011-.141-.016-.2a27.01 27.01 0 0 0-.473-2.378c-.121-.47-.275-.898-.369-1.057-.116-.197-.098-.31-.097-.432 0-.12.015-.245.037-.386a9.98 9.98 0 0 1 .234-1.045l.217-.028c-.017-.035-.014-.065-.031-.097l-.041-.381a32.8 32.8 0 0 1 .382-1.194l.2-.019c-.008-.016-.01-.038-.018-.053l-.043-.316c.63-3.28 2.587-7.443 4.8-9.791.066-.069.133-.128.198-.194Z"/></svg>
+          <span>SQLite</span>
+        </div>
+        <div class="tech-item">
+          <svg role="img" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+          <span>GitHub</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- Search Showcase -->
+  <section class="showcase-section" id="showcase-search">
+    <div class="container">
+      <div class="search-showcase-grid">
+        <div class="search-showcase-info">
+          <h2>Instant search</h2>
+          <p>Find any card across all boards in milliseconds. Results appear as you type &mdash; no waiting, no page reloads.</p>
+          <ul class="search-feature-list">
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Search titles, descriptions, and comments</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Keyboard navigation &mdash; <span class="kbd">&#8593;</span><span class="kbd">&#8595;</span> to move, <span class="kbd">&#9166;</span> to open</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Results show column, priority, and assignee</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> <span class="kbd">/</span> to focus from anywhere on the board</li>
+          </ul>
+        </div>
+        <div class="demo-search-showcase" id="search-demo">
+          <div class="demo-search-wrap">
+            <div class="demo-search-input-box">
+              <svg class="demo-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <span class="demo-search-text" id="search-typed"></span>
+              <span class="demo-search-cursor" id="search-cursor"></span>
+              <button class="demo-search-clear" id="search-clear" style="display:none">&times;</button>
+            </div>
+            <div class="demo-search-results" id="search-results" style="display:none">
+              <div class="demo-search-result-item demo-search-result-active" id="sr-0" style="display:none">
+                <span class="demo-search-result-key">LWTS-4</span>
+                <span class="demo-search-result-title">Fix SSE <mark>heartbeat</mark> timeout on slow connections</span>
+                <span class="demo-search-result-col">In Progress</span>
+              </div>
+              <div class="demo-search-result-item" id="sr-1" style="display:none">
+                <span class="demo-search-result-key">LWTS-31</span>
+                <span class="demo-search-result-title">Add <mark>heartbeat</mark> monitoring to webhook dispatcher</span>
+                <span class="demo-search-result-col">Backlog</span>
+              </div>
+              <div class="demo-search-result-item" id="sr-2" style="display:none">
+                <span class="demo-search-result-key">LWTS-45</span>
+                <span class="demo-search-result-title">SSE <mark>heartbeat</mark> interval should be configurable</span>
+                <span class="demo-search-result-col">To Do</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- Epic Swimlanes Showcase -->
+  <section class="showcase-section" id="showcase-epics">
+    <div class="container">
+      <h2>Epic swimlanes</h2>
+      <p class="section-sub">Group cards by epic to see progress across workstreams at a glance. Collapse lanes, drag between them, track counts per column.</p>
+      <div class="demo-board showcase-board">
+        <div class="demo-board-header">
+          <div class="demo-board-logo">
+            <span class="logo-box demo-logo-box"><svg class="demo-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><g transform="rotate(270 12 12)"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M8 7v9"/><path d="M12 7v4"/><path d="M16 7v7"/></g></svg></span>
+            <span style="font-family:var(--font-brand);font-size:0.85rem;text-transform:uppercase;letter-spacing:0.02em;">LWTS</span>
+            <span class="demo-board-name">Sprint 42</span>
+          </div>
+          <div class="showcase-view-tabs">
+            <button class="showcase-view-tab active">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+              Board
+            </button>
+            <button class="showcase-view-tab">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+              List
+            </button>
+          </div>
+        </div>
+        <!-- Column headers row -->
+        <div class="epic-col-headers">
+          <div class="epic-col-header"><span class="mini-col-dot" style="background:var(--text-dimmed)"></span> Backlog <span class="mini-col-count">3</span></div>
+          <div class="epic-col-header"><span class="mini-col-dot" style="background:var(--accent-red)"></span> To Do <span class="mini-col-count">3</span></div>
+          <div class="epic-col-header"><span class="mini-col-dot" style="background:var(--accent-orange)"></span> In Progress <span class="mini-col-count">3</span></div>
+          <div class="epic-col-header"><span class="mini-col-dot" style="background:var(--accent-green)"></span> Done <span class="mini-col-count">3</span></div>
+        </div>
+        <!-- Epic Lane 1 -->
+        <div class="demo-epic-lane">
+          <div class="demo-epic-header">
+            <span class="demo-epic-key">LWTS-27</span>
+            <span class="demo-epic-title">Infrastructure Hardening</span>
+            <span class="demo-epic-count">7 cards</span>
+          </div>
+          <div class="demo-epic-columns">
+            <div class="demo-epic-cell">
+              <div class="epic-card">
+                <div class="epic-card-avatar" style="background:rgba(66,165,245,0.15);color:#42a5f5;border-color:rgba(66,165,245,0.25)"><img src="img/priya.png"></div>
+                <div class="epic-card-title">Transcript parser batch mode for quarterly bulk import</div>
+                <span class="epic-card-tag tag-green">FIX</span>
+                <div class="epic-card-footer">
+                  <span class="mini-card-key">LWTS-15</span>
+                  <span class="epic-card-due due-overdue"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> YESTERDAY</span>
+                  <span class="epic-card-points">8</span>
+                  <span class="epic-card-priority"><svg viewBox="0 0 16 16" width="14" height="14"><path d="M8 3l5 8H3z" fill="#f44336" opacity="0.8"/></svg></span>
+                </div>
+              </div>
+              <div class="epic-card">
+                <div class="epic-card-avatar" style="background:rgba(38,166,154,0.15);color:#26a69a;border-color:rgba(38,166,154,0.25)"><img src="img/sarah.png"></div>
+                <div class="epic-card-title">Add dark/light theme toggle</div>
+                <span class="epic-card-tag">FEATURE</span>
+                <div class="epic-card-footer">
+                  <span class="mini-card-key">LWTS-1</span>
+                  <span class="epic-card-due"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> APR 15</span>
+                  <span class="epic-card-points">3</span>
+                  <span class="epic-card-priority"><svg viewBox="0 0 16 16" width="14" height="14"><path d="M8 13l5-8H3z" fill="#4caf50" opacity="0.7"/></svg></span>
+                </div>
+              </div>
+            </div>
+            <div class="demo-epic-cell">
+              <div class="epic-card">
+                <div class="epic-card-avatar" style="background:rgba(66,165,245,0.15);color:#42a5f5;border-color:rgba(66,165,245,0.25)"><img src="img/priya.png"></div>
+                <div class="epic-card-title">Investigate ES shard rebalancing after disk watermark breach</div>
+                <span class="epic-card-tag tag-orange">INFRA</span>
+                <div class="epic-card-footer">
+                  <span class="mini-card-key">LWTS-2</span>
+                  <span class="epic-card-due"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> APR 12</span>
+                  <span class="epic-card-points">5</span>
+                  <span class="epic-card-priority"><svg viewBox="0 0 16 16" width="14" height="14"><rect x="4" y="6.5" width="8" height="3" rx="1" fill="#fb8c00" opacity="0.7"/></svg></span>
+                </div>
+              </div>
+              <div class="epic-card">
+                <div class="epic-card-avatar" style="background:rgba(239,83,80,0.15);color:#ef5350;border-color:rgba(239,83,80,0.25)"><img src="img/marcus.png"></div>
+                <div class="epic-card-title">Database connection pool exhaustion under sustained load</div>
+                <span class="epic-card-tag tag-red">BUG</span>
+                <div class="epic-card-footer">
+                  <span class="mini-card-key">LWTS-14</span>
+                  <span class="epic-card-due due-today"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> TODAY</span>
+                  <span class="epic-card-points">5</span>
+                  <span class="epic-card-priority"><svg viewBox="0 0 16 16" width="14" height="14"><path d="M8 3l5 8H3z" fill="#f44336" opacity="0.8"/></svg></span>
+                </div>
+              </div>
+            </div>
+            <div class="demo-epic-cell">
+              <div class="epic-card">
+                <div class="epic-card-avatar" style="background:rgba(239,83,80,0.12);color:#ef5350;border-color:rgba(239,83,80,0.2)"><img src="img/marcus.png"></div>
+                <div class="epic-card-title">Implement board-level permissions and access control</div>
+                <span class="epic-card-tag tag-orange">INFRA</span>
+                <div class="epic-card-footer">
+                  <span class="mini-card-key">LWTS-17</span>
+                  <span class="epic-card-due due-overdue"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> APR 10</span>
+                  <span class="epic-card-points">8</span>
+                  <span class="epic-card-priority"><svg viewBox="0 0 16 16" width="14" height="14"><path d="M8 3l5 8H3z" fill="#f44336" opacity="0.8"/></svg></span>
+                </div>
+              </div>
+            </div>
+            <div class="demo-epic-cell">
+              <div class="epic-card">
+                <div class="epic-card-avatar" style="background:rgba(66,165,245,0.15);color:#42a5f5;border-color:rgba(66,165,245,0.25)"><img src="img/priya.png"></div>
+                <div class="epic-card-title">Add FRED macro series to the economic dashboard</div>
+                <span class="epic-card-tag tag-blue">FEATURE</span>
+                <div class="epic-card-footer">
+                  <span class="mini-card-key">LWTS-10</span>
+                  <span class="epic-card-due due-overdue"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> APR 6</span>
+                  <span class="epic-card-points">3</span>
+                  <span class="epic-card-priority"><svg viewBox="0 0 16 16" width="14" height="14"><rect x="4" y="6.5" width="8" height="3" rx="1" fill="#fb8c00" opacity="0.7"/></svg></span>
+                </div>
+              </div>
+              <div class="epic-card">
+                <div class="epic-card-avatar" style="background:rgba(92,107,192,0.12);color:#5c6bc0;border-color:rgba(92,107,192,0.2)"><img src="img/admin.png"></div>
+                <div class="epic-card-title">Migrate user avatars to S3-compatible object storage</div>
+                <span class="epic-card-tag tag-orange">INFRA</span>
+                <div class="epic-card-footer">
+                  <span class="mini-card-key">LWTS-11</span>
+                  <span class="epic-card-due due-overdue"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> APR 7</span>
+                  <span class="epic-card-points">5</span>
+                  <span class="epic-card-priority"><svg viewBox="0 0 16 16" width="14" height="14"><path d="M8 3l5 8H3z" fill="#f44336" opacity="0.8"/></svg></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Epic Lane 2 -->
+        <div class="demo-epic-lane">
+          <div class="demo-epic-header">
+            <span class="demo-epic-key">LWTS-28</span>
+            <span class="demo-epic-title">Frontend Polish</span>
+            <span class="demo-epic-count">4 cards</span>
+          </div>
+          <div class="demo-epic-columns">
+            <div class="demo-epic-cell">
+              <div class="epic-card">
+                <div class="epic-card-avatar" style="background:rgba(38,166,154,0.15);color:#26a69a;border-color:rgba(38,166,154,0.25)"><img src="img/sarah.png"></div>
+                <div class="epic-card-title">Mobile responsive layout for board and list views</div>
+                <span class="epic-card-tag tag-blue">FEATURE</span>
+                <div class="epic-card-footer">
+                  <span class="mini-card-key">LWTS-3</span>
+                  <span class="epic-card-due"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> APR 20</span>
+                  <span class="epic-card-points">8</span>
+                  <span class="epic-card-priority"><svg viewBox="0 0 16 16" width="14" height="14"><path d="M8 13l5-8H3z" fill="#4caf50" opacity="0.7"/></svg></span>
+                </div>
+              </div>
+            </div>
+            <div class="demo-epic-cell">
+              <div class="epic-card">
+                <div class="epic-card-avatar" style="background:rgba(239,83,80,0.15);color:#ef5350;border-color:rgba(239,83,80,0.25)"><img src="img/marcus.png"></div>
+                <div class="epic-card-title">Implement live markdown preview in card descriptions</div>
+                <span class="epic-card-tag tag-blue">FEATURE</span>
+                <div class="epic-card-footer">
+                  <span class="mini-card-key">LWTS-13</span>
+                  <span class="epic-card-due due-today"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> TODAY</span>
+                  <span class="epic-card-points">3</span>
+                  <span class="epic-card-priority"><svg viewBox="0 0 16 16" width="14" height="14"><path d="M8 13l5-8H3z" fill="#4caf50" opacity="0.7"/></svg></span>
+                </div>
+              </div>
+            </div>
+            <div class="demo-epic-cell">
+              <div class="epic-card">
+                <div class="epic-card-avatar" style="background:rgba(239,83,80,0.12);color:#ef5350;border-color:rgba(239,83,80,0.2)"><img src="img/marcus.png"></div>
+                <div class="epic-card-title">Fix card drag ghost image rendering on Firefox</div>
+                <span class="epic-card-tag tag-red">BUG</span>
+                <div class="epic-card-footer">
+                  <span class="mini-card-key">LWTS-12</span>
+                  <span class="epic-card-due due-overdue"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> APR 8</span>
+                  <span class="epic-card-points">2</span>
+                  <span class="epic-card-priority"><svg viewBox="0 0 16 16" width="14" height="14"><rect x="4" y="6.5" width="8" height="3" rx="1" fill="#fb8c00" opacity="0.7"/></svg></span>
+                </div>
+              </div>
+            </div>
+            <div class="demo-epic-cell">
+              <div class="epic-card">
+                <div class="epic-card-avatar" style="background:rgba(92,107,192,0.12);color:#5c6bc0;border-color:rgba(92,107,192,0.2)"><img src="img/admin.png"></div>
+                <div class="epic-card-title">Redesign card detail modal with two-column layout</div>
+                <span class="epic-card-tag tag-blue">FEATURE</span>
+                <div class="epic-card-footer">
+                  <span class="mini-card-key">LWTS-16</span>
+                  <span class="epic-card-due due-overdue"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> APR 6</span>
+                  <span class="epic-card-points">5</span>
+                  <span class="epic-card-priority"><svg viewBox="0 0 16 16" width="14" height="14"><rect x="4" y="6.5" width="8" height="3" rx="1" fill="#fb8c00" opacity="0.7"/></svg></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- List View Showcase -->
+  <section class="showcase-section showcase-list-section" id="showcase-list">
+    <div class="container">
+      <h2>List view &amp; filters</h2>
+      <p class="section-sub">Switch to list view for a dense overview. Filter by assignee, priority, tag, or search across all cards.</p>
+      <div class="demo-board showcase-board">
+        <div class="demo-board-header">
+          <div class="demo-board-logo">
+            <span class="logo-box demo-logo-box"><svg class="demo-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><g transform="rotate(270 12 12)"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M8 7v9"/><path d="M12 7v4"/><path d="M16 7v7"/></g></svg></span>
+            <span style="font-family:var(--font-brand);font-size:0.85rem;text-transform:uppercase;letter-spacing:0.02em;">LWTS</span>
+            <span class="demo-board-name">kanban</span>
+          </div>
+          <div class="demo-filter-bar">
+            <div class="demo-filter-btn active"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Priority: High<span class="demo-filter-badge">2</span></div>
+            <div class="demo-filter-btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> Assignee</div>
+            <div class="demo-filter-btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg> Tag</div>
+            <div class="demo-search-box">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <span>Search cards...</span>
+            </div>
+          </div>
+        </div>
+        <div class="demo-list-table">
+          <div class="demo-list-header">
+            <span class="demo-list-col col-key">Key</span>
+            <span class="demo-list-col col-title">Title</span>
+            <span class="demo-list-col col-status">Status</span>
+            <span class="demo-list-col col-priority">Priority</span>
+            <span class="demo-list-col col-assignee">Assignee</span>
+            <span class="demo-list-col col-points">Points</span>
+            <span class="demo-list-col col-due">Due</span>
+          </div>
+          <div class="demo-list-row">
+            <span class="demo-list-col col-key"><span class="mini-card-key">LWTS-4</span></span>
+            <span class="demo-list-col col-title">Fix SSE heartbeat timeout on slow connections</span>
+            <span class="demo-list-col col-status"><span class="demo-list-dot" style="background:var(--accent-orange)"></span> In Progress</span>
+            <span class="demo-list-col col-priority"><span class="demo-list-dot" style="background:#f44336"></span> Highest</span>
+            <span class="demo-list-col col-assignee"><div class="mini-card-bubble mini-avatar" style="background:rgba(66,165,245,0.15);color:#42a5f5;border-color:rgba(66,165,245,0.25);--card-bubble-size:22px;"><img src="img/priya.png"></div></span>
+            <span class="demo-list-col col-points">5</span>
+            <span class="demo-list-col col-due demo-due-overdue">Apr 1</span>
+          </div>
+          <div class="demo-list-row">
+            <span class="demo-list-col col-key"><span class="mini-card-key">LWTS-26</span></span>
+            <span class="demo-list-col col-title">Fix webhook retry backoff</span>
+            <span class="demo-list-col col-status"><span class="demo-list-dot" style="background:var(--accent-blue)"></span> To Do</span>
+            <span class="demo-list-col col-priority"><span class="demo-list-dot" style="background:#f44336"></span> High</span>
+            <span class="demo-list-col col-assignee"><div class="mini-card-bubble mini-avatar" style="background:rgba(92,107,192,0.15);color:#5c6bc0;border-color:rgba(92,107,192,0.25);--card-bubble-size:22px;"><img src="img/admin.png"></div></span>
+            <span class="demo-list-col col-points">3</span>
+            <span class="demo-list-col col-due demo-due-today">Today</span>
+          </div>
+          <div class="demo-list-row">
+            <span class="demo-list-col col-key"><span class="mini-card-key">LWTS-2</span></span>
+            <span class="demo-list-col col-title">Investigate ES shard rebalancing</span>
+            <span class="demo-list-col col-status"><span class="demo-list-dot" style="background:var(--text-dimmed)"></span> Backlog</span>
+            <span class="demo-list-col col-priority"><span class="demo-list-dot" style="background:#f44336"></span> High</span>
+            <span class="demo-list-col col-assignee"><div class="mini-card-bubble mini-avatar" style="background:rgba(92,107,192,0.15);color:#5c6bc0;border-color:rgba(92,107,192,0.25);--card-bubble-size:22px;"><img src="img/admin.png"></div></span>
+            <span class="demo-list-col col-points">3</span>
+            <span class="demo-list-col col-due">Aug 20</span>
+          </div>
+          <div class="demo-list-row demo-list-row-dimmed">
+            <span class="demo-list-col col-key"><span class="mini-card-key">LWTS-9</span></span>
+            <span class="demo-list-col col-title" style="text-decoration:line-through;opacity:0.5;">JWT token refresh race condition</span>
+            <span class="demo-list-col col-status"><span class="demo-list-dot" style="background:var(--accent-green)"></span> Done</span>
+            <span class="demo-list-col col-priority"><span class="demo-list-dot" style="background:#f44336"></span> High</span>
+            <span class="demo-list-col col-assignee"><div class="mini-card-bubble mini-avatar" style="background:rgba(239,83,80,0.15);color:#ef5350;border-color:rgba(239,83,80,0.25);--card-bubble-size:22px;"><img src="img/marcus.png"></div></span>
+            <span class="demo-list-col col-points">2</span>
+            <span class="demo-list-col col-due">Mar 28</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- Features -->
+  <section class="features" id="features">
+    <div class="container">
+      <h2>Everything you need. Nothing you don't.</h2>
+      <p class="section-sub">No bloat, no electron, no SaaS lock-in. Just a fast, self-hosted kanban board that runs anywhere.</p>
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          </div>
+          <h3>Real-Time Collaboration</h3>
+          <p>Server-Sent Events push card updates, comments, and presence to every connected client instantly. No polling, no WebSocket complexity.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          </div>
+          <h3>Drag &amp; Drop</h3>
+          <p>Move cards between columns with native HTML5 drag-and-drop. Reorder within columns. Optimistic UI with automatic rollback on conflict.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+          </div>
+          <h3>Role-Based Access</h3>
+          <p>Four roles &mdash; Owner, Admin, Member, Viewer &mdash; with enforced permissions. Invite teammates, manage roles, control who can edit.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <h3>Secure by Default</h3>
+          <p>JWT auth with token rotation. Bcrypt password hashing. Rate limiting. CORS. Security headers. Parameterized queries. No shortcuts.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4a2 2 0 012-2h8.5L20 7.5V20a2 2 0 01-2 2H4"/><polyline points="14 2 14 8 20 8"/><path d="M2 15h10"/><path d="M5 12l-3 3 3 3"/></svg>
+          </div>
+          <h3>Webhooks</h3>
+          <p>Subscribe to card and comment events per-board. HMAC-SHA256 signed payloads, automatic retries with exponential backoff, delivery history.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </div>
+          <h3>Fully Responsive</h3>
+          <p>Desktop columns, tablet scroll, mobile single-column with tabs. Touch-friendly 44px+ targets. Dark and light themes with accent colors.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          </div>
+          <h3>Customizable</h3>
+          <p>Multiple boards with custom project keys. Configurable columns. Dark/light themes. Accent colors. Density and font size options. Make it yours.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          </div>
+          <h3>Comments &amp; Activity</h3>
+          <p>Threaded comments on every card with real-time updates. Track reporters, assignees, due dates, story points, priorities, and tags.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          </div>
+          <h3>REST API</h3>
+          <p>Full CRUD API for boards, cards, comments, webhooks, and users. JWT auth. Search. Presence. Stream events. Build on top of it.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          </div>
+          <h3>PostgreSQL or SQLite</h3>
+          <p>Use PostgreSQL in production with connection pooling. Or SQLite for single-user or development. Auto-detected from the connection URL.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          </div>
+          <h3>Zero Frontend Build</h3>
+          <p>Vanilla ES6+ JavaScript, embedded into the Go binary at compile time. No npm, no webpack, no build step. Edit and reload.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          </div>
+          <h3>Accessible</h3>
+          <p>WCAG 2.1 AA. Keyboard navigation with arrow keys. ARIA roles and labels. Screen reader live regions. Reduced motion support.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- Quick Start -->
+  <section class="quickstart" id="quickstart">
+    <div class="container">
+      <h2>Up and running in 60 seconds</h2>
+      <p class="section-sub">One command. That's it.</p>
+
+      <div class="code-tabs">
+        <div class="tab-bar">
+          <button class="tab active" data-tab="docker-compose">Docker Compose</button>
+          <button class="tab" data-tab="docker">Docker</button>
+          <button class="tab" data-tab="binary">Binary</button>
+        </div>
+
+        <div class="tab-content active" id="tab-docker-compose">
+          <div class="code-block">
+            <div class="code-header">
+              <span>docker-compose.yml</span>
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
+            <pre><code><span class="kw">version</span>: <span class="str">"3.8"</span>
+
+<span class="kw">services</span>:
+  <span class="kw">lwts</span>:
+    <span class="kw">image</span>: <span class="str">ghcr.io/oceanplexian/lwts:latest</span>
+    <span class="kw">ports</span>:
+      - <span class="str">"8080:8080"</span>
+    <span class="kw">environment</span>:
+      <span class="kw">DB_URL</span>: <span class="str">postgres://lwts:lwts@db:5432/lwts</span>
+      <span class="kw">JWT_SECRET</span>: <span class="str">change-me-in-production</span>
+    <span class="kw">depends_on</span>:
+      - db
+
+  <span class="kw">db</span>:
+    <span class="kw">image</span>: <span class="str">postgres:16-alpine</span>
+    <span class="kw">environment</span>:
+      <span class="kw">POSTGRES_USER</span>: <span class="str">lwts</span>
+      <span class="kw">POSTGRES_PASSWORD</span>: <span class="str">lwts</span>
+      <span class="kw">POSTGRES_DB</span>: <span class="str">lwts</span>
+    <span class="kw">volumes</span>:
+      - <span class="str">pgdata:/var/lib/postgresql/data</span>
+
+<span class="kw">volumes</span>:
+  <span class="kw">pgdata</span>:</code></pre>
+          </div>
+          <div class="code-block code-run">
+            <div class="code-header"><span>Terminal</span></div>
+            <pre><code><span class="prompt">$</span> docker compose up -d
+<span class="comment"># Open http://localhost:8080</span></code></pre>
+          </div>
+        </div>
+
+        <div class="tab-content" id="tab-docker">
+          <div class="code-block">
+            <div class="code-header"><span>Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+            <pre><code><span class="comment"># With SQLite (simplest)</span>
+<span class="prompt">$</span> docker run -p 8080:8080 \
+    -e DB_URL=sqlite:///data/lwts.db \
+    -e JWT_SECRET=change-me \
+    -v lwts-data:/data \
+    ghcr.io/oceanplexian/lwts:latest
+
+<span class="comment"># With external PostgreSQL</span>
+<span class="prompt">$</span> docker run -p 8080:8080 \
+    -e DB_URL=postgres://user:pass@host:5432/lwts \
+    -e JWT_SECRET=change-me \
+    ghcr.io/oceanplexian/lwts:latest</code></pre>
+          </div>
+        </div>
+
+        <div class="tab-content" id="tab-binary">
+          <div class="code-block">
+            <div class="code-header"><span>Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+            <pre><code><span class="comment"># Download the latest release</span>
+<span class="prompt">$</span> curl -sL https://github.com/oceanplexian/lwts/releases/latest/download/lwts-$(uname -s)-$(uname -m) -o lwts
+<span class="prompt">$</span> chmod +x lwts
+
+<span class="comment"># Run with SQLite (zero setup)</span>
+<span class="prompt">$</span> DB_URL=sqlite://lwts.db JWT_SECRET=change-me ./lwts
+
+<span class="comment"># Or with PostgreSQL</span>
+<span class="prompt">$</span> DB_URL=postgres://user:pass@localhost:5432/lwts JWT_SECRET=change-me ./lwts</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- API Section -->
+  <section class="api-section" id="api">
+    <div class="container">
+      <h2>Developer-friendly API</h2>
+      <p class="section-sub">Full REST API with JWT auth. Automate your workflow, build integrations, or drive your board from CI/CD.</p>
+      <div class="api-grid">
+        <div class="api-example">
+          <div class="code-block">
+            <div class="code-header"><span>Create a card</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+            <pre><code><span class="prompt">$</span> curl -X POST https://lwts.example.com/api/v1/boards/1/cards \
+    -H <span class="str">"Authorization: Bearer $TOKEN"</span> \
+    -H <span class="str">"Content-Type: application/json"</span> \
+    -d <span class="str">'{
+      "title": "Fix login timeout",
+      "priority": "high",
+      "tag": "bug",
+      "column": "todo",
+      "assignee_id": "usr_abc123"
+    }'</span></code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-header"><span>Listen to real-time events</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+            <pre><code><span class="prompt">$</span> curl -N https://lwts.example.com/api/v1/boards/1/stream?token=$TOKEN
+
+<span class="comment">event: card_created</span>
+<span class="comment">data: {"id":"...","title":"Fix login timeout","column":"todo","key":"LWTS-42"}</span>
+
+<span class="comment">event: card_moved</span>
+<span class="comment">data: {"id":"...","column":"in-progress","position":0,"version":2}</span>
+
+<span class="comment">event: comment_added</span>
+<span class="comment">data: {"id":"...","card_id":"...","body":"On it.","user_id":"..."}</span>
+
+<span class="comment">event: user_joined</span>
+<span class="comment">data: {"user_id":"...","username":"sam","initials":"SR"}</span></code></pre>
+          </div>
+        </div>
+        <div class="api-endpoints">
+          <h3>Endpoints</h3>
+          <div class="endpoint-list">
+            <div class="endpoint"><span class="method post">POST</span><code>/api/auth/register</code></div>
+            <div class="endpoint"><span class="method post">POST</span><code>/api/auth/login</code></div>
+            <div class="endpoint"><span class="method post">POST</span><code>/api/auth/refresh</code></div>
+            <div class="endpoint"><span class="method get">GET</span><code>/api/auth/me</code></div>
+            <div class="endpoint"><span class="method get">GET</span><code>/api/v1/boards</code></div>
+            <div class="endpoint"><span class="method post">POST</span><code>/api/v1/boards</code></div>
+            <div class="endpoint"><span class="method get">GET</span><code>/api/v1/boards/{id}/cards</code></div>
+            <div class="endpoint"><span class="method post">POST</span><code>/api/v1/boards/{id}/cards</code></div>
+            <div class="endpoint"><span class="method post">POST</span><code>/api/v1/cards/{id}/move</code></div>
+            <div class="endpoint"><span class="method get">GET</span><code>/api/v1/cards/{id}/comments</code></div>
+            <div class="endpoint"><span class="method post">POST</span><code>/api/v1/cards/{id}/comments</code></div>
+            <div class="endpoint"><span class="method get">GET</span><code>/api/v1/boards/{id}/stream</code></div>
+            <div class="endpoint"><span class="method get">GET</span><code>/api/v1/boards/{id}/presence</code></div>
+            <div class="endpoint"><span class="method post">POST</span><code>/api/v1/boards/{id}/webhooks</code></div>
+            <div class="endpoint"><span class="method get">GET</span><code>/api/v1/search</code></div>
+            <div class="endpoint"><span class="method get">GET</span><code>/api/v1/users</code></div>
+            <div class="endpoint"><span class="method post">POST</span><code>/api/v1/keys</code></div>
+            <div class="endpoint"><span class="method get">GET</span><code>/api/v1/export</code></div>
+            <div class="endpoint"><span class="method post">POST</span><code>/api/v1/import/jira</code></div>
+            <div class="endpoint"><span class="method post">POST</span><code>/api/v1/import/trello</code></div>
+            <div class="endpoint"><span class="method get">GET</span><code>/healthz</code></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Webhook Section -->
+  <section class="webhook-section">
+    <div class="container">
+      <div class="webhook-grid">
+        <div class="webhook-info">
+          <h2>Webhooks that just work</h2>
+          <p>Subscribe to events per-board. Every delivery is HMAC-SHA256 signed so you can verify authenticity. Failed deliveries retry with exponential backoff. Full delivery history in the UI.</p>
+          <div class="webhook-events">
+            <span class="event-tag">card.created</span>
+            <span class="event-tag">card.updated</span>
+            <span class="event-tag">card.moved</span>
+            <span class="event-tag">card.completed</span>
+            <span class="event-tag">card.deleted</span>
+            <span class="event-tag">comment.added</span>
+            <span class="event-tag">*</span>
+          </div>
+        </div>
+        <div class="webhook-code">
+          <div class="code-block">
+            <div class="code-header"><span>Webhook payload</span></div>
+            <pre><code><span class="comment">// Headers</span>
+X-LWTS-Event: card.completed
+X-LWTS-Signature: sha256=a1b2c3...
+X-LWTS-Delivery: 550e8400-e29b-41d4-a716-446655440000
+
+<span class="comment">// Body</span>
+{
+  <span class="str">"id"</span>: <span class="str">"550e8400-..."</span>,
+  <span class="str">"event"</span>: <span class="str">"card.completed"</span>,
+  <span class="str">"timestamp"</span>: <span class="str">"2025-01-15T10:30:00Z"</span>,
+  <span class="str">"board"</span>: {
+    <span class="str">"id"</span>: <span class="str">"board_123"</span>,
+    <span class="str">"name"</span>: <span class="str">"Sprint 42"</span>
+  },
+  <span class="str">"data"</span>: {
+    <span class="str">"card"</span>: {
+      <span class="str">"key"</span>: <span class="str">"LWTS-4"</span>,
+      <span class="str">"title"</span>: <span class="str">"Fix SSE heartbeat timeout"</span>,
+      <span class="str">"column"</span>: <span class="str">"done"</span>
+    }
+  }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Architecture -->
+  <section class="architecture">
+    <div class="container">
+      <h2>Architecture</h2>
+      <p class="section-sub">Simple, auditable, no magic.</p>
+      <div class="arch-grid">
+        <div class="arch-card">
+          <div class="arch-header">Frontend</div>
+          <ul>
+            <li>Vanilla ES6+ &mdash; no framework</li>
+            <li>Embedded in binary via <code>go:embed</code></li>
+            <li>Native HTML5 drag-and-drop</li>
+            <li>EventSource SSE client</li>
+            <li>CSS custom properties theming</li>
+            <li>~25K lines, 10+ modules</li>
+          </ul>
+        </div>
+        <div class="arch-card">
+          <div class="arch-header">Backend</div>
+          <ul>
+            <li>Go <code>net/http</code> &mdash; no router lib</li>
+            <li>Middleware chain (8 layers)</li>
+            <li>Repository pattern + DB abstraction</li>
+            <li>Structured logging (<code>slog</code>)</li>
+            <li>Graceful shutdown (30s drain)</li>
+            <li>~9K lines, 30+ files</li>
+          </ul>
+        </div>
+        <div class="arch-card">
+          <div class="arch-header">Infrastructure</div>
+          <ul>
+            <li>Single static binary (&lt;30MB image)</li>
+            <li>Multi-arch: amd64 + arm64</li>
+            <li>Distroless container (non-root)</li>
+            <li>PostgreSQL 16 or SQLite 3</li>
+            <li>Health + readiness probes</li>
+            <li>12-factor env configuration</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta">
+    <div class="container">
+      <h2>Stop paying for kanban.</h2>
+      <p>Self-host in under a minute. Own your data. Ship faster.</p>
+      <div class="cta-actions">
+        <a href="https://github.com/oceanplexian/lwts" class="btn btn-primary btn-lg">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          Star on GitHub
+        </a>
+        <a href="#quickstart" class="btn btn-outline btn-lg">Quick Start</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <span class="logo-box demo-logo-box"><svg class="demo-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><g transform="rotate(270 12 12)"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M8 7v9"/><path d="M12 7v4"/><path d="M16 7v7"/></g></svg></span>
+          <span class="logo-text" style="font-size:0.9rem;">LWTS</span>
+          <span class="footer-tagline">Lightweight Task Server</span>
+        </div>
+        <div class="footer-links">
+          <a href="https://github.com/oceanplexian/lwts">GitHub</a>
+          <a href="https://github.com/oceanplexian/lwts/issues">Issues</a>
+          <a href="https://github.com/oceanplexian/lwts/releases">Releases</a>
+          <a href="https://github.com/oceanplexian/lwts/blob/main/LICENSE">MIT License</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Detail modal — same structure as the real app -->
+  <div class="fn2-modal-overlay detail-view" id="detail-overlay">
+    <div class="fn2-modal">
+      <div class="fn2-modal-header">
+        <h3>
+          <span class="detail-header-left">
+            <span class="detail-header-key" id="detail-key"></span>
+            <span class="detail-header-sep">/</span>
+            <span class="detail-header-title" id="detail-header-title"></span>
+          </span>
+        </h3>
+        <button class="fn2-modal-close" onclick="closeDetail()">&times;</button>
+      </div>
+      <div class="detail-body">
+        <div class="detail-content">
+          <textarea class="detail-title" id="detail-title" rows="1" readonly></textarea>
+          <div class="detail-section-label">DESCRIPTION</div>
+          <div class="detail-desc-view" id="detail-desc">
+            <span class="detail-desc-placeholder">Add a description...</span>
+          </div>
+          <div class="detail-section-label" style="margin-top:20px;">SUBTASKS</div>
+          <div style="padding:8px 10px;border:1px solid transparent;border-radius:6px;color:var(--text-dimmed);font-size:0.88rem;cursor:pointer;">Add a subtask...</div>
+          <div class="detail-section-label" style="margin-top:20px;">ATTACHMENTS</div>
+          <div class="detail-attachments-grid"></div>
+          <div class="detail-comments">
+            <div class="detail-section-label">ACTIVITY</div>
+            <div id="detail-comments-list"></div>
+            <div class="comment-add-zone">
+              <div class="comment-fake-input">Add a comment...</div>
+            </div>
+          </div>
+        </div>
+        <div class="detail-sidebar">
+          <table class="detail-fields-table">
+            <tr class="detail-field-row"><td class="detail-field-label">Status</td><td class="detail-field-cell"><span class="detail-field-text" id="detail-status"></span></td></tr>
+            <tr class="detail-field-row"><td class="detail-field-label">Type</td><td class="detail-field-cell"><span class="detail-field-text" id="detail-type"></span></td></tr>
+            <tr class="detail-field-row"><td class="detail-field-label">Priority</td><td class="detail-field-cell"><span class="detail-field-text" id="detail-priority"></span></td></tr>
+            <tr class="detail-field-row"><td class="detail-field-label">Reporter</td><td class="detail-field-cell"><span class="detail-field-text" id="detail-reporter"></span></td></tr>
+            <tr class="detail-field-row"><td class="detail-field-label">Assignee</td><td class="detail-field-cell"><span class="detail-field-text" id="detail-assignee"></span></td></tr>
+            <tr class="detail-field-row"><td class="detail-field-label">Points</td><td class="detail-field-cell"><input class="detail-points-input" id="detail-points" type="number" readonly></td></tr>
+            <tr class="detail-field-row"><td class="detail-field-label">Due Date</td><td class="detail-field-cell"><span class="detail-field-text" id="detail-due"></span></td></tr>
+          </table>
+          <div class="detail-meta-row" id="detail-meta"></div>
+        </div>
+      </div>
+      <div class="detail-footer">
+        <button class="card-modal-delete">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+          Delete card
+        </button>
+        <button class="fn2-modal-btn-cancel" onclick="closeDetail()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

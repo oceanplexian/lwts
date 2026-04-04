@@ -1,0 +1,37 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - DB_URL=postgres://lwts:lwts@postgres:5432/lwts?sslmode=disable
+      - JWT_SECRET=dev-secret-change-me
+      - CORS_ORIGINS=http://localhost:8080
+      - DEV=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    entrypoint: ["air", "-c", ".air.toml"]
+    working_dir: /app
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: lwts
+      POSTGRES_PASSWORD: lwts
+      POSTGRES_DB: lwts
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lwts"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pgdata:
