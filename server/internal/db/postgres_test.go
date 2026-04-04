@@ -4,17 +4,23 @@ package db
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/oceanplexian/lwts/server/migrations"
 )
 
-const testPGURL = "postgres://lwts_test:lwts_test@localhost:5433/lwts_test?sslmode=disable"
+func pgURL() string {
+	if u := os.Getenv("DB_URL"); u != "" {
+		return u
+	}
+	return "postgres://lwts_test:lwts_test@localhost:5433/lwts_test?sslmode=disable"
+}
 
 func newTestPG(t *testing.T) *PostgresDatasource {
 	t.Helper()
 	ctx := context.Background()
-	ds, err := NewPostgresDatasource(ctx, testPGURL)
+	ds, err := NewPostgresDatasource(ctx, pgURL())
 	if err != nil {
 		t.Fatalf("connect pg: %v", err)
 	}
