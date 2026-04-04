@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/img/lwts.png" alt="LWTS Logo" width="64" />
+  <img src="docs/img/lwts-icon.png" alt="LWTS Logo" width="64" />
 </p>
 
 <h1 align="center">LWTS</h1>
@@ -11,10 +11,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/oceanplexian/lwts/actions"><img src="https://img.shields.io/github/actions/workflow/status/oceanplexian/lwts/build.yml?branch=main&style=flat-square" alt="Build Status"></a>
+  <a href="https://github.com/oceanplexian/lwts/actions/workflows/test-and-lint.yml"><img src="https://img.shields.io/github/actions/workflow/status/oceanplexian/lwts/test-and-lint.yml?branch=main&style=flat-square&label=tests" alt="Tests"></a>
+  <a href="https://github.com/oceanplexian/lwts/actions/workflows/docker.yml"><img src="https://img.shields.io/github/actions/workflow/status/oceanplexian/lwts/docker.yml?branch=main&style=flat-square&label=docker" alt="Docker Build"></a>
   <a href="https://github.com/oceanplexian/lwts/releases"><img src="https://img.shields.io/github/v/release/oceanplexian/lwts?style=flat-square" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/oceanplexian/lwts?style=flat-square" alt="License"></a>
-  <a href="https://hub.docker.com/r/oceanplexian/lwts"><img src="https://img.shields.io/docker/pulls/oceanplexian/lwts?style=flat-square" alt="Docker Pulls"></a>
 </p>
 
 <p align="center">
@@ -24,7 +24,7 @@
 ---
 
 <p align="center">
-  <img src="docs/img/sc-2.jpg" alt="LWTS Kanban Board" width="100%" />
+  <img src="docs/img/sc-2.png" alt="LWTS Kanban Board" width="100%" />
 </p>
 
 <details>
@@ -32,11 +32,11 @@
 <br>
 <p align="center">
   <em>Card detail view with activity, subtasks, and metadata</em><br>
-  <img src="docs/img/sc-1.jpg" alt="Card Detail View" width="100%" />
+  <img src="docs/img/sc-1.png" alt="Card Detail View" width="100%" />
 </p>
 <p align="center">
   <em>Team management and settings</em><br>
-  <img src="docs/img/sc-3.jpg" alt="Settings" width="100%" />
+  <img src="docs/img/sc-3.png" alt="Settings" width="100%" />
 </p>
 </details>
 
