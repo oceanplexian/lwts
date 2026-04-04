@@ -22,6 +22,8 @@ type Config struct {
 	TLSCert        string
 	TLSKey         string
 	DevMode        bool
+	LambdaDemo     bool
+	DemoDBPath     string
 	StaticDir      string
 }
 
@@ -84,6 +86,11 @@ func Load() (*Config, error) {
 	c.TLSCert = os.Getenv("TLS_CERT")
 	c.TLSKey = os.Getenv("TLS_KEY")
 	c.DevMode = os.Getenv("DEV") == "true"
+	c.LambdaDemo = os.Getenv("LAMBDA_DEMO") == "true" || os.Getenv("LAMBDA_DEMO") == "1"
+	c.DemoDBPath = os.Getenv("DEMO_DB_PATH")
+	if c.DemoDBPath == "" {
+		c.DemoDBPath = "/demo.db"
+	}
 	c.StaticDir = os.Getenv("STATIC_DIR")
 	if c.StaticDir == "" {
 		c.StaticDir = "/static"

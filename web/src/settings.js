@@ -288,6 +288,24 @@ const SETTINGS_GROUPS = {
 };
 
 let activeSettingsSection = 'general';
+let _lambdaDemoMode = null;
+
+function _isLambdaDemoMode() {
+  return _lambdaDemoMode === true;
+}
+
+async function _ensureLambdaDemoMode() {
+  if (_lambdaDemoMode !== null) return _isLambdaDemoMode();
+  try {
+    const res = await fetch('/api/v1/lambda-demo');
+    if (!res.ok) throw new Error('failed to load lambda demo status');
+    const data = await res.json();
+    _lambdaDemoMode = data && data.lambda_demo === true;
+  } catch (e) {
+    _lambdaDemoMode = false;
+  }
+  return _isLambdaDemoMode();
+}
 
 function toggleBoardConfig(id) {
   const el = document.getElementById(id);
@@ -402,6 +420,31 @@ function _applyRoleRestrictions() {
   });
 }
 
+function _applyLambdaDemoRestrictions() {
+  if (!_isLambdaDemoMode()) return;
+
+  const api = document.getElementById('settings-api');
+  if (api) {
+    api.classList.add('settings-restricted');
+    _addRestrictionNotice(api, 'API keys are disabled in Lambda demo mode.');
+    const addBtn = api.querySelector('.settings-section-action');
+    if (addBtn) addBtn.style.display = 'none';
+  }
+
+  const integrations = document.getElementById('settings-integrations');
+  if (integrations) {
+    integrations.classList.add('settings-restricted');
+    _addRestrictionNotice(integrations, 'Integrations are disabled in Lambda demo mode.');
+    integrations.querySelectorAll('.integration-card').forEach(card => card.classList.add('disabled'));
+  }
+
+  const importExport = document.getElementById('settings-import');
+  if (importExport) {
+    importExport.classList.add('settings-restricted');
+    _addRestrictionNotice(importExport, 'Import/export is disabled in Lambda demo mode.');
+  }
+}
+
 function showSettingsSection(id, _fromHash) {
   window.activeSettingsSection = id;
   document.querySelectorAll('.settings-nav-item').forEach((el, i) => {
@@ -420,6 +463,7 @@ function showSettingsSection(id, _fromHash) {
   }
 
   _applyRoleRestrictions();
+  _applyLambdaDemoRestrictions();
 }
 
 // ── Appearance Application ──
@@ -744,6 +788,15 @@ async function sendInvite() {
 // ── API Keys Section ──
 
 async function loadAPIKeys() {
+  if (await _ensureLambdaDemoMode()) {
+    _applyLambdaDemoRestrictions();
+    const list = document.getElementById('settings-api-keys-list');
+    if (list) {
+      list.innerHTML = '<div style="color:var(--text-dimmed);font-size:0.85rem;padding:8px 0">Disabled in Lambda demo mode</div>';
+    }
+    return;
+  }
+
   try {
     const keys = await window.API.listKeys();
     const list = document.getElementById('settings-api-keys-list');
@@ -776,6 +829,11 @@ async function loadAPIKeys() {
 }
 
 async function copyAPIKeyToClipboard(keyId) {
+  if (await _ensureLambdaDemoMode()) {
+    window.Toast.info('API keys are disabled in Lambda demo mode');
+    return;
+  }
+
   try {
     const result = await window.API.revealKey(keyId);
     await navigator.clipboard.writeText(result.key);
@@ -786,6 +844,11 @@ async function copyAPIKeyToClipboard(keyId) {
 }
 
 async function openCreateKeyModal() {
+  if (await _ensureLambdaDemoMode()) {
+    window.Toast.info('API keys are disabled in Lambda demo mode');
+    return;
+  }
+
   document.getElementById('create-key-name').value = '';
   document.getElementById('created-key-result').style.display = 'none';
   document.getElementById('create-key-name').closest('.form-group').style.display = '';
@@ -823,6 +886,11 @@ function closeCreateKeyModal() {
 let _createdKeyValue = '';
 
 async function submitCreateKeyModal() {
+  if (await _ensureLambdaDemoMode()) {
+    window.Toast.info('API keys are disabled in Lambda demo mode');
+    return;
+  }
+
   const input = document.getElementById('create-key-name');
   const name = input.value.trim();
   if (!name) { window.Toast.error('Key name required'); return; }
@@ -854,6 +922,11 @@ function copyCreatedKey() {
 }
 
 async function revokeAPIKey(id) {
+  if (await _ensureLambdaDemoMode()) {
+    window.Toast.info('API keys are disabled in Lambda demo mode');
+    return;
+  }
+
   const ok = await fnConfirm('Revoke this API key? This cannot be undone.', 'Revoke key', 'Revoke');
   if (!ok) return;
   try {
@@ -868,6 +941,11 @@ async function revokeAPIKey(id) {
 // ── Import ──
 
 function importFromJira() {
+  if (_isLambdaDemoMode()) {
+    window.Toast.info('Import/export is disabled in Lambda demo mode');
+    return;
+  }
+
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = '.json,.csv';
@@ -887,6 +965,11 @@ function importFromJira() {
 }
 
 function importFromTrello() {
+  if (_isLambdaDemoMode()) {
+    window.Toast.info('Import/export is disabled in Lambda demo mode');
+    return;
+  }
+
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = '.json';
@@ -908,6 +991,11 @@ function importFromTrello() {
 // ── Export ──
 
 async function exportData() {
+  if (_isLambdaDemoMode()) {
+    window.Toast.info('Import/export is disabled in Lambda demo mode');
+    return;
+  }
+
   try {
     const data = await window.API.exportData();
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -981,7 +1069,9 @@ async function updateDangerZoneLabels() {
   } catch (e) { /* ignore */ }
 }
 
-function openSettings(_fromHash) {
+async function openSettings(_fromHash) {
+  await _ensureLambdaDemoMode();
+
   // Update danger zone labels based on workspace state
   updateDangerZoneLabels();
 
@@ -1665,6 +1755,12 @@ window.initSettingsBindings = initSettingsBindings;
 let _discordConfig = null;
 
 async function loadDiscordConfig() {
+  if (await _ensureLambdaDemoMode()) {
+    _applyLambdaDemoRestrictions();
+    _updateDiscordCardStatus({ demo_disabled: true });
+    return;
+  }
+
   if (!_isAdmin()) {
     const section = document.getElementById('settings-integrations');
     if (section) {
@@ -1685,6 +1781,11 @@ async function loadDiscordConfig() {
 function _updateDiscordCardStatus(cfg) {
   const statusEl = document.getElementById('discord-card-status');
   if (!statusEl) return;
+  if (cfg && cfg.demo_disabled) {
+    statusEl.textContent = 'Disabled';
+    statusEl.className = 'integration-card-status disconnected';
+    return;
+  }
   if (cfg && cfg.enabled && cfg.channel_id) {
     statusEl.textContent = 'Connected';
     statusEl.className = 'integration-card-status connected';
@@ -1697,7 +1798,12 @@ function _updateDiscordCardStatus(cfg) {
   }
 }
 
-function openIntegrationModal(type) {
+async function openIntegrationModal(type) {
+  if (await _ensureLambdaDemoMode()) {
+    window.Toast.info('Integrations are disabled in Lambda demo mode');
+    return;
+  }
+
   if (type !== 'discord') return;
   const modal = document.getElementById('discord-modal');
   if (!modal) return;
@@ -1722,6 +1828,11 @@ function closeIntegrationModal() {
 }
 
 async function saveDiscordConfig() {
+  if (await _ensureLambdaDemoMode()) {
+    window.Toast.info('Integrations are disabled in Lambda demo mode');
+    return;
+  }
+
   const btn = document.getElementById('discord-save-btn');
   btn.disabled = true;
   btn.textContent = 'Saving...';
@@ -1757,6 +1868,11 @@ async function saveDiscordConfig() {
 }
 
 async function testDiscordMessage() {
+  if (await _ensureLambdaDemoMode()) {
+    window.Toast.info('Integrations are disabled in Lambda demo mode');
+    return;
+  }
+
   const btn = document.getElementById('discord-test-btn');
   btn.disabled = true;
   btn.textContent = 'Sending...';
