@@ -227,8 +227,8 @@ func TestCardGetWithComments(t *testing.T) {
 	user, _ := users.Create(ctx, "User", "u@t.com", "h")
 	board, _ := boards.Create(ctx, "B", "LWTS", user.ID)
 	card, _ := cards.Create(ctx, board.ID, repo.CardCreate{ColumnID: "todo", Title: "Card"})
-	comments.Create(ctx, card.ID, user.ID, "Comment 1")
-	comments.Create(ctx, card.ID, user.ID, "Comment 2")
+	_, _ = comments.Create(ctx, card.ID, user.ID, "Comment 1")
+	_, _ = comments.Create(ctx, card.ID, user.ID, "Comment 2")
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /api/v1/cards/{id}", noopAuth(http.HandlerFunc(h.Get)))
@@ -497,7 +497,7 @@ func TestTransitionRequireCommentDone(t *testing.T) {
 	}
 
 	// Add a comment and retry
-	comments.Create(ctx, card.ID, user.ID, "Done reason")
+	_, _ = comments.Create(ctx, card.ID, user.ID, "Done reason")
 	card, _ = cards.GetByID(ctx, card.ID)
 
 	body2, _ := json.Marshal(moveCardReq{ColumnID: "done", Position: 0, Version: card.Version})

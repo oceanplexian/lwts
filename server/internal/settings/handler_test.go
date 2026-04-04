@@ -56,7 +56,7 @@ func TestGetSettingsDefault(t *testing.T) {
 		t.Fatalf("status: %d, body: %s", w.Code, w.Body.String())
 	}
 	var result map[string]any
-	json.Unmarshal(w.Body.Bytes(), &result)
+	_ = json.Unmarshal(w.Body.Bytes(), &result)
 	if result["workspace_name"] != "LWTS" {
 		t.Errorf("expected LWTS default, got %v", result["workspace_name"])
 	}

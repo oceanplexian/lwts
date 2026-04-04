@@ -452,7 +452,7 @@ func runCardDelete() {
 	}
 
 	// Delete comments first
-	ds.Exec(ctx, "DELETE FROM comments WHERE card_id = $1", card.ID)
+	_, _ = ds.Exec(ctx, "DELETE FROM comments WHERE card_id = $1", card.ID)
 
 	cards := repo.NewCardRepository(ds)
 	if err := cards.Delete(ctx, card.ID); err != nil {
@@ -519,9 +519,9 @@ func runReseed() {
 	}
 
 	// Wipe in FK order
-	ds.Exec(ctx, "DELETE FROM comments")
-	ds.Exec(ctx, "DELETE FROM cards")
-	ds.Exec(ctx, "DELETE FROM boards")
+	_, _ = ds.Exec(ctx, "DELETE FROM comments")
+	_, _ = ds.Exec(ctx, "DELETE FROM cards")
+	_, _ = ds.Exec(ctx, "DELETE FROM boards")
 	fmt.Println("wiped all boards, cards, comments")
 
 	// Get first user

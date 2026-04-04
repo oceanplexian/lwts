@@ -156,9 +156,9 @@ func (h *Handler) PutSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var merged map[string]any
-	json.Unmarshal([]byte(existing), &merged)
+	_ = json.Unmarshal([]byte(existing), &merged)
 	var updates map[string]any
-	json.Unmarshal(body, &updates)
+	_ = json.Unmarshal(body, &updates)
 	for k, v := range updates {
 		merged[k] = v
 	}
@@ -183,7 +183,7 @@ func (h *Handler) PutSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(mergedJSON)
+	_, _ = w.Write(mergedJSON)
 }
 
 // ── Users ──

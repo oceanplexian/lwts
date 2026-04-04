@@ -272,7 +272,7 @@ func TestMe_Authenticated(t *testing.T) {
 		t.Errorf("status = %d, want 200, body: %s", rec.Code, rec.Body.String())
 	}
 	var resp repo.User
-	json.NewDecoder(rec.Body).Decode(&resp)
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
 	if resp.Email != "alice@test.com" {
 		t.Errorf("email = %q", resp.Email)
 	}
@@ -326,7 +326,7 @@ func TestRegister_HTMLInName(t *testing.T) {
 		t.Fatalf("status = %d, want 201", rec.Code)
 	}
 	var resp authResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
 	if resp.User.Name != "alert(1)Alice Smith" {
 		t.Errorf("name = %q, want 'alert(1)Alice Smith' (HTML tags stripped)", resp.User.Name)
 	}
@@ -347,7 +347,7 @@ func TestRegister_EmailCaseNormalization(t *testing.T) {
 		t.Fatalf("status = %d, want 201", rec.Code)
 	}
 	var resp authResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
 	if resp.User.Email != "alice@test.com" {
 		t.Errorf("email = %q, want 'alice@test.com'", resp.User.Email)
 	}
