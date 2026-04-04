@@ -295,9 +295,11 @@ code { font-family: var(--mono); font-size: 0.875em; }
   pointer-events: none;
 }
 body.light-theme .hero-glow {
-  background:
-    radial-gradient(ellipse at 40% 35%, rgba(87,157,255,0.12) 0%, transparent 50%),
-    radial-gradient(ellipse at 60% 45%, rgba(43,125,233,0.08) 0%, transparent 50%);
+  background: none;
+}
+
+body.light-theme .hero-tagline {
+  color: #2B7DE9;
 }
 
 .hero-tagline {
@@ -1927,6 +1929,12 @@ body.light-theme .mini-col {
 body.light-theme .author-card {
   background: rgba(0,0,0,0.015);
   border-color: rgba(0,0,0,0.06);
+}
+body.light-theme .author-role {
+  color: #44546f;
+}
+body.light-theme .author-bio {
+  color: #44546f;
 }
 
 .author-photo-wrap {
