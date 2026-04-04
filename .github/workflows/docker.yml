@@ -9,9 +9,22 @@ permissions:
   contents: write
   packages: write
 
+env:
+  GHCR_IMAGE: ghcr.io/oceanplexian/lwts
+  DOCKERHUB_IMAGE: docker.io/oceanplexian/lwts
+
 jobs:
-  build-amd64:
-    runs-on: arc-runner-set
+  build:
+    strategy:
+      matrix:
+        include:
+          - runner: arc-runner-set
+            platform: linux/amd64
+            suffix: amd64
+          - runner: [self-hosted, ARM64]
+            platform: linux/arm64
+            suffix: arm64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
@@ -42,19 +55,19 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/oceanplexian/lwts
-            docker.io/oceanplexian/lwts
+            ${{ env.GHCR_IMAGE }}
+            ${{ env.DOCKERHUB_IMAGE }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}},suffix=-${{ matrix.suffix }}
+            type=semver,pattern={{major}}.{{minor}},suffix=-${{ matrix.suffix }}
+            type=sha,suffix=-${{ matrix.suffix }}
+            type=raw,value=latest-${{ matrix.suffix }},enable={{is_default_branch}}
 
-      - name: Build and push (amd64)
+      - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64
+          platforms: ${{ matrix.platform }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -62,107 +75,96 @@ jobs:
             VERSION=${{ env.VERSION }}
             COMMIT=${{ env.COMMIT }}
             BUILD_DATE=${{ env.BUILD_DATE }}
-          cache-from: type=registry,ref=ghcr.io/oceanplexian/lwts:buildcache-amd64
-          cache-to: type=registry,ref=ghcr.io/oceanplexian/lwts:buildcache-amd64,mode=max
+          cache-from: type=registry,ref=${{ env.GHCR_IMAGE }}:buildcache-${{ matrix.suffix }}
+          cache-to: type=registry,ref=${{ env.GHCR_IMAGE }}:buildcache-${{ matrix.suffix }},mode=max
 
-  build-arm64:
-    runs-on: [self-hosted, ARM64]
+  merge:
+    runs-on: arc-runner-set
+    needs: build
     steps:
       - uses: actions/checkout@v4
 
-      - name: Load settings
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.GHCR_IMAGE }}
+            ${{ env.DOCKERHUB_IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Create multi-arch manifests
         run: |
           source settings.sh
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "COMMIT=$COMMIT" >> $GITHUB_ENV
-          echo "BUILD_DATE=$DATE" >> $GITHUB_ENV
+          SHA_TAG="sha-${COMMIT}"
 
-      - uses: docker/setup-buildx-action@v3
+          # For each final tag, merge the arch-specific images
+          for REGISTRY in "${{ env.GHCR_IMAGE }}" "${{ env.DOCKERHUB_IMAGE }}"; do
+            # Always merge sha tag
+            echo "Merging $REGISTRY:$SHA_TAG"
+            docker buildx imagetools create -t "$REGISTRY:$SHA_TAG" \
+              "$REGISTRY:$SHA_TAG-amd64" \
+              "$REGISTRY:$SHA_TAG-arm64"
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+            # Merge latest if on default branch
+            if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+              echo "Merging $REGISTRY:latest"
+              docker buildx imagetools create -t "$REGISTRY:latest" \
+                "$REGISTRY:latest-amd64" \
+                "$REGISTRY:latest-arm64"
+            fi
 
-      - name: Log in to DockerHub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ghcr.io/oceanplexian/lwts
-            docker.io/oceanplexian/lwts
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push (arm64)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            VERSION=${{ env.VERSION }}
-            COMMIT=${{ env.COMMIT }}
-            BUILD_DATE=${{ env.BUILD_DATE }}
-          cache-from: type=registry,ref=ghcr.io/oceanplexian/lwts:buildcache-arm64
-          cache-to: type=registry,ref=ghcr.io/oceanplexian/lwts:buildcache-arm64,mode=max
-
-  merge-manifests:
-    runs-on: arc-runner-set
-    needs: [build-amd64, build-arm64]
-    steps:
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Log in to DockerHub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ghcr.io/oceanplexian/lwts
-            docker.io/oceanplexian/lwts
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Create and push multi-arch manifests
-        run: |
-          for tag in ${{ steps.meta.outputs.tags }}; do
-            echo "Creating manifest for $tag"
-            docker buildx imagetools create -t "$tag" \
-              "$tag"
+            # Merge semver tags if this is a version tag
+            if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+              VERSION="${{ github.ref_name }}"
+              VERSION="${VERSION#v}"
+              MINOR="${VERSION%.*}"
+              echo "Merging $REGISTRY:$VERSION and $REGISTRY:$MINOR"
+              docker buildx imagetools create -t "$REGISTRY:$VERSION" \
+                "$REGISTRY:$VERSION-amd64" \
+                "$REGISTRY:$VERSION-arm64"
+              docker buildx imagetools create -t "$REGISTRY:$MINOR" \
+                "$REGISTRY:$MINOR-amd64" \
+                "$REGISTRY:$MINOR-arm64"
+            fi
           done
 
       - name: Format tags
         id: tags
-        run: echo "list=$(echo '${{ steps.meta.outputs.tags }}' | sed 's/.*://' | sort -u | sed 's/.*/`&`/' | tr '\n' ' ' | sed 's/ / · /g; s/ · $//')" >> $GITHUB_OUTPUT
+        run: |
+          source settings.sh
+          SHA_TAG="sha-${COMMIT}"
+          TAGS="\`$SHA_TAG\`"
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            TAGS="\`latest\` · $TAGS"
+          fi
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"
+            MINOR="${VERSION%.*}"
+            TAGS="\`$VERSION\` · \`$MINOR\` · $TAGS"
+          fi
+          echo "list=$TAGS" >> $GITHUB_OUTPUT
+          echo "version=$SHA_TAG" >> $GITHUB_OUTPUT
 
       - name: Comment on commit
         uses: peter-evans/commit-comment@v3
@@ -173,7 +175,7 @@ jobs:
             ✅ Published to **GHCR** and **DockerHub** — `linux/amd64` · `linux/arm64`
 
             ```
-            docker pull ghcr.io/oceanplexian/lwts:${{ steps.meta.outputs.version }}
+            docker pull ghcr.io/oceanplexian/lwts:${{ steps.tags.outputs.version }}
             ```
 
             ${{ steps.tags.outputs.list }}
