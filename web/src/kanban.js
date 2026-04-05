@@ -229,6 +229,39 @@ async function loadBoardCards(boardId) {
   }
 }
 
+async function loadAllBoardCards() {
+  cardIndex = {};
+  const prevCleared = state.cleared || [];
+  state = { cleared: prevCleared };
+  COLUMNS.forEach(col => { state[col.id] = []; });
+  for (const board of boardList) {
+    try {
+      const grouped = await window.API.listCards(board.id);
+      for (const [colId, cards] of Object.entries(grouped || {})) {
+        if (colId === 'cleared') {
+          (cards || []).forEach(c => {
+            const local = fromAPI(c);
+            cardIndex[c.id] = c;
+            state.cleared.push(local);
+          });
+        } else {
+          if (!state[colId]) state[colId] = [];
+          (cards || []).forEach(c => {
+            const local = fromAPI(c);
+            cardIndex[c.id] = c;
+            state[colId].push(local);
+          });
+        }
+      }
+    } catch (e) { /* skip failed board */ }
+  }
+  window.render();
+  if (typeof window.currentView !== "undefined" && window.currentView === 'list' && typeof renderListView === 'function') {
+    window.renderListView();
+  }
+}
+window.loadAllBoardCards = loadAllBoardCards;
+
 // Fallback to localStorage (offline/dev)
 function loadFromLocalStorage() {
   try {
