@@ -8,11 +8,29 @@
 // currentBoardId and boardList are declared in kanban.js — reuse them
 let currentBoardStream = null;
 
+function connectBoardStream(boardId) {
+  if (currentBoardStream) {
+    currentBoardStream.disconnect();
+    currentBoardStream = null;
+  }
+  if (typeof window.BoardStream !== 'undefined') {
+    currentBoardStream = new window.BoardStream(boardId, {});
+    window.currentBoardStream = currentBoardStream;
+    if (typeof window.wirePresenceHandlers === 'function') window.wirePresenceHandlers(currentBoardStream);
+    currentBoardStream.connect();
+  }
+}
+
 // Populate board picker from API
 async function loadBoardList() {
   // kanban.js loadFromAPI() already fetches boards and sets boardList/currentBoardId.
-  // Only re-fetch if boardList is empty (e.g., features.js loaded first or API was unavailable).
-  if (window.boardList && window.boardList.length > 0) return;
+  // If boards are already loaded, just ensure the SSE stream is connected.
+  if (window.boardList && window.boardList.length > 0) {
+    if (!currentBoardStream && window.currentBoardId) {
+      connectBoardStream(window.currentBoardId);
+    }
+    return;
+  }
   try {
     if (typeof window.API !== 'undefined') {
       window.boardList = await window.API.listBoards();
@@ -142,17 +160,7 @@ function selectBoard(boardId, boardName) {
   if (typeof window.closeBoardPicker === 'function') window.closeBoardPicker();
 
   // Disconnect old SSE stream, connect new
-  if (currentBoardStream) {
-    currentBoardStream.disconnect();
-    currentBoardStream = null;
-  }
-
-  if (typeof window.BoardStream !== 'undefined') {
-    currentBoardStream = new window.BoardStream(boardId, {});
-    window.currentBoardStream = currentBoardStream;
-    if (typeof window.wirePresenceHandlers === 'function') window.wirePresenceHandlers(currentBoardStream);
-    currentBoardStream.connect();
-  }
+  connectBoardStream(boardId);
 
   // Load presence
   if (typeof window.loadPresence === 'function') window.loadPresence(boardId);
