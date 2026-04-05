@@ -76,7 +76,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMW, adminMW func(http.H
 // ── Settings KV ──
 
 var defaultSettings = map[string]string{
-	"general":    `{"workspace_name":"LWTS","default_assignee_id":"","auto_save":true,"compact_cards":false,"allow_registration":false,"base_url":""}`,
+	"general":    `{"workspace_name":"LWTS","default_assignee_id":"","auto_save":true,"compact_cards":false,"allow_registration":false,"base_url":"","session_length_days":7}`,
 	"appearance": `{"dark_mode":true,"accent_color":"#e50914","card_animations":true,"density":"default","font_size":"medium","show_card_ids":true,"show_avatars":true,"show_priority_icons":true}`,
 }
 
@@ -196,8 +196,33 @@ func (h *Handler) PutSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Apply session length if general settings changed
+	if category == "general" {
+		applySessionLength(merged)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write(mergedJSON)
+}
+
+// applySessionLength reads session_length_days from settings and updates auth TTLs.
+func applySessionLength(settings map[string]any) {
+	if days, ok := settings["session_length_days"].(float64); ok && days > 0 {
+		auth.SetSessionLength(time.Duration(days) * 24 * time.Hour)
+	}
+}
+
+// SyncSessionLength reads general settings from DB and applies session length on startup.
+func (h *Handler) SyncSessionLength(ctx context.Context) {
+	var val string
+	err := h.ds.QueryRow(ctx, "SELECT value FROM settings WHERE key = 'general'").Scan(&val)
+	if err != nil {
+		return
+	}
+	var settings map[string]any
+	if json.Unmarshal([]byte(val), &settings) == nil {
+		applySessionLength(settings)
+	}
 }
 
 // ── Users ──

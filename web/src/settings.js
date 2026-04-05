@@ -580,6 +580,11 @@ function populateSettingsForm(category, data) {
     }
   });
   // Update FnDropdown instances
+  if (category === 'general') {
+    if (data.session_length_days && _settingsDropdowns.session_length_days) {
+      _settingsDropdowns.session_length_days.setValue(String(data.session_length_days), true);
+    }
+  }
   if (category === 'appearance') {
     if (data.density && _settingsDropdowns.density) {
       _settingsDropdowns.density.setValue(data.density, true);
@@ -603,6 +608,21 @@ function initSettingsDropdowns() {
       value: 'default',
       compact: true,
       onChange: (val) => _onSettingsDropdownChange('appearance', 'density', val)
+    });
+  }
+  const sessionEl = document.getElementById('settings-session-length-dropdown');
+  if (sessionEl && (!_settingsDropdowns.session_length_days || !sessionEl.querySelector('.fn-dropdown-trigger'))) {
+    _settingsDropdowns.session_length_days = null;
+    _settingsDropdowns.session_length_days = new window.FnDropdown(sessionEl, {
+      options: [
+        { value: '1', label: '1 day' },
+        { value: '7', label: '7 days' },
+        { value: '30', label: '30 days' },
+        { value: '365', label: '1 year' }
+      ],
+      value: '7',
+      compact: true,
+      onChange: (val) => _onSettingsDropdownChange('general', 'session_length_days', parseInt(val, 10))
     });
   }
   const fontEl = document.getElementById('settings-fontsize-dropdown');
