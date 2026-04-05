@@ -37,6 +37,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!user.welcomed && window.showWelcome) {
               window.showWelcome();
             }
+            // If hash points to settings, hide the board div before
+            // making the container visible to prevent a flash of board content.
+            const hash = window.location.hash.replace(/^#/, '');
+            const isSettingsRoute = hash === 'settings' || hash.startsWith('settings/');
+            if (isSettingsRoute) {
+              const boardDiv = document.getElementById('board');
+              if (boardDiv) boardDiv.style.display = 'none';
+            }
             document.getElementById('app-board').style.display = '';
             if (window.initBoard && !window._boardInitialized) {
               window._boardInitialized = true;

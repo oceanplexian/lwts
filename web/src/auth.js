@@ -68,6 +68,13 @@ const Auth = {
         window.showWelcome();
       }
 
+      // If hash points to settings, hide board div to prevent FOUC
+      const hash = window.location.hash.replace(/^#/, '');
+      if (hash === 'settings' || hash.startsWith('settings/')) {
+        const boardDiv = document.getElementById('board');
+        if (boardDiv) boardDiv.style.display = 'none';
+      }
+
       // Show and fade in board behind the modal
       boardEl.style.opacity = '0';
       boardEl.style.display = '';
