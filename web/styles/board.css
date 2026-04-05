@@ -1525,3 +1525,25 @@ body.light-theme .card.drop-target {
 .sse-entering { animation: sse-card-enter 0.35s ease-out forwards; }
 .sse-exiting { animation: sse-card-exit 0.25s ease-in forwards; pointer-events: none; }
 .sse-highlight { animation: sse-card-highlight 0.6s ease-out; }
+
+/* Connection status indicator */
+.connection-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 8px;
+  transition: background-color 0.3s;
+}
+.connection-dot.connected {
+  background-color: #4ade80;
+  animation: connectionPulse 2s ease-in-out infinite;
+}
+.connection-dot.disconnected {
+  background-color: #6b7280;
+}
+@keyframes connectionPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
