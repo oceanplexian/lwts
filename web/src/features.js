@@ -93,6 +93,19 @@ function _buildPickerMenu(menu, opts) {
   sep.className = 'header-board-sep';
   menu.appendChild(sep);
 
+  // All Boards
+  const allIcon = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>';
+  const allOpt = document.createElement('div');
+  allOpt.className = 'header-board-option' + (activeId === 'all' ? ' active' : '');
+  allOpt.style.cssText = 'display:flex;align-items:center;gap:6px';
+  allOpt.innerHTML = allIcon + ' All Boards';
+  allOpt.onclick = () => {
+    closeMenu();
+    if (inSettings && typeof window.closeSettings === 'function') window.closeSettings();
+    selectBoard('all', 'All Boards');
+  };
+  menu.appendChild(allOpt);
+
   // + New board
   const newOpt = document.createElement('div');
   newOpt.className = 'header-board-option new';
@@ -153,20 +166,27 @@ function selectBoard(boardId, boardName) {
 
   // Update URL with board ID for persistence across refreshes
   const url = new URL(window.location);
-  url.searchParams.set('board', boardId);
+  if (boardId === 'all') {
+    url.searchParams.delete('board');
+  } else {
+    url.searchParams.set('board', boardId);
+  }
   window.history.replaceState(null, '', url);
 
   // Close picker
   if (typeof window.closeBoardPicker === 'function') window.closeBoardPicker();
 
-  // Disconnect old SSE stream, connect new
-  connectBoardStream(boardId);
-
-  // Load presence
-  if (typeof window.loadPresence === 'function') window.loadPresence(boardId);
-
-  // Fetch cards for this board
-  window.loadBoardCards(boardId);
+  if (boardId === 'all') {
+    // Load cards from all boards
+    window.loadAllBoardCards();
+  } else {
+    // Disconnect old SSE stream, connect new
+    connectBoardStream(boardId);
+    // Load presence
+    if (typeof window.loadPresence === 'function') window.loadPresence(boardId);
+    // Fetch cards for this board
+    window.loadBoardCards(boardId);
+  }
 
   // Update picker highlight
   renderBoardPicker();

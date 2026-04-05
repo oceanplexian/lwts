@@ -43,11 +43,21 @@ function switchView(view) {
   if (view === 'board') {
     board.style.display = '';
     listView.style.display = 'none';
+    // If coming from "All Boards" in list view, switch back to first board
+    if (window.currentBoardId === 'all' && window.boardList && window.boardList.length > 0) {
+      window.selectBoard(window.boardList[0].id, window.boardList[0].name);
+      return;
+    }
     window._renderAnimateCards = true;
     window.render();
   } else {
     board.style.display = 'none';
     listView.style.display = '';
+    // Default to All Boards when entering list view
+    if (window.currentBoardId !== 'all') {
+      window.selectBoard('all', 'All Boards');
+      return;
+    }
     renderListView();
   }
 
