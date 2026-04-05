@@ -2187,7 +2187,7 @@ window.initBoard = function() {
   loadUsers().then(() => {
     reinitUserDropdowns();
     if (typeof window.buildFilterCheckboxes === "function") {
-      window.buildFilterCheckboxes('assignee', USERS.filter(u => u.value !== 'unassigned').map(u => ({ value: u.value, label: u.label })));
+      window.buildFilterCheckboxes('assignee', USERS.filter(u => u.value !== 'unassigned').map(u => ({ value: u.value, label: u.label, initials: u.initials, avatar_color: u.avatar_color, avatar_url: u.avatar_url })));
     }
     loadFromAPI().then(() => {
       if (location.hash) navigateToHash();

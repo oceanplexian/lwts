@@ -457,14 +457,55 @@ function buildFilterCheckboxes(type, options) {
   if (!menu) return;
   menu.innerHTML = '';
 
+  // Add search input for assignee filter
+  if (type === 'assignee') {
+    const searchWrap = document.createElement('div');
+    searchWrap.className = 'filter-menu-search';
+    searchWrap.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="filter-menu-search-icon"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" class="filter-menu-search-input" placeholder="Search people..." />
+    `;
+    menu.appendChild(searchWrap);
+
+    const input = searchWrap.querySelector('input');
+    input.addEventListener('keyup', () => {
+      const q = input.value.toLowerCase();
+      menu.querySelectorAll('.filter-checkbox-item').forEach(item => {
+        const name = item.dataset.label || '';
+        item.style.display = name.toLowerCase().includes(q) ? '' : 'none';
+      });
+    });
+    // Prevent dropdown from closing when clicking/typing in search
+    input.addEventListener('click', e => e.stopPropagation());
+  }
+
+  const itemsWrap = document.createElement('div');
+  itemsWrap.className = 'filter-menu-items';
+  menu.appendChild(itemsWrap);
+
   options.forEach(opt => {
     const label = document.createElement('label');
     label.className = 'filter-checkbox-item';
+    label.dataset.label = opt.label || '';
+
+    let avatarHtml = '';
+    if (type === 'assignee' && opt.initials !== undefined) {
+      const color = opt.avatar_color || '#82B1FF';
+      const bg = opt.initials ? `${color}25` : 'var(--surface-active)';
+      const fg = opt.initials ? color : 'var(--text-dimmed)';
+      const border = opt.initials ? `${color}40` : 'var(--border-light)';
+      const content = opt.avatar_url
+        ? `<img src="${window.esc(opt.avatar_url)}" alt="${window.esc(opt.initials)}">`
+        : window.esc(opt.initials || '?');
+      avatarHtml = `<span class="card-bubble card-avatar filter-avatar" style="background:${bg};color:${fg};border-color:${border}">${content}</span>`;
+    }
+
     label.innerHTML = `
       <input type="checkbox" value="${window.esc(opt.value)}" onchange="onFilterCheckbox('${type}', this)">
+      ${avatarHtml}
       <span>${window.esc(opt.label)}</span>
     `;
-    menu.appendChild(label);
+    itemsWrap.appendChild(label);
   });
 }
 
