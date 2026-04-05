@@ -896,6 +896,10 @@ function updateCardInState(data) {
       });
       window.save();
       window.render();
+      // If the detail modal is open for this card, refresh the description view
+      if (window.detailCard && window.detailCard.id === data.id) {
+        if (typeof window.renderDescriptionView === 'function') window.renderDescriptionView();
+      }
       injectDueDateChips();
       window.applyFilters();
       return;

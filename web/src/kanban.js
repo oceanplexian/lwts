@@ -1118,7 +1118,12 @@ function saveDetailFields() {
 
   const oldTitle = detailCard.title;
   detailCard.title = document.getElementById('detail-title').value.trim() || detailCard.title;
-  detailCard.description = detailEditor ? detailEditor.getMarkdown() : '';
+  // Only update description from editor if the editor is visible (user was editing).
+  // When in view mode the editor contains stale content from a previous card.
+  const descEdit = document.getElementById('detail-desc-edit');
+  if (descEdit && !descEdit.classList.contains('hidden') && detailEditor) {
+    detailCard.description = detailEditor.getMarkdown();
+  }
   detailCard.points = parseInt(document.getElementById('detail-points').value) || 0;
 
   // Column move
