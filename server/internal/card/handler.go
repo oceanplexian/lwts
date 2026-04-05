@@ -27,6 +27,7 @@ func NewHandler(cards *repo.CardRepository, boards *repo.BoardRepository, commen
 func (h *Handler) SetDiscord(d *discord.Notifier) { h.discord = d }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMW func(http.Handler) http.Handler, memberMW func(http.Handler) http.Handler) {
+	mux.Handle("POST /api/v1/boards/{boardId}/cards/bulk-move", memberMW(http.HandlerFunc(h.BulkMove)))
 	mux.Handle("POST /api/v1/boards/{boardId}/cards", memberMW(http.HandlerFunc(h.Create)))
 	mux.Handle("GET /api/v1/boards/{boardId}/cards", authMW(http.HandlerFunc(h.ListByBoard)))
 	mux.Handle("GET /api/v1/cards/{id}", authMW(http.HandlerFunc(h.Get)))
@@ -418,6 +419,42 @@ func (h *Handler) checkTransitionRules(ctx context.Context, card repo.Card, toCo
 	}
 
 	return blockers
+}
+
+type bulkMoveReq struct {
+	CardIDs  []string `json:"card_ids"`
+	ColumnID string   `json:"column_id"`
+}
+
+func (h *Handler) BulkMove(w http.ResponseWriter, r *http.Request) {
+	var req bulkMoveReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if len(req.CardIDs) == 0 {
+		writeJSON(w, http.StatusOK, []repo.Card{})
+		return
+	}
+	if req.ColumnID == "" {
+		writeValidation(w, map[string]string{"column_id": "required"})
+		return
+	}
+
+	cards, err := h.cards.BulkMove(r.Context(), req.CardIDs, req.ColumnID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "bulk move failed")
+		return
+	}
+
+	user := auth.UserFromContext(r.Context())
+	boardID := r.PathValue("boardId")
+	broadcast(h.hub, boardID, "cards_bulk_moved", map[string]any{
+		"cards":     cards,
+		"column_id": req.ColumnID,
+	}, user.ID)
+
+	writeJSON(w, http.StatusOK, cards)
 }
 
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
