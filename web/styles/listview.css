@@ -44,7 +44,8 @@
 
 /* ── List Container ── */
 #list-view {
-  height: calc(100vh - 104px);
+  flex: 1;
+  min-height: 0;
   padding: var(--list-padding);
   overflow-y: auto;
 }
@@ -328,7 +329,6 @@ body.light-theme .list-row.drop-target {
 @media (max-width: 768px) {
   #list-view {
     padding: 8px;
-    height: calc(100dvh - 52px - 44px);
   }
   .list-table {
     display: block;

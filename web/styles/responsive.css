@@ -416,7 +416,8 @@
     flex-direction: column;
     gap: 0;
     padding: 8px;
-    height: calc(100vh - 52px - 44px - 40px); /* header + filter + tabs */
+    flex: 1;
+    min-height: 0;
     overflow-x: hidden;
     overflow-y: auto;
   }
@@ -524,10 +525,7 @@
     display: none;
   }
 
-  /* Board height adjustment */
-  .board {
-    height: calc(100dvh - 52px - 44px - 40px);
-  }
+  /* Board height — flex handles this via #app-board */
 
   /* Presence: fewer visible */
   .presence-avatar:nth-child(n+4) {

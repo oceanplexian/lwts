@@ -1,5 +1,14 @@
 /* LWTS Kanban — Board Layout & Cards */
 
+/* ── App shell — fixed header, scrollable content ── */
+#app-board {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
 /* ── Header ── */
 .header {
   height: 60px;
@@ -8,8 +17,7 @@
   justify-content: space-between;
   padding: 0 24px;
   background: #101010;
-  position: sticky;
-  top: 0;
+  flex-shrink: 0;
   z-index: 100;
 }
 .header-left {
@@ -387,11 +395,16 @@
 .board {
   display: flex;
   gap: var(--board-gap);
-  min-height: calc(100vh - 104px); /* 60px header + 44px filter bar */
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   padding: 8px var(--board-padding) var(--board-padding);
   align-items: stretch;
   transition: opacity 0.3s ease, transform 0.3s ease;
 }
+.board::-webkit-scrollbar { width: 4px; }
+.board::-webkit-scrollbar-track { background: transparent; }
+.board::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
 .board.fade-out {
   opacity: 0;
   transform: translateY(6px);
@@ -988,8 +1001,7 @@ body.light-theme .card.drop-target {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  position: sticky;
-  top: 60px;
+  flex-shrink: 0;
   z-index: 99;
   background: var(--page-bg);
   padding: var(--filter-bar-padding);
