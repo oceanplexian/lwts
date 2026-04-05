@@ -1646,13 +1646,24 @@ function renderMarkdownInline(text) {
 }
 
 function _inlineMd(line) {
-  // Escape HTML first, then apply markdown
-  return esc(line)
+  // Escape HTML first, then apply markdown.
+  // Order matters: code spans and markdown links are processed first so
+  // their URLs are wrapped in tags.  The final bare-URL pass skips any
+  // URL already inside an href="..." or between <code>...</code> tags.
+  let s = esc(line)
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
-    .replace(/(^|[^"'>])(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+  // Auto-linkify bare URLs that are NOT inside <code>…</code> or <a>…</a>.
+  // Split the string on existing tags, only linkify in text segments.
+  s = s.replace(/(<code>[\s\S]*?<\/code>|<a\s[^>]*>[\s\S]*?<\/a>)|((https?:\/\/[^\s<)]+))/g,
+    function(match, skip, url) {
+      if (skip) return skip;                       // inside <code> or <a> — leave alone
+      return '<a href="' + url + '" target="_blank" rel="noopener">' + url + '</a>';
+    });
+  return s;
 }
 
 // ── Add comment: click-to-expand ──
