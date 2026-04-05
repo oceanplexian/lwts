@@ -1043,7 +1043,7 @@ function addCardToState(data) {
 }
 
 function moveCardInState(data) {
-  // Remove from old column
+  // Remove from all columns (including cleared) to prevent duplicates
   for (const col of window.COLUMNS) {
     const idx = (window.state[col.id] || []).findIndex(c => c.id === data.id);
     if (idx !== -1) {
@@ -1051,19 +1051,37 @@ function moveCardInState(data) {
       break;
     }
   }
-  // Add to new column
+  if (window.state.cleared) {
+    const ci = window.state.cleared.findIndex(c => c.id === data.id);
+    if (ci !== -1) window.state.cleared.splice(ci, 1);
+  }
+  // Add to new column (skip if already there from optimistic update)
   const toCol = data.to_column || data.column_id || 'backlog';
   if (!window.state[toCol]) window.state[toCol] = [];
-  const pos = data.position ?? window.state[toCol].length;
-  window.state[toCol].splice(pos, 0, {
-    id: data.id, key: data.key, title: data.title,
-    tag: data.tag || 'blue', priority: data.priority || 'medium',
-    version: data.version || 1, assignee: data.assignee_id || 'unassigned',
-    reporter: data.reporter_id || 'you', points: data.points || 0,
-    date: data.due_date || '', due_date: data.due_date || null,
-    epic_id: data.epic_id || null,
-    description: data.description || '', comments: [],
-  });
+  const existing = window.state[toCol].findIndex(c => c.id === data.id);
+  if (existing !== -1) {
+    // Already present from optimistic update — just update fields
+    const card = window.state[toCol][existing];
+    card.version = data.version || card.version;
+    card.title = data.title || card.title;
+    card.tag = data.tag || card.tag;
+    card.priority = data.priority || card.priority;
+    card.assignee = data.assignee_id || card.assignee;
+    card.epic_id = data.epic_id || null;
+    card.points = data.points || card.points;
+    card.due_date = data.due_date || null;
+  } else {
+    const pos = data.position ?? window.state[toCol].length;
+    window.state[toCol].splice(pos, 0, {
+      id: data.id, key: data.key, title: data.title,
+      tag: data.tag || 'blue', priority: data.priority || 'medium',
+      version: data.version || 1, assignee: data.assignee_id || 'unassigned',
+      reporter: data.reporter_id || 'you', points: data.points || 0,
+      date: data.due_date || '', due_date: data.due_date || null,
+      epic_id: data.epic_id || null,
+      description: data.description || '', comments: [],
+    });
+  }
   window.save();
   window.render();
   // If detail modal is open for this card, refresh sidebar (status changed)
