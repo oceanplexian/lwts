@@ -694,6 +694,8 @@
   color: var(--text-primary);
   font-family: inherit;
   font-size: 0.88rem;
+  line-height: calc(34px - 2px - 8px);
+  vertical-align: top;
   outline: none;
   transition: border-color 0.15s ease;
   -moz-appearance: textfield;
