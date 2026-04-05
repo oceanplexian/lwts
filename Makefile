@@ -1,4 +1,4 @@
-.PHONY: dev build test migrate seed lint docker-up docker-down test-db test-db-down run stop reset clean \
+.PHONY: dev build test test-frontend migrate seed lint docker-up docker-down test-db test-db-down run stop reset clean \
 	push setup-buildx demo-db lambda-build lambda-push tf-init tf-apply tf-destroy
 
 PORT ?= 8099
@@ -75,7 +75,10 @@ test-pg:
 test-sqlite:
 	DB_URL="sqlite:///tmp/lwts-test.db" go test -v -count=1 -tags=integration ./...
 
-test-all: test-pg test-sqlite
+test-frontend:
+	node --test tests/frontend/kanban.test.js
+
+test-all: test-pg test-sqlite test-frontend
 
 # ── Database ─────────────────────────────────────────────────
 
