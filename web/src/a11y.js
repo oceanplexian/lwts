@@ -218,10 +218,18 @@ function switchMobileTab(colId) {
 function applyMobileActiveColumn() {
   if (window.innerWidth > 768) return;
 
+  // Standard columns
   document.querySelectorAll('.column').forEach(col => {
     const body = col.querySelector('.column-body');
     const colId = body?.dataset.col;
     col.classList.toggle('mobile-active', colId === mobileActiveCol);
+  });
+
+  // Epic mode: show/hide cells within each epic lane
+  document.querySelectorAll('.epic-lane-cell').forEach(cell => {
+    const body = cell.querySelector('.column-body');
+    const colId = body?.dataset.col;
+    cell.classList.toggle('mobile-active', colId === mobileActiveCol);
   });
 }
 

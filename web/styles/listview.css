@@ -323,3 +323,60 @@ body.light-theme .list-row.drop-target {
   border-color: #2B7DE9;
   box-shadow: 0 0 0 3px rgba(43,125,233,0.15), 0 0 12px rgba(43,125,233,0.08);
 }
+
+/* ── Mobile ── */
+@media (max-width: 768px) {
+  #list-view {
+    padding: 8px;
+    height: calc(100dvh - 52px - 44px);
+  }
+  .list-table {
+    display: block;
+  }
+  .list-header {
+    display: none;
+  }
+  .list-table tbody {
+    display: block;
+  }
+  .list-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-faint);
+  }
+  .list-row td {
+    display: inline;
+    padding: 0;
+    border: none;
+  }
+  .list-cell-key {
+    width: auto;
+    font-size: 0.7rem;
+  }
+  .list-cell-title {
+    width: 100%;
+    order: -1;
+    font-size: 0.88rem;
+  }
+  .list-cell-status {
+    width: auto;
+  }
+  .list-cell-tag {
+    width: auto;
+  }
+  .list-cell-priority,
+  .list-cell-assignee,
+  .list-cell-points,
+  .list-cell-date {
+    display: none;
+  }
+  .list-epic-header td {
+    padding: 8px 12px;
+  }
+  .list-epic-title {
+    max-width: 200px;
+  }
+}
