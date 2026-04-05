@@ -168,8 +168,8 @@ function wirePresenceHandlers(boardStream) {
 
       const comment = {
         id: data.id,
-        author: data.user_id,
-        author_id: data.user_id,
+        author: data.author_id,
+        author_id: data.author_id,
         text: data.body,
         body: data.body,
         time: data.created_at,
