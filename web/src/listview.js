@@ -40,6 +40,11 @@ function switchView(view) {
   const board = document.getElementById('board');
   const listView = document.getElementById('list-view');
 
+  // Update switcher button active states immediately
+  document.querySelectorAll('.view-switcher-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.view === view);
+  });
+
   if (view === 'board') {
     board.style.display = '';
     listView.style.display = 'none';
@@ -60,11 +65,6 @@ function switchView(view) {
     }
     renderListView();
   }
-
-  // Update switcher button active states
-  document.querySelectorAll('.view-switcher-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.view === view);
-  });
 }
 
 // ═══════════════════════════════════════════════════════════════
