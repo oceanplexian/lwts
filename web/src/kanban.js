@@ -2043,8 +2043,15 @@ function clearCompleted() {
     return;
   }
 
+  // Respect prefers-reduced-motion — skip animation entirely
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reducedMotion) {
+    _finishClear(doneCards);
+    return;
+  }
+
   // Stagger the .clearing class across cards
-  const STAGGER = 40; // ms between each card
+  const STAGGER = 60; // ms between each card
   cardEls.forEach((el, i) => {
     el.style.animationDelay = (i * STAGGER) + 'ms';
     el.classList.add('clearing');
@@ -2060,7 +2067,7 @@ function clearCompleted() {
     _finishClear(doneCards);
   }
   lastEl.addEventListener('animationend', onDone, { once: true });
-  // Safety fallback in case animationend never fires (e.g. reduced-motion)
+  // Safety fallback in case animationend never fires
   const fallback = setTimeout(onDone, totalDuration + 50);
 }
 
@@ -2187,7 +2194,7 @@ window.initBoard = function() {
   loadUsers().then(() => {
     reinitUserDropdowns();
     if (typeof window.buildFilterCheckboxes === "function") {
-      window.buildFilterCheckboxes('assignee', USERS.filter(u => u.value !== 'unassigned').map(u => ({ value: u.value, label: u.label })));
+      window.buildFilterCheckboxes('assignee', USERS.filter(u => u.value !== 'unassigned').map(u => ({ value: u.value, label: u.label, initials: u.initials, avatar_color: u.avatar_color, avatar_url: u.avatar_url })));
     }
     loadFromAPI().then(() => {
       if (location.hash) navigateToHash();
