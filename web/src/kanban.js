@@ -2002,11 +2002,46 @@ function autoResizeTextarea(el) {
 function clearCompleted() {
   const doneCards = state.done.slice();
   if (doneCards.length === 0) return;
+
+  // Collect DOM elements to animate (board cards + list rows)
+  const isList = typeof window.currentView !== 'undefined' && window.currentView === 'list';
+  const cardEls = isList
+    ? Array.from(document.querySelectorAll('.list-row[data-col="done"]'))
+    : Array.from(document.querySelectorAll('.column-body[data-col="done"] .card'));
+
+  if (cardEls.length === 0) {
+    // No visible elements — fall through to instant clear
+    _finishClear(doneCards);
+    return;
+  }
+
+  // Stagger the .clearing class across cards
+  const STAGGER = 40; // ms between each card
+  cardEls.forEach((el, i) => {
+    el.style.animationDelay = (i * STAGGER) + 'ms';
+    el.classList.add('clearing');
+  });
+
+  // Wait for the last card's animation to finish, then commit the state change
+  const lastEl = cardEls[cardEls.length - 1];
+  const totalDuration = (cardEls.length - 1) * STAGGER + 300; // 300ms = animation duration
+
+  function onDone() {
+    lastEl.removeEventListener('animationend', onDone);
+    clearTimeout(fallback);
+    _finishClear(doneCards);
+  }
+  lastEl.addEventListener('animationend', onDone, { once: true });
+  // Safety fallback in case animationend never fires (e.g. reduced-motion)
+  const fallback = setTimeout(onDone, totalDuration + 50);
+}
+
+function _finishClear(doneCards) {
   state.done = [];
   if (!state.cleared) state.cleared = [];
   state.cleared.push(...doneCards);
   save(); window.render();
-  if (typeof window.currentView !== "undefined" && window.currentView === 'list' && typeof renderListView === 'function') {
+  if (typeof window.currentView !== 'undefined' && window.currentView === 'list' && typeof renderListView === 'function') {
     window.renderListView();
   }
 

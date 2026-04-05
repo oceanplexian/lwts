@@ -554,6 +554,11 @@
   .card.just-dropped {
     animation: none;
   }
+  .card.clearing,
+  .list-row.clearing {
+    animation: none;
+    opacity: 0;
+  }
   .board.fade-out,
   .board.fade-in {
     animation: none;
