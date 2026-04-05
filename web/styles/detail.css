@@ -680,6 +680,7 @@
   width: 70px;
   height: 34px;
   padding: 4px 8px;
+  box-sizing: border-box;
   background: var(--page-bg);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
@@ -708,6 +709,51 @@
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+/* ── GitHub links in sidebar ── */
+.github-links-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.github-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.84rem;
+  color: var(--text-primary);
+  text-decoration: none;
+  padding: 3px 8px;
+  border-radius: var(--radius-md);
+  transition: all 0.15s ease;
+  line-height: 1.3;
+}
+
+.github-link:hover {
+  background: var(--surface-hover);
+  color: var(--accent-blue);
+  text-decoration: none;
+}
+
+.github-link svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  fill: currentColor;
+}
+
+.github-link-title {
+  color: var(--text-dimmed);
+  font-size: 0.78rem;
+  margin-left: 20px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
 }
 
 /* Created date / metadata row */
