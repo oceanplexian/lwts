@@ -389,7 +389,7 @@
   gap: var(--board-gap);
   min-height: calc(100vh - 104px); /* 60px header + 44px filter bar */
   padding: 8px var(--board-padding) var(--board-padding);
-  align-items: flex-start;
+  align-items: stretch;
   transition: opacity 0.3s ease, transform 0.3s ease;
 }
 .board.fade-out {
@@ -455,6 +455,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  flex: 1;
 }
 
 /* ── Epic Swim Lanes ── */
