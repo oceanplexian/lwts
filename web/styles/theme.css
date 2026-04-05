@@ -91,13 +91,13 @@ html {
   font-size: 14px;
 }
 body {
-  min-height: 100%;
+  height: 100%;
   background: var(--page-bg);
   color: var(--text-primary);
   font-family: var(--font);
   font-size: 14px;
   line-height: 1.5;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 /* Toast notifications */
