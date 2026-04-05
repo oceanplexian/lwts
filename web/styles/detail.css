@@ -313,12 +313,19 @@
   margin: 2px 0;
   line-height: 1.5;
 }
-.detail-desc-view a, .detail-comment-text a {
+.detail-desc-view a,
+.detail-comment-text a,
+.detail-desc-view a:visited,
+.detail-comment-text a:visited,
+.lwts-modal a[href] {
   color: var(--accent-blue);
   text-decoration: none;
 }
-.detail-desc-view a:hover, .detail-comment-text a:hover {
+.detail-desc-view a:hover,
+.detail-comment-text a:hover,
+.lwts-modal a[href]:hover {
   text-decoration: underline;
+  color: var(--accent-blue);
 }
 
 .detail-desc-view pre, .detail-comment-text pre {
