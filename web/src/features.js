@@ -955,9 +955,29 @@ function updateCardInState(data) {
       });
       window.save();
       window.render();
-      // If the detail modal is open for this card, refresh the description view
+      // If the detail modal is open for this card, refresh all detail views
       if (window.detailCard && window.detailCard.id === data.id) {
+        // Update the detailCard object with new data
+        Object.assign(window.detailCard, {
+          title: data.title ?? window.detailCard.title,
+          description: data.description ?? window.detailCard.description,
+          tag: data.tag ?? window.detailCard.tag,
+          priority: data.priority ?? window.detailCard.priority,
+          version: data.version ?? window.detailCard.version,
+          assignee_id: data.assignee_id ?? window.detailCard.assignee_id,
+          points: data.points ?? window.detailCard.points,
+          due_date: data.due_date ?? window.detailCard.due_date,
+          epic_id: data.epic_id ?? window.detailCard.epic_id,
+          reporter_id: data.reporter_id ?? window.detailCard.reporter_id,
+          key: data.key ?? window.detailCard.key,
+        });
+        // Refresh title
+        var titleEl = document.getElementById('detail-title');
+        if (titleEl && data.title != null) titleEl.value = data.title;
+        // Refresh sidebar fields
+        if (typeof window.refreshSidebarTexts === 'function') window.refreshSidebarTexts();
         if (typeof window.renderDescriptionView === 'function') window.renderDescriptionView();
+        if (typeof window.refreshGithubLinks === 'function') window.refreshGithubLinks();
       }
       injectDueDateChips();
       window.applyFilters();
@@ -1026,6 +1046,11 @@ function moveCardInState(data) {
   });
   window.save();
   window.render();
+  // If detail modal is open for this card, refresh sidebar (status changed)
+  if (window.detailCard && window.detailCard.id === data.id) {
+    window.detailCard.column_id = toCol;
+    if (typeof window.refreshSidebarTexts === 'function') window.refreshSidebarTexts();
+  }
   injectDueDateChips();
   window.applyFilters();
   // Highlight the moved card in its new position
