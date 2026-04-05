@@ -448,7 +448,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func broadcast(hub *sse.Hub, boardID, eventType string, payload any, senderID string) {
+func broadcast(hub *sse.Hub, boardID, eventType string, payload any, _ string) {
 	if hub == nil {
 		return
 	}
@@ -457,7 +457,6 @@ func broadcast(hub *sse.Hub, boardID, eventType string, payload any, senderID st
 		BoardID:   boardID,
 		EventType: eventType,
 		Data:      data,
-		SenderID:  senderID,
 	}
 }
 
