@@ -34,6 +34,7 @@ const STATUS_LABELS = { backlog: 'Backlog', todo: 'To Do', 'in-progress': 'In Pr
 
 function switchView(view) {
   currentView = view;
+  window.currentView = view;
   localStorage.setItem('lwts-view', view);
 
   const board = document.getElementById('board');

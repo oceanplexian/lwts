@@ -154,11 +154,19 @@ async function loadFromAPI() {
       boardList = [board];
     }
 
-    // Use saved board ID or first board
+    // Use board ID from URL, then localStorage, then first board
+    const urlBoardId = new URL(window.location).searchParams.get('board');
+    if (urlBoardId && boardList.find(b => b.id === urlBoardId)) {
+      currentBoardId = urlBoardId;
+    }
     if (!currentBoardId || !boardList.find(b => b.id === currentBoardId)) {
       currentBoardId = boardList[0].id;
     }
     localStorage.setItem('lwts-board-id', currentBoardId);
+    // Sync URL with active board
+    const url = new URL(window.location);
+    url.searchParams.set('board', currentBoardId);
+    window.history.replaceState(null, '', url);
 
     await loadBoardCards(currentBoardId);
     window.renderBoardPicker();
@@ -1951,6 +1959,10 @@ function switchBoard(id, name) {
   } else {
     currentBoardId = id;
     localStorage.setItem('lwts-board-id', id);
+    // Update URL with board ID for persistence across refreshes
+    const url = new URL(window.location);
+    url.searchParams.set('board', id);
+    window.history.replaceState(null, '', url);
     document.getElementById('board-picker-label').textContent = _capitalize(name || id);
     closeBoardPicker();
     loadBoardCards(id);
