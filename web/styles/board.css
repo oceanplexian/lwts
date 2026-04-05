@@ -937,6 +937,20 @@ body.light-theme .epic-lane {
   100% { transform: scale(1) translateY(0); }
 }
 
+/* ── Clear-done exit animation ── */
+@keyframes cardClearOut {
+  0%   { opacity: 1; transform: translateX(0) scale(1); }
+  100% { opacity: 0; transform: translateX(30px) scale(0.95); }
+}
+.card.clearing {
+  animation: cardClearOut 0.3s ease forwards;
+  pointer-events: none;
+}
+.list-row.clearing {
+  animation: cardClearOut 0.3s ease forwards;
+  pointer-events: none;
+}
+
 /* ── Drop target highlight ── */
 .card.drop-target {
   background: rgba(43,125,233,0.06);
