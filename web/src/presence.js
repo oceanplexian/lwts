@@ -59,7 +59,7 @@ function renderPresence() {
 }
 
 function loadPresence(boardId) {
-  const token = localStorage.getItem('access_token') || '';
+  const token = Auth.getAccessToken() || '';
   fetch(`/api/v1/boards/${boardId}/presence`, {
     headers: token ? { 'Authorization': 'Bearer ' + token } : {},
   })

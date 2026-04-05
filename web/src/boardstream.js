@@ -17,7 +17,7 @@ class BoardStream {
     connect() {
         this.intentionalClose = false;
 
-        const token = localStorage.getItem('access_token') || '';
+        const token = Auth.getAccessToken() || '';
         const url = `/api/v1/boards/${this.boardId}/stream?token=${encodeURIComponent(token)}`;
 
         this.es = new EventSource(url);
