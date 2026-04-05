@@ -591,6 +591,10 @@
             <td class="detail-field-label">Points</td>
             <td class="detail-field-cell"><span class="detail-field-text" id="detail-points-text" onclick="toggleSidebarField('points')"></span><div class="detail-field-dd hidden" id="detail-points-dd"><input type="text" inputmode="numeric" pattern="[0-9]*" id="detail-points" class="detail-points-input" onchange="saveDetailFields()" onblur="closeSidebarField('points')"></div></td>
           </tr>
+          <tr class="detail-field-row" id="detail-github-row" style="display:none">
+            <td class="detail-field-label">GitHub</td>
+            <td class="detail-field-cell"><div id="detail-github-links" class="github-links-list"></div></td>
+          </tr>
         </table>
         <div class="detail-meta-row" id="detail-created"></div>
       </div>
