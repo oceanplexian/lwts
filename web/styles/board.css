@@ -323,7 +323,7 @@
   padding: 10px 16px;
   color: var(--text-primary);
   font-size: 0.8rem;
-  z-index: 9999;
+  z-index: 10001;
   animation: toastIn 0.3s ease;
   max-width: 340px;
 }
