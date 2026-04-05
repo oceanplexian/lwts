@@ -2,11 +2,13 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/oceanplexian/lwts/server/internal/db"
 	"github.com/google/uuid"
 )
@@ -22,22 +24,24 @@ type CardRepository struct {
 	ds db.Datasource
 }
 
-// forUpdate appends FOR UPDATE to a query when running on Postgres.
-// SQLite uses database-level locking, so FOR UPDATE is unnecessary and unsupported.
-func (r *CardRepository) forUpdate() string {
-	if r.ds.DBType() == "postgres" {
-		return " FOR UPDATE"
-	}
-	return ""
-}
-
 func NewCardRepository(ds db.Datasource) *CardRepository {
 	return &CardRepository{ds: ds}
 }
 
+const maxRetries = 3
+
+// isRetryable returns true for Postgres deadlock (40P01) and serialization
+// failure (40001) errors — normal under high concurrency, just retry.
+func isRetryable(err error) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "40P01" || pgErr.Code == "40001"
+	}
+	return false
+}
+
 func (r *CardRepository) nextKey(ctx context.Context, q querier, boardID string) (string, error) {
-	// Lock the board row to serialize key generation per board
-	row := q.QueryRow(ctx, `SELECT project_key FROM boards WHERE id = $1`+r.forUpdate(), boardID)
+	row := q.QueryRow(ctx, `SELECT project_key FROM boards WHERE id = $1`, boardID)
 	var projectKey string
 	if err := row.Scan(&projectKey); err != nil {
 		if err == db.ErrNoRows {
@@ -46,12 +50,11 @@ func (r *CardRepository) nextKey(ctx context.Context, q querier, boardID string)
 		return "", err
 	}
 
-	// Get the highest key number (not COUNT, so deletions don't cause collisions)
+	// Use MAX on the numeric suffix so deletions don't cause key collisions.
 	var maxKeySQL string
 	if r.ds.DBType() == "postgres" {
 		maxKeySQL = `SELECT COALESCE(MAX(CAST(SUBSTRING(key FROM '[0-9]+$') AS INTEGER)), 0) FROM cards WHERE board_id = $1`
 	} else {
-		// SQLite: use CAST + REPLACE to extract the numeric suffix
 		maxKeySQL = `SELECT COALESCE(MAX(CAST(SUBSTR(key, INSTR(key, '-') + 1) AS INTEGER)), 0) FROM cards WHERE board_id = $1`
 	}
 	row = q.QueryRow(ctx, maxKeySQL, boardID)
@@ -77,6 +80,28 @@ type CardCreate struct {
 }
 
 func (r *CardRepository) Create(ctx context.Context, boardID string, c CardCreate) (Card, error) {
+	tag := c.Tag
+	if tag == "" {
+		tag = "blue"
+	}
+	priority := c.Priority
+	if priority == "" {
+		priority = "medium"
+	}
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		card, err := r.createOnce(ctx, boardID, c, tag, priority)
+		if err == nil {
+			return card, nil
+		}
+		if isRetryable(err) && attempt < maxRetries-1 {
+			continue
+		}
+		return Card{}, err
+	}
+	return Card{}, fmt.Errorf("create failed after %d retries", maxRetries)
+}
+
+func (r *CardRepository) createOnce(ctx context.Context, boardID string, c CardCreate, tag, priority string) (Card, error) {
 	id := uuid.New().String()
 	now := time.Now().UTC()
 
@@ -91,24 +116,14 @@ func (r *CardRepository) Create(ctx context.Context, boardID string, c CardCreat
 		return Card{}, fmt.Errorf("generate key: %w", err)
 	}
 
-	// Lock rows in target column and get max position
 	row := tx.QueryRow(ctx,
-		`SELECT COALESCE(MAX(position), -1) FROM cards WHERE board_id = $1 AND column_id = $2`+r.forUpdate(),
+		`SELECT COALESCE(MAX(position), -1) FROM cards WHERE board_id = $1 AND column_id = $2`,
 		boardID, c.ColumnID)
 	var maxPos int
 	if err := row.Scan(&maxPos); err != nil {
 		return Card{}, err
 	}
 	position := maxPos + 1
-
-	tag := c.Tag
-	if tag == "" {
-		tag = "blue"
-	}
-	priority := c.Priority
-	if priority == "" {
-		priority = "medium"
-	}
 
 	_, err = tx.Exec(ctx,
 		`INSERT INTO cards (id, board_id, column_id, title, description, tag, priority, assignee_id, reporter_id, points, position, key, version, due_date, related_card_ids, blocked_card_ids, epic_id, created_at, updated_at)
@@ -125,25 +140,12 @@ func (r *CardRepository) Create(ctx context.Context, boardID string, c CardCreat
 	}
 
 	return Card{
-		ID:             id,
-		BoardID:        boardID,
-		ColumnID:       c.ColumnID,
-		Title:          c.Title,
-		Description:    c.Description,
-		Tag:            tag,
-		Priority:       priority,
-		AssigneeID:     c.AssigneeID,
-		ReporterID:     c.ReporterID,
-		Points:         c.Points,
-		Position:       position,
-		Key:            key,
-		Version:        1,
-		DueDate:        c.DueDate,
-		RelatedCardIDs: "[]",
-		BlockedCardIDs: "[]",
-		EpicID:         c.EpicID,
-		CreatedAt:      now,
-		UpdatedAt:      now,
+		ID: id, BoardID: boardID, ColumnID: c.ColumnID,
+		Title: c.Title, Description: c.Description, Tag: tag, Priority: priority,
+		AssigneeID: c.AssigneeID, ReporterID: c.ReporterID, Points: c.Points,
+		Position: position, Key: key, Version: 1, DueDate: c.DueDate,
+		RelatedCardIDs: "[]", BlockedCardIDs: "[]", EpicID: c.EpicID,
+		CreatedAt: now, UpdatedAt: now,
 	}, nil
 }
 
@@ -303,18 +305,37 @@ type MoveOption struct {
 }
 
 func (r *CardRepository) Move(ctx context.Context, id string, version int, toColumn string, position int, opts ...MoveOption) (Card, error) {
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		card, err := r.moveOnce(ctx, id, version, toColumn, position, opts...)
+		if err == nil {
+			return card, nil
+		}
+		if err == ErrConflict || err == ErrNotFound {
+			return Card{}, err
+		}
+		if isRetryable(err) && attempt < maxRetries-1 {
+			continue
+		}
+		return Card{}, err
+	}
+	return Card{}, fmt.Errorf("move failed after %d retries", maxRetries)
+}
+
+func (r *CardRepository) moveOnce(ctx context.Context, id string, version int, toColumn string, position int, opts ...MoveOption) (Card, error) {
 	tx, err := r.ds.Begin(ctx)
 	if err != nil {
 		return Card{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	// Lock the card row and read current state inside the transaction
+	// Read card inside the transaction — no FOR UPDATE needed. We rely on the
+	// version-checked UPDATE to detect conflicts and on automatic retry to
+	// handle deadlocks from concurrent position shifts.
 	row := tx.QueryRow(ctx,
-		`SELECT id, board_id, column_id, version FROM cards WHERE id = $1`+r.forUpdate(), id)
-	var cardID, boardID, colID string
+		`SELECT board_id, version FROM cards WHERE id = $1`, id)
+	var boardID string
 	var curVersion int
-	if err := row.Scan(&cardID, &boardID, &colID, &curVersion); err != nil {
+	if err := row.Scan(&boardID, &curVersion); err != nil {
 		if err == db.ErrNoRows {
 			return Card{}, ErrNotFound
 		}
@@ -333,7 +354,7 @@ func (r *CardRepository) Move(ctx context.Context, id string, version int, toCol
 		return Card{}, err
 	}
 
-	// Move the card
+	// Move the card — version check ensures no lost updates
 	now := time.Now().UTC()
 	var n int64
 	if len(opts) > 0 && opts[0].EpicID != nil {
@@ -362,14 +383,27 @@ func (r *CardRepository) Move(ctx context.Context, id string, version int, toCol
 }
 
 func (r *CardRepository) Delete(ctx context.Context, id string) error {
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		err := r.deleteOnce(ctx, id)
+		if err == nil || err == ErrNotFound {
+			return err
+		}
+		if isRetryable(err) && attempt < maxRetries-1 {
+			continue
+		}
+		return err
+	}
+	return fmt.Errorf("delete failed after %d retries", maxRetries)
+}
+
+func (r *CardRepository) deleteOnce(ctx context.Context, id string) error {
 	tx, err := r.ds.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	// Get the card's position info before deleting
-	row := tx.QueryRow(ctx, `SELECT board_id, column_id, position FROM cards WHERE id = $1`+r.forUpdate(), id)
+	row := tx.QueryRow(ctx, `SELECT board_id, column_id, position FROM cards WHERE id = $1`, id)
 	var boardID, colID string
 	var pos int
 	if err := row.Scan(&boardID, &colID, &pos); err != nil {
@@ -379,7 +413,6 @@ func (r *CardRepository) Delete(ctx context.Context, id string) error {
 		return err
 	}
 
-	// Delete the card
 	_, err = tx.Exec(ctx, `DELETE FROM cards WHERE id = $1`, id)
 	if err != nil {
 		return err
@@ -400,38 +433,32 @@ func (r *CardRepository) BulkMove(ctx context.Context, ids []string, toColumn st
 	if len(ids) == 0 {
 		return nil, nil
 	}
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		cards, err := r.bulkMoveOnce(ctx, ids, toColumn)
+		if err == nil {
+			return cards, nil
+		}
+		if isRetryable(err) && attempt < maxRetries-1 {
+			continue
+		}
+		return nil, err
+	}
+	return nil, fmt.Errorf("bulk move failed after %d retries", maxRetries)
+}
 
+func (r *CardRepository) bulkMoveOnce(ctx context.Context, ids []string, toColumn string) ([]Card, error) {
 	tx, err := r.ds.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	// Lock all cards being moved
-	placeholders := make([]string, len(ids))
-	args := make([]any, len(ids))
-	for i, id := range ids {
-		placeholders[i] = "$" + strconv.Itoa(i+1)
-		args[i] = id
-	}
-	idList := strings.Join(placeholders, ",")
-
-	rows, err := tx.Query(ctx,
-		fmt.Sprintf(`SELECT id FROM cards WHERE id IN (%s)`, idList)+r.forUpdate(),
-		args...)
-	if err != nil {
-		return nil, err
-	}
-	rows.Close()
-
-	// Get the board_id from one of the cards
 	row := tx.QueryRow(ctx, `SELECT board_id FROM cards WHERE id = $1`, ids[0])
 	var boardID string
 	if err := row.Scan(&boardID); err != nil {
 		return nil, err
 	}
 
-	// Get max position in target column
 	row = tx.QueryRow(ctx,
 		`SELECT COALESCE(MAX(position), -1) FROM cards WHERE board_id = $1 AND column_id = $2`,
 		boardID, toColumn)
@@ -440,7 +467,6 @@ func (r *CardRepository) BulkMove(ctx context.Context, ids []string, toColumn st
 		return nil, err
 	}
 
-	// Move all cards
 	now := time.Now().UTC()
 	for i, id := range ids {
 		_, err = tx.Exec(ctx,
@@ -455,7 +481,6 @@ func (r *CardRepository) BulkMove(ctx context.Context, ids []string, toColumn st
 		return nil, err
 	}
 
-	// Read back all moved cards
 	var result []Card
 	for _, id := range ids {
 		card, err := r.GetByID(ctx, id)
