@@ -773,8 +773,7 @@ function onDrop(e) {
         const msgs = err.data.blockers.map(b => b.message);
         window.Toast.error(msgs.join('\n'), { duration: 5000 });
       } else if (err.status === 409) {
-        // 409 conflict — silently refresh
-
+        window.Toast.info('Card was modified, refreshing...');
         loadBoardCards(currentBoardId);
       } else {
         window.Toast.error('Failed to move card');
@@ -973,7 +972,9 @@ function submitCreateFromDetail() {
       }
       // Post pending comments to the newly created card
       pendingCommentTexts.forEach(text => {
-        window.API.createComment(serverCard.id, text).catch(() => {});
+        window.API.createComment(serverCard.id, text).catch(() => {
+          window.Toast.error('Failed to post comment');
+        });
       });
     }).catch(err => {
       window.Toast.error('Failed to create card: ' + (err.message || 'unknown error'));
@@ -1186,25 +1187,62 @@ function saveDetailFields() {
   // If card was an epic and type changed, release all children
   if (wasEpic && detailCard.tag !== 'epic') {
     const epicId = detailCard.id;
+    const childCards = [];
     for (const col of COLUMNS) {
       for (const card of (state[col.id] || [])) {
         if (card.epic_id === epicId) {
           card.epic_id = null;
-          // Also update server
           if (currentBoardId && !card.id.startsWith('temp-')) {
-            window.API.updateCard(card.id, { epic_id: null, version: card.version || 0 })
-              .then(u => { card.version = u.version; })
-              .catch(() => {});
+            childCards.push(card);
           }
         }
       }
     }
+    // Serialize epic removal API calls to avoid version conflicts
+    (async () => {
+      for (const card of childCards) {
+        try {
+          const u = await window.API.updateCard(card.id, { epic_id: null, version: card.version || 0 });
+          card.version = u.version;
+          cardIndex[card.id] = u;
+        } catch (err) {
+          window.Toast.error('Failed to unlink ' + (card.key || card.id) + ' from epic');
+        }
+      }
+    })();
   }
 
   save();
 
   // Sync with API
   if (currentBoardId && detailCard.id && !detailCard.id.startsWith('temp-')) {
+    const doFieldUpdate = (card) => {
+      clearTimeout(saveDetailFields._timer);
+      saveDetailFields._timer = setTimeout(() => {
+        if (!card || card.id.startsWith('temp-')) return;
+        const assignee = card.assignee;
+        window.API.updateCard(card.id, {
+          title: card.title,
+          description: card.description,
+          tag: card.tag,
+          priority: card.priority,
+          assignee_id: assignee === 'unassigned' ? null : assignee,
+          epic_id: card.epic_id || null,
+          points: card.points || null,
+          version: card.version || 0,
+        }).then(updated => {
+          card.version = updated.version;
+          cardIndex[card.id] = updated;
+        }).catch(err => {
+          if (err.status === 409) {
+            loadBoardCards(currentBoardId);
+          } else {
+            window.Toast.error('Failed to save card');
+          }
+        });
+      }, 500);
+    };
+
     if (movedColumn) {
       window.API.moveCard(detailCard.id, {
         column_id: newCol,
@@ -1213,54 +1251,21 @@ function saveDetailFields() {
       }).then(updated => {
         detailCard.version = updated.version;
         cardIndex[detailCard.id] = updated;
+        doFieldUpdate(detailCard);
       }).catch(err => {
         if (err.status === 422 && err.data && err.data.blockers) {
-          // Revert column move
           state[newCol] = state[newCol].filter(c => c.id !== detailCard.id);
           state[detailCol] = state[detailCol] || [];
-          // Undo: detailCol was already updated, need to use the old column
-          // We stored movedColumn as true, so reverse it
-          const prevCol = detailCol;
-          // Actually detailCol was already set to newCol above, so we need to go back
-          // Re-read from the card's server state
           loadBoardCards(currentBoardId);
           const msgs = err.data.blockers.map(b => b.message);
           window.Toast.error(msgs.join('\n'), { duration: 5000 });
         } else if (err.status === 409) {
-          // 409 conflict — silently refresh
-
           loadBoardCards(currentBoardId);
         }
       });
+    } else {
+      doFieldUpdate(detailCard);
     }
-
-    // Debounced field update
-    clearTimeout(saveDetailFields._timer);
-    saveDetailFields._timer = setTimeout(() => {
-      if (!detailCard || detailCard.id.startsWith('temp-')) return;
-      const assignee = detailCard.assignee;
-      window.API.updateCard(detailCard.id, {
-        title: detailCard.title,
-        description: detailCard.description,
-        tag: detailCard.tag,
-        priority: detailCard.priority,
-        assignee_id: assignee === 'unassigned' ? null : assignee,
-        epic_id: detailCard.epic_id || null,
-        points: detailCard.points || null,
-        version: detailCard.version || 0,
-      }).then(updated => {
-        detailCard.version = updated.version;
-        cardIndex[detailCard.id] = updated;
-      }).catch(err => {
-        if (err.status === 409) {
-          // 409 conflict — silently refresh
-
-          loadBoardCards(currentBoardId);
-        } else {
-          window.Toast.error('Failed to save card');
-        }
-      });
-    }, 500);
   }
 }
 saveDetailFields._timer = null;
@@ -2118,20 +2123,25 @@ function _finishClear(doneCards) {
     window.renderListView();
   }
 
-  // Move cleared cards to 'cleared' column via API
+  // Bulk move cleared cards via API
   if (currentBoardId) {
-    doneCards.forEach((card, i) => {
-      if (card.id && !card.id.startsWith('temp-')) {
-        window.API.moveCard(card.id, {
-          column_id: 'cleared',
-          position: state.cleared.length - doneCards.length + i,
-          version: card.version || 0,
-        }).then(updated => {
-          card.version = updated.version;
-          cardIndex[card.id] = updated;
-        }).catch(() => {});
-      }
-    });
+    const ids = doneCards
+      .filter(card => card.id && !card.id.startsWith('temp-'))
+      .map(card => card.id);
+    if (ids.length > 0) {
+      window.API.bulkMoveCards(currentBoardId, ids, 'cleared').then(updated => {
+        if (Array.isArray(updated)) {
+          updated.forEach(u => {
+            const local = state.cleared.find(c => c.id === u.id);
+            if (local) local.version = u.version;
+            cardIndex[u.id] = u;
+          });
+        }
+      }).catch(err => {
+        window.Toast.error('Failed to clear cards: ' + (err.message || 'unknown error'));
+        loadBoardCards(currentBoardId);
+      });
+    }
   }
 }
 

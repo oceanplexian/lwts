@@ -31,17 +31,21 @@ function _isCardDone(card) {
 function _saveCardLinks(card, field, ids) {
   card[field] = ids;
   const json = JSON.stringify(ids);
+  let promise = Promise.resolve();
   if (card.id && !card.id.startsWith('temp-') && typeof window.API !== 'undefined') {
     var update = { version: card.version || 0 };
     update[field] = json;
-    window.API.updateCard(card.id, update).then(updated => {
+    promise = window.API.updateCard(card.id, update).then(updated => {
       if (updated && updated.version) {
         card.version = updated.version;
         if (window.cardIndex[card.id]) window.cardIndex[card.id].version = updated.version;
       }
-    }).catch(() => {});
+    }).catch(() => {
+      window.Toast.error('Failed to save link');
+    });
   }
   if (typeof window.save === 'function') window.save();
+  return promise;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -228,17 +232,17 @@ function addLinkCard(targetId, type) {
   if (ids.includes(targetId)) return;
 
   ids.push(targetId);
-  _saveCardLinks(window.detailCard, field, ids);
-
-  // Bidirectional: add reverse link on the target
-  var target = _findCardById(targetId);
-  if (target) {
-    var reverseIds = (target[field] || []).slice();
-    if (!reverseIds.includes(window.detailCard.id)) {
-      reverseIds.push(window.detailCard.id);
-      _saveCardLinks(target, field, reverseIds);
+  _saveCardLinks(window.detailCard, field, ids).then(() => {
+    // Bidirectional: add reverse link on the target (after first save completes)
+    var target = _findCardById(targetId);
+    if (target) {
+      var reverseIds = (target[field] || []).slice();
+      if (!reverseIds.includes(window.detailCard.id)) {
+        reverseIds.push(window.detailCard.id);
+        _saveCardLinks(target, field, reverseIds);
+      }
     }
-  }
+  });
 
   _relatedPickerOpen = false;
   renderRelatedTickets();
@@ -260,16 +264,17 @@ function removeLinkCard(targetId, type) {
 
   function doRemove() {
     ids.splice(idx, 1);
-    _saveCardLinks(window.detailCard, field, ids);
-    var target = _findCardById(targetId);
-    if (target) {
-      var reverseIds = target[field] || [];
-      var tIdx = reverseIds.indexOf(window.detailCard.id);
-      if (tIdx !== -1) {
-        reverseIds.splice(tIdx, 1);
-        _saveCardLinks(target, field, reverseIds);
+    _saveCardLinks(window.detailCard, field, ids).then(() => {
+      var target = _findCardById(targetId);
+      if (target) {
+        var reverseIds = target[field] || [];
+        var tIdx = reverseIds.indexOf(window.detailCard.id);
+        if (tIdx !== -1) {
+          reverseIds.splice(tIdx, 1);
+          _saveCardLinks(target, field, reverseIds);
+        }
       }
-    }
+    });
     renderRelatedTickets();
   }
 

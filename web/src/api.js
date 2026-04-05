@@ -85,6 +85,7 @@ const API = {
   createCard(boardId, data) { return this.post('/api/v1/boards/' + boardId + '/cards', data); },
   updateCard(id, data)      { return this.put('/api/v1/cards/' + id, data); },
   moveCard(id, data)        { return this.post('/api/v1/cards/' + id + '/move', data); },
+  bulkMoveCards(boardId, cardIds, columnId) { return this.post('/api/v1/boards/' + boardId + '/cards/bulk-move', { card_ids: cardIds, column_id: columnId }); },
   deleteCard(id)    { return this.del('/api/v1/cards/' + id); },
 
   listComments(cardId)       { return this.get('/api/v1/cards/' + cardId + '/comments'); },

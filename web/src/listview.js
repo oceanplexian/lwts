@@ -660,44 +660,50 @@ function onListDrop(e) {
     renderListView();
   }
 
-  // Sync epic change with API
-  if (epicChanged && window.currentBoardId && droppedId && !droppedId.startsWith('temp-')) {
-    window.API.updateCard(droppedId, {
-      epic_id: targetEpicId || null,
-      version: movedCard.version || 0,
-    }).then(updated => {
-      movedCard.version = updated.version;
-      window.cardIndex[droppedId] = updated;
-    }).catch(() => {});
-  }
-
-  // Sync with API
+  // Sync with API — serialize epic change then move to avoid version conflicts
   if (window.currentBoardId) {
-    window.API.moveCard(droppedId, {
-      column_id: targetCol,
-      position: insertIdx,
-      version: movedCard.version || 0,
-    }).then(updated => {
-      movedCard.version = updated.version;
-      window.cardIndex[droppedId] = updated;
-    }).catch(err => {
-      if (err.status === 422 && err.data && err.data.blockers) {
-        window.state = origState;
-        window.save();
-        renderListView();
-        const msgs = err.data.blockers.map(b => b.message);
-        window.Toast.error(msgs.join('\n'), { duration: 5000 });
-      } else if (err.status === 409) {
-        // 409 conflict — silently refresh
+    const doMove = (version) => {
+      window.API.moveCard(droppedId, {
+        column_id: targetCol,
+        position: insertIdx,
+        version: version,
+      }).then(updated => {
+        movedCard.version = updated.version;
+        window.cardIndex[droppedId] = updated;
+      }).catch(err => {
+        if (err.status === 422 && err.data && err.data.blockers) {
+          window.state = origState;
+          window.save();
+          renderListView();
+          const msgs = err.data.blockers.map(b => b.message);
+          window.Toast.error(msgs.join('\n'), { duration: 5000 });
+        } else if (err.status === 409) {
+          window.Toast.info('Card was modified, refreshing...');
+          loadBoardCards(window.currentBoardId);
+        } else {
+          window.Toast.error('Failed to move card');
+          window.state = origState;
+          window.save();
+          renderListView();
+        }
+      });
+    };
 
-        loadBoardCards(window.currentBoardId);
-      } else {
-        window.Toast.error('Failed to move card');
-        window.state = origState;
-        window.save();
-        renderListView();
-      }
-    });
+    if (epicChanged && droppedId && !droppedId.startsWith('temp-')) {
+      window.API.updateCard(droppedId, {
+        epic_id: targetEpicId || null,
+        version: movedCard.version || 0,
+      }).then(updated => {
+        movedCard.version = updated.version;
+        window.cardIndex[droppedId] = updated;
+        doMove(updated.version);
+      }).catch(err => {
+        window.Toast.error('Failed to update epic');
+        doMove(movedCard.version || 0);
+      });
+    } else {
+      doMove(movedCard.version || 0);
+    }
   }
 
   // Board will pick up state changes when user switches back to board view
