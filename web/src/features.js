@@ -133,6 +133,11 @@ function selectBoard(boardId, boardName) {
   localStorage.setItem('lwts-board-id', boardId);
   document.getElementById('board-picker-label').textContent = _cap(boardName);
 
+  // Update URL with board ID for persistence across refreshes
+  const url = new URL(window.location);
+  url.searchParams.set('board', boardId);
+  window.history.replaceState(null, '', url);
+
   // Close picker
   if (typeof window.closeBoardPicker === 'function') window.closeBoardPicker();
 
