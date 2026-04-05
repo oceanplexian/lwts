@@ -244,6 +244,7 @@ func main() {
 	}
 	stg.RegisterRoutes(mux, authMW, adminMW)
 	stg.RegisterDiscordRoutes(mux, adminMW)
+	stg.SyncSessionLength(ctx)
 	authHandler.SetRegistrationChecker(stg)
 	authHandler.SetSeedFunc(auth.SeedFunc(seedFunc))
 

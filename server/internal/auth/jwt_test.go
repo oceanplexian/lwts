@@ -49,8 +49,8 @@ func TestParseAccessToken(t *testing.T) {
 		t.Fatal("ExpiresAt is nil")
 	}
 	ttl := time.Until(claims.ExpiresAt.Time)
-	if ttl < 14*time.Minute || ttl > 16*time.Minute {
-		t.Errorf("TTL = %v, want ~15min", ttl)
+	if ttl < 6*24*time.Hour || ttl > 8*24*time.Hour {
+		t.Errorf("TTL = %v, want ~7 days", ttl)
 	}
 }
 

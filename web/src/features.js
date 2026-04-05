@@ -986,6 +986,7 @@ function addCardToState(data) {
     priority: data.priority || 'medium', assignee: data.assignee_id || 'unassigned',
     reporter: data.reporter_id || 'you', points: data.points || 0,
     date: data.due_date || '', due_date: data.due_date || null,
+    epic_id: data.epic_id || null,
     version: data.version || 1, comments: [],
   });
   window.save();
@@ -1020,6 +1021,7 @@ function moveCardInState(data) {
     version: data.version || 1, assignee: data.assignee_id || 'unassigned',
     reporter: data.reporter_id || 'you', points: data.points || 0,
     date: data.due_date || '', due_date: data.due_date || null,
+    epic_id: data.epic_id || null,
     description: data.description || '', comments: [],
   });
   window.save();

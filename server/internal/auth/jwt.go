@@ -8,10 +8,16 @@ import (
 	"github.com/google/uuid"
 )
 
-const (
-	AccessTokenTTL  = 15 * time.Minute
+var (
+	AccessTokenTTL  = 7 * 24 * time.Hour
 	RefreshTokenTTL = 7 * 24 * time.Hour
 )
+
+// SetSessionLength updates both access and refresh token TTLs.
+func SetSessionLength(d time.Duration) {
+	AccessTokenTTL = d
+	RefreshTokenTTL = d
+}
 
 type AccessClaims struct {
 	Email string `json:"email"`
