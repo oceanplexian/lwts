@@ -171,6 +171,11 @@ async function loadFromAPI() {
     await loadBoardCards(currentBoardId);
     window.renderBoardPicker();
 
+    // Connect SSE stream for real-time updates
+    if (typeof window.connectBoardStream === 'function') {
+      window.connectBoardStream(currentBoardId);
+    }
+
     // Welcome modal is shown by showBoard() before the fade-in,
     // so it's already visible by the time we get here.
   } catch (e) {

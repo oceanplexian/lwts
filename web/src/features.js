@@ -1119,6 +1119,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 window.currentBoardStream = currentBoardStream;
 window.loadBoardList = loadBoardList;
+window.connectBoardStream = connectBoardStream;
 window.renderBoardPicker = renderBoardPicker;
 window._buildPickerMenu = _buildPickerMenu;
 window.deleteBoard = deleteBoard;
