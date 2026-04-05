@@ -149,6 +149,7 @@ function selectBoard(boardId, boardName) {
 
   if (typeof window.BoardStream !== 'undefined') {
     currentBoardStream = new window.BoardStream(boardId, {});
+    window.currentBoardStream = currentBoardStream;
     if (typeof window.wirePresenceHandlers === 'function') window.wirePresenceHandlers(currentBoardStream);
     currentBoardStream.connect();
   }
