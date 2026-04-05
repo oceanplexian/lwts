@@ -81,7 +81,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	broadcast(h.hub, boardID, "card_created", card)
+	broadcast(h.hub, boardID, "card_created", card, user.ID)
 
 	// Discord notifications
 	if h.discord != nil {
@@ -212,11 +212,11 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	broadcast(h.hub, card.BoardID, "card_updated", card)
+	user := auth.UserFromContext(r.Context())
+	broadcast(h.hub, card.BoardID, "card_updated", card, user.ID)
 
 	// Discord notifications for field changes
 	if h.discord != nil {
-		user := auth.UserFromContext(r.Context())
 		board, _ := h.boards.GetByID(r.Context(), card.BoardID)
 
 		// Assignee changed
@@ -314,11 +314,11 @@ func (h *Handler) Move(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	broadcast(h.hub, card.BoardID, "card_moved", card)
+	user := auth.UserFromContext(r.Context())
+	broadcast(h.hub, card.BoardID, "card_moved", card, user.ID)
 
 	// Discord: detect move to done column
 	if h.discord != nil && current.ColumnID != req.ColumnID {
-		user := auth.UserFromContext(r.Context())
 		board, _ := h.boards.GetByID(r.Context(), card.BoardID)
 		if req.ColumnID == "done" {
 			h.discord.Emit(discord.Event{
@@ -439,11 +439,16 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	broadcast(h.hub, card.BoardID, "card_deleted", map[string]string{"id": id})
+	user := auth.UserFromContext(r.Context())
+	senderID := ""
+	if user != nil {
+		senderID = user.ID
+	}
+	broadcast(h.hub, card.BoardID, "card_deleted", map[string]string{"id": id}, senderID)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func broadcast(hub *sse.Hub, boardID, eventType string, payload any) {
+func broadcast(hub *sse.Hub, boardID, eventType string, payload any, senderID string) {
 	if hub == nil {
 		return
 	}
@@ -452,6 +457,7 @@ func broadcast(hub *sse.Hub, boardID, eventType string, payload any) {
 		BoardID:   boardID,
 		EventType: eventType,
 		Data:      data,
+		SenderID:  senderID,
 	}
 }
 
