@@ -551,7 +551,7 @@ body.light-theme .epic-lane {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-height: 80px;
+  min-height: 153px;
   flex: 1;
 }
 
