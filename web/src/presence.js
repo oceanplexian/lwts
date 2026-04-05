@@ -153,7 +153,77 @@ function wirePresenceHandlers(boardStream) {
 
   boardStream.handlers.onConnected = () => {
     loadPresence(boardStream.boardId);
+    updateConnectionDot(true);
   };
+
+  boardStream.handlers.onDisconnect = () => {
+    updateConnectionDot(false);
+  };
+
+  boardStream.handlers.onCommentAdded = (data) => {
+    if (window.detailCard && window.detailCard.id === data.card_id) {
+      // Avoid duplicating a comment we already have (e.g. from our own submission)
+      const existing = (window.detailCard.comments || []);
+      if (existing.some(c => c.id === data.id)) return;
+
+      const comment = {
+        id: data.id,
+        author: data.user_id,
+        author_id: data.user_id,
+        text: data.body,
+        body: data.body,
+        time: data.created_at,
+        created_at: data.created_at,
+        updated_at: data.updated_at || null,
+      };
+      window.detailCard.comments = window.detailCard.comments || [];
+      window.detailCard.comments.push(comment);
+      if (typeof window.renderComments === 'function') window.renderComments();
+
+      // Animate the new comment
+      const list = document.getElementById('detail-comments-list');
+      const last = list ? list.lastElementChild : null;
+      if (last) {
+        last.classList.add('new');
+        last.addEventListener('animationend', () => last.classList.remove('new'), { once: true });
+      }
+    }
+  };
+
+  boardStream.handlers.onCommentDeleted = (data) => {
+    if (window.detailCard && window.detailCard.id === data.card_id) {
+      const comments = window.detailCard.comments || [];
+      const idx = comments.findIndex(c => c.id === data.id);
+      if (idx === -1) return;
+
+      // Find the DOM element (comments are rendered in order, so use the idx-th child)
+      const list = document.getElementById('detail-comments-list');
+      const el = list ? list.children[idx] : null;
+      if (el) {
+        el.classList.add('removing');
+        el.addEventListener('animationend', () => {
+          comments.splice(idx, 1);
+          if (typeof window.renderComments === 'function') window.renderComments();
+        }, { once: true });
+      } else {
+        comments.splice(idx, 1);
+        if (typeof window.renderComments === 'function') window.renderComments();
+      }
+    }
+  };
+}
+
+function updateConnectionDot(connected) {
+  let dot = document.querySelector('.connection-dot');
+  if (!dot) {
+    dot = document.createElement('span');
+    dot.className = 'connection-dot';
+    const container = document.getElementById('presence-row') || document.querySelector('.header-actions');
+    if (container) container.insertBefore(dot, container.firstChild);
+  }
+  dot.classList.toggle('connected', connected);
+  dot.classList.toggle('disconnected', !connected);
+  dot.title = connected ? 'Connected' : 'Disconnected';
 }
 
 window.presenceUsers = presenceUsers;
@@ -165,3 +235,4 @@ window.showConflictToast = showConflictToast;
 window.showUpdatedIndicator = showUpdatedIndicator;
 window.conflictAwareFetch = conflictAwareFetch;
 window.wirePresenceHandlers = wirePresenceHandlers;
+window.updateConnectionDot = updateConnectionDot;

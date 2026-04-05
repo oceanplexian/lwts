@@ -934,6 +934,15 @@ function updateCardInState(data) {
         tag: data.tag ?? cards[idx].tag,
         priority: data.priority ?? cards[idx].priority,
         version: data.version ?? cards[idx].version,
+        assignee: data.assignee_id ?? cards[idx].assignee,
+        points: data.points ?? cards[idx].points,
+        date: data.due_date ?? cards[idx].date,
+        due_date: data.due_date ?? cards[idx].due_date,
+        epic_id: data.epic_id ?? cards[idx].epic_id,
+        reporter: data.reporter_id ?? cards[idx].reporter,
+        key: data.key ?? cards[idx].key,
+        related_card_ids: data.related_card_ids ?? cards[idx].related_card_ids,
+        blocked_card_ids: data.blocked_card_ids ?? cards[idx].blocked_card_ids,
       });
       window.save();
       window.render();
@@ -943,6 +952,15 @@ function updateCardInState(data) {
       }
       injectDueDateChips();
       window.applyFilters();
+      // Highlight the updated card
+      const el = document.querySelector('.card[data-id="' + data.id + '"]')
+        || document.querySelector('.list-row[data-id="' + data.id + '"]');
+      if (el) {
+        el.classList.remove('sse-highlight');
+        void el.offsetWidth; // force reflow to restart animation
+        el.classList.add('sse-highlight');
+        el.addEventListener('animationend', () => el.classList.remove('sse-highlight'), { once: true });
+      }
       return;
     }
   }
@@ -965,6 +983,13 @@ function addCardToState(data) {
   window.render();
   injectDueDateChips();
   window.applyFilters();
+  // Animate the newly added card
+  const el = document.querySelector('.card[data-id="' + data.id + '"]')
+    || document.querySelector('.list-row[data-id="' + data.id + '"]');
+  if (el) {
+    el.classList.add('sse-entering');
+    el.addEventListener('animationend', () => el.classList.remove('sse-entering'), { once: true });
+  }
 }
 
 function moveCardInState(data) {
@@ -992,9 +1017,37 @@ function moveCardInState(data) {
   window.render();
   injectDueDateChips();
   window.applyFilters();
+  // Highlight the moved card in its new position
+  const el = document.querySelector('.card[data-id="' + data.id + '"]')
+    || document.querySelector('.list-row[data-id="' + data.id + '"]');
+  if (el) {
+    el.classList.add('sse-highlight');
+    el.addEventListener('animationend', () => el.classList.remove('sse-highlight'), { once: true });
+  }
 }
 
 function removeCardFromState(data) {
+  // Animate exit before removing from state
+  const el = document.querySelector('.card[data-id="' + data.id + '"]')
+    || document.querySelector('.list-row[data-id="' + data.id + '"]');
+  if (el) {
+    el.classList.add('sse-exiting');
+    el.addEventListener('animationend', () => {
+      for (const col of window.COLUMNS) {
+        const idx = (window.state[col.id] || []).findIndex(c => c.id === data.id);
+        if (idx !== -1) {
+          window.state[col.id].splice(idx, 1);
+          window.save();
+          window.render();
+          injectDueDateChips();
+          window.applyFilters();
+          return;
+        }
+      }
+    }, { once: true });
+    return;
+  }
+  // Fallback: no DOM element found, just remove from state directly
   for (const col of window.COLUMNS) {
     const idx = (window.state[col.id] || []).findIndex(c => c.id === data.id);
     if (idx !== -1) {

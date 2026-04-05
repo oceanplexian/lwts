@@ -67,7 +67,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	broadcast(h.hub, card.BoardID, "comment_added", cmt)
+	broadcast(h.hub, card.BoardID, "comment_added", cmt, user.ID)
 
 	// Discord notification for new comment
 	if h.discord != nil && h.boards != nil {
@@ -136,7 +136,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 
 	card, _ := h.cards.GetByID(r.Context(), cmt.CardID)
 	if card.BoardID != "" {
-		broadcast(h.hub, card.BoardID, "comment_updated", updated)
+		broadcast(h.hub, card.BoardID, "comment_updated", updated, user.ID)
 	}
 	writeJSON(w, http.StatusOK, updated)
 }
@@ -169,13 +169,13 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	// Broadcast via SSE
 	card, _ := h.cards.GetByID(r.Context(), cmt.CardID)
 	if card.BoardID != "" {
-		broadcast(h.hub, card.BoardID, "comment_deleted", map[string]string{"id": id, "card_id": cmt.CardID})
+		broadcast(h.hub, card.BoardID, "comment_deleted", map[string]string{"id": id, "card_id": cmt.CardID}, user.ID)
 	}
 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func broadcast(hub *sse.Hub, boardID, eventType string, payload any) {
+func broadcast(hub *sse.Hub, boardID, eventType string, payload any, senderID string) {
 	if hub == nil {
 		return
 	}
@@ -184,6 +184,7 @@ func broadcast(hub *sse.Hub, boardID, eventType string, payload any) {
 		BoardID:   boardID,
 		EventType: eventType,
 		Data:      data,
+		SenderID:  senderID,
 	}
 }
 
