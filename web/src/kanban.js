@@ -381,21 +381,19 @@ function render() {
     _renderEpicBoard(frag, epics);
   }
 
-  board.innerHTML = '';
-  board.appendChild(frag);
-
-  // Staggered unfurl animation
+  // Add unfurl classes BEFORE appending to DOM to avoid 1-frame flash
   if (animate) {
-    requestAnimationFrame(() => {
-      document.querySelectorAll('.column-body').forEach(col => {
-        col.querySelectorAll('.card').forEach((card, i) => {
-          card.style.animationDelay = (i * 18) + 'ms';
-          card.classList.add('unfurl');
-          card.addEventListener('animationend', () => card.classList.remove('unfurl'), { once: true });
-        });
+    frag.querySelectorAll('.column-body').forEach(col => {
+      col.querySelectorAll('.card').forEach((card, i) => {
+        card.style.animationDelay = (i * 18) + 'ms';
+        card.classList.add('unfurl');
+        card.addEventListener('animationend', () => card.classList.remove('unfurl'), { once: true });
       });
     });
   }
+
+  board.innerHTML = '';
+  board.appendChild(frag);
 
 }
 
