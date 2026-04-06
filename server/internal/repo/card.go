@@ -38,17 +38,26 @@ func NewCardRepository(ds db.Datasource) *CardRepository {
 
 const maxRetries = 5
 
-// isRetryable returns true for Postgres errors that resolve on retry:
-//   - 40P01: deadlock_detected (concurrent position shifts)
-//   - 40001: serialization_failure
-//   - 23505: unique_violation (key collision between nextKey and INSERT)
+// isRetryable returns true for database errors that resolve on retry:
+//   - Postgres 40P01: deadlock_detected
+//   - Postgres 40001: serialization_failure
+//   - Postgres 23505: unique_violation (concurrent key generation)
+//   - SQLite SQLITE_BUSY: database is locked (concurrent writes)
 func isRetryable(err error) bool {
+	if err == nil {
+		return false
+	}
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		switch pgErr.Code {
 		case "40P01", "40001", "23505":
 			return true
 		}
+	}
+	// SQLite busy/locked errors
+	msg := err.Error()
+	if strings.Contains(msg, "database is locked") || strings.Contains(msg, "SQLITE_BUSY") {
+		return true
 	}
 	return false
 }
