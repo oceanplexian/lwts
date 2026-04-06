@@ -46,6 +46,7 @@ function switchView(view) {
   });
 
   if (view === 'board') {
+    board.querySelectorAll('.unfurl').forEach(el => el.classList.remove('unfurl'));
     board.style.display = '';
     listView.style.display = 'none';
     // If coming from "All Boards" in list view, switch back to first board

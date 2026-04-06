@@ -227,6 +227,7 @@ async function loadBoardCards(boardId) {
       });
     }
   }
+  if (window.currentView === 'list') window._renderAnimateCards = false;
   window.render();
   if (typeof window.currentView !== "undefined" && window.currentView === 'list' && typeof renderListView === 'function') {
     window.renderListView();
@@ -261,6 +262,7 @@ async function loadAllBoardCards() {
       }
     } catch (e) { /* skip failed board */ }
   }
+  if (window.currentView === 'list') window._renderAnimateCards = false;
   window.render();
   if (typeof window.currentView !== "undefined" && window.currentView === 'list' && typeof renderListView === 'function') {
     window.renderListView();
