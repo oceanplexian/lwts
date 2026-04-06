@@ -38,12 +38,17 @@ func NewCardRepository(ds db.Datasource) *CardRepository {
 
 const maxRetries = 5
 
-// isRetryable returns true for Postgres deadlock (40P01) and serialization
-// failure (40001) errors — normal under high concurrency, just retry.
+// isRetryable returns true for Postgres errors that resolve on retry:
+//   - 40P01: deadlock_detected (concurrent position shifts)
+//   - 40001: serialization_failure
+//   - 23505: unique_violation (key collision between nextKey and INSERT)
 func isRetryable(err error) bool {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
-		return pgErr.Code == "40P01" || pgErr.Code == "40001"
+		switch pgErr.Code {
+		case "40P01", "40001", "23505":
+			return true
+		}
 	}
 	return false
 }
