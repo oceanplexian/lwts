@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"strconv"
 	"strings"
 	"time"
@@ -12,6 +13,13 @@ import (
 	"github.com/oceanplexian/lwts/server/internal/db"
 	"github.com/google/uuid"
 )
+
+// retryBackoff sleeps a small random duration to spread concurrent retries.
+func retryBackoff(attempt int) {
+	// 1-5ms * attempt, randomized
+	ms := (1 + rand.IntN(5)) * (attempt + 1)
+	time.Sleep(time.Duration(ms) * time.Millisecond)
+}
 
 // querier is satisfied by both db.Datasource and db.Tx.
 type querier interface {
@@ -28,14 +36,20 @@ func NewCardRepository(ds db.Datasource) *CardRepository {
 	return &CardRepository{ds: ds}
 }
 
-const maxRetries = 3
+const maxRetries = 5
 
-// isRetryable returns true for Postgres deadlock (40P01) and serialization
-// failure (40001) errors — normal under high concurrency, just retry.
+// isRetryable returns true for Postgres errors that are normal under high
+// concurrency and should be transparently retried:
+//   - 40P01: deadlock_detected
+//   - 40001: serialization_failure
+//   - 23505: unique_violation (e.g. duplicate key from concurrent inserts)
 func isRetryable(err error) bool {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
-		return pgErr.Code == "40P01" || pgErr.Code == "40001"
+		switch pgErr.Code {
+		case "40P01", "40001", "23505":
+			return true
+		}
 	}
 	return false
 }
@@ -94,6 +108,7 @@ func (r *CardRepository) Create(ctx context.Context, boardID string, c CardCreat
 			return card, nil
 		}
 		if isRetryable(err) && attempt < maxRetries-1 {
+			retryBackoff(attempt)
 			continue
 		}
 		return Card{}, err
@@ -314,6 +329,7 @@ func (r *CardRepository) Move(ctx context.Context, id string, version int, toCol
 			return Card{}, err
 		}
 		if isRetryable(err) && attempt < maxRetries-1 {
+			retryBackoff(attempt)
 			continue
 		}
 		return Card{}, err
@@ -389,6 +405,7 @@ func (r *CardRepository) Delete(ctx context.Context, id string) error {
 			return err
 		}
 		if isRetryable(err) && attempt < maxRetries-1 {
+			retryBackoff(attempt)
 			continue
 		}
 		return err
@@ -439,6 +456,7 @@ func (r *CardRepository) BulkMove(ctx context.Context, ids []string, toColumn st
 			return cards, nil
 		}
 		if isRetryable(err) && attempt < maxRetries-1 {
+			retryBackoff(attempt)
 			continue
 		}
 		return nil, err
