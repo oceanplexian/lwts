@@ -115,7 +115,7 @@ func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 
 	query := `SELECT c.id, c.board_id, c.column_id, c.title, c.description, c.tag, c.priority,
 		c.assignee_id, c.reporter_id, c.points, c.position, c.key, c.version,
-		c.due_date, c.related_card_ids, c.blocked_card_ids, c.created_at, c.updated_at,
+		CAST(c.due_date AS TEXT), c.related_card_ids, c.blocked_card_ids, c.created_at, c.updated_at,
 		COALESCE(u.name, '') as assignee_name
 		FROM cards c
 		LEFT JOIN users u ON c.assignee_id = u.id` +
