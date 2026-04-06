@@ -189,7 +189,10 @@ async function loadFromAPI() {
   }
 }
 
+let _loadGeneration = 0;
+
 async function loadBoardCards(boardId) {
+  const gen = ++_loadGeneration;
   // Sync COLUMNS from the board's column config
   const board = boardList.find(b => b.id === boardId);
   if (board && board.columns) {
@@ -203,6 +206,7 @@ async function loadBoardCards(boardId) {
   }
 
   const grouped = await window.API.listCards(boardId);
+  if (gen !== _loadGeneration) return; // stale load, discard
   cardIndex = {};
   const prevCleared = state.cleared || [];
   state = { cleared: prevCleared };
@@ -230,6 +234,7 @@ async function loadBoardCards(boardId) {
 }
 
 async function loadAllBoardCards() {
+  const gen = ++_loadGeneration;
   cardIndex = {};
   const prevCleared = state.cleared || [];
   state = { cleared: prevCleared };
@@ -237,6 +242,7 @@ async function loadAllBoardCards() {
   for (const board of boardList) {
     try {
       const grouped = await window.API.listCards(board.id);
+      if (gen !== _loadGeneration) return; // stale load, discard
       for (const [colId, cards] of Object.entries(grouped || {})) {
         if (colId === 'cleared') {
           (cards || []).forEach(c => {
