@@ -98,10 +98,14 @@ func NewSQLiteDatasource(dsn string) (*SQLiteDatasource, error) {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 
+	// SQLite is single-writer. Use one connection so all operations queue
+	// in Go instead of fighting over the write lock with SQLITE_BUSY.
+	sqlDB.SetMaxOpenConns(1)
+
 	for _, pragma := range []string{
 		"PRAGMA journal_mode=WAL",
 		"PRAGMA foreign_keys=ON",
-		"PRAGMA busy_timeout=30000",
+		"PRAGMA busy_timeout=5000",
 	} {
 		if _, err := sqlDB.Exec(pragma); err != nil {
 			sqlDB.Close()
@@ -144,18 +148,11 @@ func (s *SQLiteDatasource) QueryRow(ctx context.Context, query string, args ...a
 }
 
 func (s *SQLiteDatasource) Begin(ctx context.Context) (Tx, error) {
-	// Use IMMEDIATE isolation so the write lock is acquired at BEGIN, not
-	// at the first write. This lets concurrent writers queue via busy_timeout
-	// instead of getting SQLITE_BUSY mid-transaction.
-	conn, err := s.db.Conn(ctx)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		conn.Close()
-		return nil, err
-	}
-	return &sqliteImmediateTx{conn: conn}, nil
+	return &sqliteTx{tx: tx}, nil
 }
 
 func (s *SQLiteDatasource) Close() error {
@@ -206,53 +203,6 @@ func (t *sqliteTx) QueryRow(ctx context.Context, query string, args ...any) *Row
 
 func (t *sqliteTx) Commit(ctx context.Context) error   { return t.tx.Commit() }
 func (t *sqliteTx) Rollback(ctx context.Context) error  { return t.tx.Rollback() }
-
-// sqliteImmediateTx uses a raw conn with BEGIN IMMEDIATE for proper
-// write-lock queuing under concurrent writes.
-type sqliteImmediateTx struct {
-	conn *sql.Conn
-}
-
-func (t *sqliteImmediateTx) Exec(ctx context.Context, query string, args ...any) (int64, error) {
-	result, err := t.conn.ExecContext(ctx, convertPlaceholders(query), convertTimeArgs(args)...)
-	if err != nil {
-		return 0, err
-	}
-	n, _ := result.RowsAffected()
-	return n, nil
-}
-
-func (t *sqliteImmediateTx) Query(ctx context.Context, query string, args ...any) (*Rows, error) {
-	rows, err := t.conn.QueryContext(ctx, convertPlaceholders(query), convertTimeArgs(args)...)
-	if err != nil {
-		return nil, err
-	}
-	return wrapSQLiteRows(rows), nil
-}
-
-func (t *sqliteImmediateTx) QueryRow(ctx context.Context, query string, args ...any) *Row {
-	row := t.conn.QueryRowContext(ctx, convertPlaceholders(query), convertTimeArgs(args)...)
-	return NewRow(func(dest ...any) error {
-		scan := wrapSQLiteScan(row.Scan)
-		err := scan(dest...)
-		if err != nil && err.Error() == "sql: no rows in result set" {
-			return ErrNoRows
-		}
-		return err
-	})
-}
-
-func (t *sqliteImmediateTx) Commit(ctx context.Context) error {
-	_, err := t.conn.ExecContext(ctx, "COMMIT")
-	t.conn.Close()
-	return err
-}
-
-func (t *sqliteImmediateTx) Rollback(ctx context.Context) error {
-	_, err := t.conn.ExecContext(ctx, "ROLLBACK")
-	t.conn.Close()
-	return err
-}
 
 // wrapSQLiteRows wraps sql.Rows with time-parsing scan.
 func wrapSQLiteRows(rows *sql.Rows) *Rows {
