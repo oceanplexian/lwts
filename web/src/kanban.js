@@ -383,9 +383,10 @@ function render() {
 
   // Add unfurl classes BEFORE appending to DOM to avoid 1-frame flash
   if (animate) {
+    let globalIdx = 0;
     frag.querySelectorAll('.column-body').forEach(col => {
-      col.querySelectorAll('.card').forEach((card, i) => {
-        card.style.animationDelay = (i * 18) + 'ms';
+      col.querySelectorAll('.card').forEach((card) => {
+        card.style.animationDelay = (globalIdx++ * 18) + 'ms';
         card.classList.add('unfurl');
         card.addEventListener('animationend', () => card.classList.remove('unfurl'), { once: true });
       });
