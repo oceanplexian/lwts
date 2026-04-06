@@ -53,17 +53,10 @@ func isRetryable(err error) bool {
 	return false
 }
 
-// nextKey generates the next card key in a dedicated short-lived transaction.
-// It locks the board row with FOR UPDATE to serialize key generation, but
-// commits immediately so the lock is held for only microseconds — this avoids
-// connection pool starvation under high concurrency.
-func (r *CardRepository) nextKey(ctx context.Context, boardID string) (string, error) {
-	tx, err := r.ds.Begin(ctx)
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
+// nextKey generates the next card key. Must be called inside a transaction
+// that also does the INSERT — the FOR UPDATE on the board row serializes
+// key generation so no two creates get the same key number.
+func (r *CardRepository) nextKey(ctx context.Context, tx db.Tx, boardID string) (string, error) {
 	forUpdate := ""
 	if r.ds.DBType() == "postgres" {
 		forUpdate = " FOR UPDATE"
@@ -86,10 +79,6 @@ func (r *CardRepository) nextKey(ctx context.Context, boardID string) (string, e
 	row = tx.QueryRow(ctx, maxKeySQL, boardID)
 	var maxNum int
 	if err := row.Scan(&maxNum); err != nil {
-		return "", err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
 		return "", err
 	}
 
@@ -136,18 +125,16 @@ func (r *CardRepository) createOnce(ctx context.Context, boardID string, c CardC
 	id := uuid.New().String()
 	now := time.Now().UTC()
 
-	// Key generation uses its own short-lived transaction so the board row
-	// lock is released before we begin the insert transaction.
-	key, err := r.nextKey(ctx, boardID)
-	if err != nil {
-		return Card{}, fmt.Errorf("generate key: %w", err)
-	}
-
 	tx, err := r.ds.Begin(ctx)
 	if err != nil {
 		return Card{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+
+	key, err := r.nextKey(ctx, tx, boardID)
+	if err != nil {
+		return Card{}, fmt.Errorf("generate key: %w", err)
+	}
 
 	row := tx.QueryRow(ctx,
 		`SELECT COALESCE(MAX(position), -1) FROM cards WHERE board_id = $1 AND column_id = $2`,

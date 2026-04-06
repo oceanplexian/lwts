@@ -21,8 +21,8 @@ func NewPostgresDatasource(ctx context.Context, connString string) (*PostgresDat
 		return nil, fmt.Errorf("parse pg config: %w", err)
 	}
 
-	cfg.MinConns = 2
-	cfg.MaxConns = 20
+	cfg.MinConns = 5
+	cfg.MaxConns = 50
 	if v := os.Getenv("DB_MAX_CONNS"); v != "" {
 		n, err := strconv.Atoi(v)
 		if err == nil && n > 0 {
