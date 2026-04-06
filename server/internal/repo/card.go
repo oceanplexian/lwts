@@ -38,24 +38,24 @@ func NewCardRepository(ds db.Datasource) *CardRepository {
 
 const maxRetries = 5
 
-// isRetryable returns true for Postgres errors that are normal under high
-// concurrency and should be transparently retried:
-//   - 40P01: deadlock_detected
-//   - 40001: serialization_failure
-//   - 23505: unique_violation (e.g. duplicate key from concurrent inserts)
+// isRetryable returns true for Postgres deadlock (40P01) and serialization
+// failure (40001) errors — normal under high concurrency, just retry.
 func isRetryable(err error) bool {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
-		switch pgErr.Code {
-		case "40P01", "40001", "23505":
-			return true
-		}
+		return pgErr.Code == "40P01" || pgErr.Code == "40001"
 	}
 	return false
 }
 
 func (r *CardRepository) nextKey(ctx context.Context, q querier, boardID string) (string, error) {
-	row := q.QueryRow(ctx, `SELECT project_key FROM boards WHERE id = $1`, boardID)
+	// FOR UPDATE on the board row serializes key generation per board.
+	// This is a single-row lock — it doesn't affect moves, updates, or deletes.
+	forUpdate := ""
+	if r.ds.DBType() == "postgres" {
+		forUpdate = " FOR UPDATE"
+	}
+	row := q.QueryRow(ctx, `SELECT project_key FROM boards WHERE id = $1`+forUpdate, boardID)
 	var projectKey string
 	if err := row.Scan(&projectKey); err != nil {
 		if err == db.ErrNoRows {
