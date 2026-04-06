@@ -181,7 +181,7 @@ func (r *CardRepository) createOnce(ctx context.Context, boardID string, c CardC
 func (r *CardRepository) GetByID(ctx context.Context, id string) (Card, error) {
 	row := r.ds.QueryRow(ctx,
 		`SELECT id, board_id, column_id, title, description, tag, priority, assignee_id, reporter_id,
-		        points, position, key, version, due_date, related_card_ids, blocked_card_ids, epic_id, created_at, updated_at
+		        points, position, key, version, CAST(due_date AS TEXT), related_card_ids, blocked_card_ids, epic_id, created_at, updated_at
 		 FROM cards WHERE id = $1`, id)
 
 	var c Card
@@ -197,7 +197,7 @@ func (r *CardRepository) GetByID(ctx context.Context, id string) (Card, error) {
 func (r *CardRepository) ListByBoard(ctx context.Context, boardID string) ([]Card, error) {
 	rows, err := r.ds.Query(ctx,
 		`SELECT id, board_id, column_id, title, description, tag, priority, assignee_id, reporter_id,
-		        points, position, key, version, due_date, related_card_ids, blocked_card_ids, epic_id, created_at, updated_at
+		        points, position, key, version, CAST(due_date AS TEXT), related_card_ids, blocked_card_ids, epic_id, created_at, updated_at
 		 FROM cards WHERE board_id = $1
 		 ORDER BY column_id, position`, boardID)
 	if err != nil {
