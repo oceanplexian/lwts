@@ -46,24 +46,29 @@ function switchView(view) {
   });
 
   if (view === 'board') {
-    board.querySelectorAll('.unfurl').forEach(el => el.classList.remove('unfurl'));
-    board.style.display = '';
     listView.style.display = 'none';
     // If coming from "All Boards" in list view, switch back to first board
     if (window.currentBoardId === 'all' && window.boardList && window.boardList.length > 0) {
+      // Clear old content first to avoid flash of stale board
+      board.innerHTML = '';
+      board.style.display = '';
       window.selectBoard(window.boardList[0].id, window.boardList[0].name);
       return;
     }
+    board.style.display = '';
     window._renderAnimateCards = true;
     window.render();
   } else {
     board.style.display = 'none';
-    listView.style.display = '';
     // Default to All Boards when entering list view
     if (window.currentBoardId !== 'all') {
+      // Clear old content first to avoid flash of stale list
+      listView.innerHTML = '';
+      listView.style.display = '';
       window.selectBoard('all', 'All Boards');
       return;
     }
+    listView.style.display = '';
     renderListView();
   }
 }
@@ -406,7 +411,7 @@ function _renderGroupedList(tbody, epics) {
       <span class="list-epic-count">${children.length} card${children.length !== 1 ? 's' : ''}</span>
     `;
     // Apply gradient bg from board colors
-    headerCell.style.background = typeof color.bg === 'string' && color.bg.startsWith('linear') ? color.bg : color.bg;
+    headerCell.style.background = color.bg;
     headerRow.dataset.epic = epic.id;
     headerRow.appendChild(headerCell);
     headerRow.style.cursor = 'pointer';
@@ -440,11 +445,6 @@ function _renderGroupedList(tbody, epics) {
 
   ungrouped.forEach(card => {
     tbody.appendChild(createListRow(card, animIdx++));
-  });
-
-  // Also render epic cards themselves
-  epics.forEach(epic => {
-    // Already shown as header, skip as row
   });
 
   _listRendered = _listAllCards.length;
@@ -509,12 +509,10 @@ function onListDrop(e) {
   // Find target row (card rows or epic headers)
   const rows = tbody.querySelectorAll('.list-row:not(.dragging), .list-epic-header');
   let targetRow = null;
-  let droppedOnEpicHeader = false;
   for (const row of rows) {
     const rect = row.getBoundingClientRect();
     if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
       if (row.classList.contains('list-epic-header')) {
-        droppedOnEpicHeader = true;
         // Find the first card row after this header to use as insert point
         let next = row.nextElementSibling;
         if (next && next.classList.contains('list-row')) {

@@ -951,6 +951,27 @@ function refreshDueDateText() {
 // SSE STATE UPDATE HELPERS (for presence.js wiring)
 // ═══════════════════════════════════════════════════════════════
 
+let _sseRenderPending = false;
+
+function _sseRender() {
+  const unfurlCount = document.querySelectorAll('#board .card.unfurl, #list-view .list-row.unfurl').length;
+  
+  if (unfurlCount > 0) {
+    if (!_sseRenderPending) {
+      _sseRenderPending = true;
+      requestAnimationFrame(() => {
+        _sseRenderPending = false;
+        _sseRender();
+      });
+    }
+    return;
+  }
+  
+  window.render();
+  injectDueDateChips();
+  applyFilters();
+}
+
 function updateCardInState(data) {
   for (const col of window.COLUMNS) {
     const cards = window.state[col.id] || [];
@@ -974,7 +995,7 @@ function updateCardInState(data) {
         blocked_card_ids: data.blocked_card_ids ?? cards[idx].blocked_card_ids,
       });
       window.save();
-      window.render();
+      _sseRender();
       // If the detail modal is open for this card, refresh all detail views
       if (window.detailCard && window.detailCard.id === data.id) {
         // Update the detailCard object with new data
@@ -999,8 +1020,6 @@ function updateCardInState(data) {
         if (typeof window.renderDescriptionView === 'function') window.renderDescriptionView();
         if (typeof window.refreshGithubLinks === 'function') window.refreshGithubLinks();
       }
-      injectDueDateChips();
-      window.applyFilters();
       // Highlight the updated card
       const el = document.querySelector('.card[data-id="' + data.id + '"]')
         || document.querySelector('.list-row[data-id="' + data.id + '"]');
@@ -1030,9 +1049,7 @@ function addCardToState(data) {
     version: data.version || 1, comments: [],
   });
   window.save();
-  window.render();
-  injectDueDateChips();
-  window.applyFilters();
+  _sseRender();
   // Animate the newly added card
   const el = document.querySelector('.card[data-id="' + data.id + '"]')
     || document.querySelector('.list-row[data-id="' + data.id + '"]');
@@ -1083,14 +1100,12 @@ function moveCardInState(data) {
     });
   }
   window.save();
-  window.render();
+  _sseRender();
   // If detail modal is open for this card, refresh sidebar (status changed)
   if (window.detailCard && window.detailCard.id === data.id) {
     window.detailCard.column_id = toCol;
     if (typeof window.refreshSidebarTexts === 'function') window.refreshSidebarTexts();
   }
-  injectDueDateChips();
-  window.applyFilters();
   // Highlight the moved card in its new position
   const el = document.querySelector('.card[data-id="' + data.id + '"]')
     || document.querySelector('.list-row[data-id="' + data.id + '"]');
@@ -1112,9 +1127,7 @@ function removeCardFromState(data) {
         if (idx !== -1) {
           window.state[col.id].splice(idx, 1);
           window.save();
-          window.render();
-          injectDueDateChips();
-          window.applyFilters();
+          _sseRender();
           return;
         }
       }
@@ -1127,9 +1140,7 @@ function removeCardFromState(data) {
     if (idx !== -1) {
       window.state[col.id].splice(idx, 1);
       window.save();
-      window.render();
-      injectDueDateChips();
-      window.applyFilters();
+      _sseRender();
       return;
     }
   }
