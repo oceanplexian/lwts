@@ -21,13 +21,6 @@ func retryBackoff(attempt int) {
 	time.Sleep(time.Duration(ms) * time.Millisecond)
 }
 
-// querier is satisfied by both db.Datasource and db.Tx.
-type querier interface {
-	QueryRow(ctx context.Context, sql string, args ...any) *db.Row
-	Exec(ctx context.Context, sql string, args ...any) (int64, error)
-	Query(ctx context.Context, sql string, args ...any) (*db.Rows, error)
-}
-
 type CardRepository struct {
 	ds db.Datasource
 }
