@@ -37,15 +37,16 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMW func(http.Handler) h
 }
 
 type createCardReq struct {
-	ColumnID    string  `json:"column_id"`
-	Title       string  `json:"title"`
-	Description string  `json:"description"`
-	Tag         string  `json:"tag"`
-	Priority    string  `json:"priority"`
-	AssigneeID  *string `json:"assignee_id"`
-	Points      *int    `json:"points"`
-	DueDate     *string `json:"due_date"`
-	EpicID      *string `json:"epic_id"`
+	ColumnID        string  `json:"column_id"`
+	ClientRequestID string  `json:"client_request_id"`
+	Title           string  `json:"title"`
+	Description     string  `json:"description"`
+	Tag             string  `json:"tag"`
+	Priority        string  `json:"priority"`
+	AssigneeID      *string `json:"assignee_id"`
+	Points          *int    `json:"points"`
+	DueDate         *string `json:"due_date"`
+	EpicID          *string `json:"epic_id"`
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
@@ -81,6 +82,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
+	card.ClientRequestID = req.ClientRequestID
 
 	broadcast(h.hub, boardID, "card_created", card, user.ID)
 
@@ -335,11 +337,11 @@ func (h *Handler) Move(w http.ResponseWriter, r *http.Request) {
 // ── Transition Rules Engine ──
 
 type TransitionRules struct {
-	NoBlockedToDone    bool `json:"no_blocked_to_done"`
-	RequireCommentDone bool `json:"require_comment_done"`
+	NoBlockedToDone     bool `json:"no_blocked_to_done"`
+	RequireCommentDone  bool `json:"require_comment_done"`
 	RequireAssigneeProg bool `json:"require_assignee_prog"`
-	RequireDescDone    bool `json:"require_desc_done"`
-	NoDoneBackward     bool `json:"no_done_backward"`
+	RequireDescDone     bool `json:"require_desc_done"`
+	NoDoneBackward      bool `json:"no_done_backward"`
 }
 
 type TransitionBlocker struct {

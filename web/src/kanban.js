@@ -129,6 +129,7 @@ function fromAPI(card) {
   }
   return {
     id: card.id,
+    client_request_id: card.client_request_id || '',
     key: card.key || '',
     title: card.title || '',
     tag: card.tag || 'blue',
@@ -945,6 +946,7 @@ function submitCreateFromDetail() {
   const tempId = 'temp-' + (nextId++);
   const card = {
     id: tempId,
+    client_request_id: tempId,
     key: '',
     title,
     tag: ddDetailTag.getValue(),
@@ -980,6 +982,7 @@ function submitCreateFromDetail() {
   if (targetBoardId) {
     window.API.createCard(targetBoardId, {
       column_id: col,
+      client_request_id: tempId,
       title,
       description,
       tag: card.tag,
@@ -991,12 +994,18 @@ function submitCreateFromDetail() {
     }).then(serverCard => {
       if (isCurrentBoard) {
         const colCards = state[col];
-        const idx = colCards.findIndex(c => c.id === tempId);
+        const idx = colCards.findIndex(c =>
+          c.id === serverCard.id ||
+          c.id === tempId ||
+          c.client_request_id === tempId
+        );
         if (idx !== -1) {
           colCards[idx] = fromAPI(serverCard);
-          cardIndex[serverCard.id] = serverCard;
-          save(); window.render();
+        } else if (!colCards.some(c => c.id === serverCard.id)) {
+          colCards.push(fromAPI(serverCard));
         }
+        cardIndex[serverCard.id] = serverCard;
+        save(); window.render();
       } else {
         const boardName = boardList.find(b => b.id === targetBoardId)?.name || targetBoardId;
         window.Toast.success('Card created on ' + boardName);

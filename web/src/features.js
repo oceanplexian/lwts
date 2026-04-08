@@ -60,17 +60,19 @@ function _buildPickerMenu(menu, opts) {
   window.boardList.forEach((board, i) => {
     const opt = document.createElement('div');
     opt.className = 'header-board-option' + (activeId === board.id ? ' active' : '');
-    opt.style.cssText = 'display:flex;align-items:center;justify-content:space-between';
+    opt.style.cssText = 'display:flex;align-items:center;justify-content:space-between;cursor:pointer';
 
-    const nameSpan = document.createElement('span');
-    nameSpan.textContent = _cap(board.name);
-    nameSpan.style.flex = '1';
-    nameSpan.onclick = () => {
+    const selectCurrentBoard = () => {
       closeMenu();
       if (inSettings && typeof window.closeSettings === 'function') window.closeSettings();
       selectBoard(board.id, board.name);
     };
+
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = _cap(board.name);
+    nameSpan.style.flex = '1';
     opt.appendChild(nameSpan);
+    opt.onclick = selectCurrentBoard;
 
     // Delete button for non-first boards (only in board picker, not settings)
     if (!inSettings && i > 0) {
@@ -1057,20 +1059,38 @@ function updateCardInState(data) {
   }
 }
 
+function findCardLocation(match) {
+  for (const col of window.COLUMNS) {
+    const cards = window.state[col.id] || [];
+    const idx = cards.findIndex(match);
+    if (idx !== -1) return { cards, idx, columnId: col.id };
+  }
+  if (window.state.cleared) {
+    const idx = window.state.cleared.findIndex(match);
+    if (idx !== -1) return { cards: window.state.cleared, idx, columnId: 'cleared' };
+  }
+  return null;
+}
+
 function addCardToState(data) {
-  const colId = data.column_id || 'backlog';
-  if (!window.state[colId]) window.state[colId] = [];
-  // Don't duplicate
-  if (window.state[colId].some(c => c.id === data.id)) return;
-  window.state[colId].push({
-    id: data.id, key: data.key, title: data.title,
-    description: data.description || '', tag: data.tag || 'blue',
-    priority: data.priority || 'medium', assignee: data.assignee_id || 'unassigned',
-    reporter: data.reporter_id || 'you', points: data.points || 0,
-    date: data.due_date || '', due_date: data.due_date || null,
-    epic_id: data.epic_id || null,
-    version: data.version || 1, comments: [],
-  });
+  const localCard = window.fromAPI(data);
+  const existing = findCardLocation(c => c.id === data.id);
+  if (existing) {
+    existing.cards[existing.idx] = localCard;
+  } else {
+    const clientRequestId = data.client_request_id || '';
+    const pending = clientRequestId
+      ? findCardLocation(c => c.id === clientRequestId || c.client_request_id === clientRequestId)
+      : null;
+    if (pending) {
+      pending.cards[pending.idx] = localCard;
+    } else {
+      const colId = data.column_id || 'backlog';
+      if (!window.state[colId]) window.state[colId] = [];
+      window.state[colId].push(localCard);
+    }
+  }
+  if (window.cardIndex && data.id) window.cardIndex[data.id] = data;
   window.save();
   _sseRender();
   // Animate the newly added card
