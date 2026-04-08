@@ -998,64 +998,61 @@ function _sseRender() {
 }
 
 function updateCardInState(data) {
-  for (const col of window.COLUMNS) {
-    const cards = window.state[col.id] || [];
-    const idx = cards.findIndex(c => c.id === data.id);
-    if (idx !== -1) {
-      // Merge updated fields
-      Object.assign(cards[idx], {
-        title: data.title ?? cards[idx].title,
-        description: data.description ?? cards[idx].description,
-        tag: data.tag ?? cards[idx].tag,
-        priority: data.priority ?? cards[idx].priority,
-        version: data.version ?? cards[idx].version,
-        assignee: data.assignee_id ?? cards[idx].assignee,
-        points: data.points ?? cards[idx].points,
-        date: data.due_date ?? cards[idx].date,
-        due_date: data.due_date ?? cards[idx].due_date,
-        epic_id: data.epic_id ?? cards[idx].epic_id,
-        reporter: data.reporter_id ?? cards[idx].reporter,
-        key: data.key ?? cards[idx].key,
-        related_card_ids: data.related_card_ids ?? cards[idx].related_card_ids,
-        blocked_card_ids: data.blocked_card_ids ?? cards[idx].blocked_card_ids,
-      });
-      window.save();
-      _sseRender();
-      // If the detail modal is open for this card, refresh all detail views
-      if (window.detailCard && window.detailCard.id === data.id) {
-        // Update the detailCard object with new data
-        Object.assign(window.detailCard, {
-          title: data.title ?? window.detailCard.title,
-          description: data.description ?? window.detailCard.description,
-          tag: data.tag ?? window.detailCard.tag,
-          priority: data.priority ?? window.detailCard.priority,
-          version: data.version ?? window.detailCard.version,
-          assignee_id: data.assignee_id ?? window.detailCard.assignee_id,
-          points: data.points ?? window.detailCard.points,
-          due_date: data.due_date ?? window.detailCard.due_date,
-          epic_id: data.epic_id ?? window.detailCard.epic_id,
-          reporter_id: data.reporter_id ?? window.detailCard.reporter_id,
-          key: data.key ?? window.detailCard.key,
-        });
-        // Refresh title
-        var titleEl = document.getElementById('detail-title');
-        if (titleEl && data.title != null) titleEl.value = data.title;
-        // Refresh sidebar fields
-        if (typeof window.refreshSidebarTexts === 'function') window.refreshSidebarTexts();
-        if (typeof window.renderDescriptionView === 'function') window.renderDescriptionView();
-        if (typeof window.refreshGithubLinks === 'function') window.refreshGithubLinks();
-      }
-      // Highlight the updated card
-      const el = document.querySelector('.card[data-id="' + data.id + '"]')
-        || document.querySelector('.list-row[data-id="' + data.id + '"]');
-      if (el) {
-        el.classList.remove('sse-highlight');
-        void el.offsetWidth; // force reflow to restart animation
-        el.classList.add('sse-highlight');
-        el.addEventListener('animationend', () => el.classList.remove('sse-highlight'), { once: true });
-      }
-      return;
-    }
+  const existing = findCardLocation(c => c.id === data.id);
+  if (!existing) return;
+
+  const card = existing.cards[existing.idx];
+  // Merge updated fields
+  Object.assign(card, {
+    title: data.title ?? card.title,
+    description: data.description ?? card.description,
+    tag: data.tag ?? card.tag,
+    priority: data.priority ?? card.priority,
+    version: data.version ?? card.version,
+    assignee: data.assignee_id ?? card.assignee,
+    points: data.points ?? card.points,
+    date: data.due_date ?? card.date,
+    due_date: data.due_date ?? card.due_date,
+    epic_id: data.epic_id ?? card.epic_id,
+    reporter: data.reporter_id ?? card.reporter,
+    key: data.key ?? card.key,
+    related_card_ids: data.related_card_ids ?? card.related_card_ids,
+    blocked_card_ids: data.blocked_card_ids ?? card.blocked_card_ids,
+  });
+  window.save();
+  _sseRender();
+  // If the detail modal is open for this card, refresh all detail views
+  if (window.detailCard && window.detailCard.id === data.id) {
+    // Update the detailCard object with new data
+    Object.assign(window.detailCard, {
+      title: data.title ?? window.detailCard.title,
+      description: data.description ?? window.detailCard.description,
+      tag: data.tag ?? window.detailCard.tag,
+      priority: data.priority ?? window.detailCard.priority,
+      version: data.version ?? window.detailCard.version,
+      assignee_id: data.assignee_id ?? window.detailCard.assignee_id,
+      points: data.points ?? window.detailCard.points,
+      due_date: data.due_date ?? window.detailCard.due_date,
+      epic_id: data.epic_id ?? window.detailCard.epic_id,
+      reporter_id: data.reporter_id ?? window.detailCard.reporter_id,
+      key: data.key ?? window.detailCard.key,
+    });
+    // Refresh title
+    var titleEl = document.getElementById('detail-title');
+    if (titleEl && data.title != null) titleEl.value = data.title;
+    // Refresh sidebar fields
+    if (typeof window.refreshSidebarTexts === 'function') window.refreshSidebarTexts();
+    if (typeof window.renderDescriptionView === 'function') window.renderDescriptionView();
+    if (typeof window.refreshGithubLinks === 'function') window.refreshGithubLinks();
+  }
+  // Highlight the updated card
+  const el = document.querySelector('.card[data-id="' + data.id + '"]')
+    || document.querySelector('.list-row[data-id="' + data.id + '"]');
+  if (el) {
+    el.classList.remove('sse-highlight');
+    void el.offsetWidth; // force reflow to restart animation
+    el.classList.add('sse-highlight');
+    el.addEventListener('animationend', () => el.classList.remove('sse-highlight'), { once: true });
   }
 }
 
@@ -1159,34 +1156,26 @@ function moveCardInState(data) {
 }
 
 function removeCardFromState(data) {
+  const removeFromAnyState = () => {
+    const existing = findCardLocation(c => c.id === data.id);
+    if (!existing) return;
+    existing.cards.splice(existing.idx, 1);
+    window.save();
+    _sseRender();
+  };
+
   // Animate exit before removing from state
   const el = document.querySelector('.card[data-id="' + data.id + '"]')
     || document.querySelector('.list-row[data-id="' + data.id + '"]');
   if (el) {
     el.classList.add('sse-exiting');
     el.addEventListener('animationend', () => {
-      for (const col of window.COLUMNS) {
-        const idx = (window.state[col.id] || []).findIndex(c => c.id === data.id);
-        if (idx !== -1) {
-          window.state[col.id].splice(idx, 1);
-          window.save();
-          _sseRender();
-          return;
-        }
-      }
+      removeFromAnyState();
     }, { once: true });
     return;
   }
   // Fallback: no DOM element found, just remove from state directly
-  for (const col of window.COLUMNS) {
-    const idx = (window.state[col.id] || []).findIndex(c => c.id === data.id);
-    if (idx !== -1) {
-      window.state[col.id].splice(idx, 1);
-      window.save();
-      _sseRender();
-      return;
-    }
-  }
+  removeFromAnyState();
 }
 
 

@@ -2,6 +2,7 @@
 
 let presenceUsers = [];
 const MAX_VISIBLE_AVATARS = 5;
+let lastBoardResyncAt = 0;
 
 const PRESENCE_COLORS = [
   '#82B1FF', '#fbc02d', '#4ade80', '#fb8c00', '#579DFF',
@@ -71,6 +72,19 @@ function loadPresence(boardId) {
 function clearPresence() {
   presenceUsers = [];
   renderPresence();
+}
+
+function resyncCurrentBoard(boardId) {
+  const activeBoardId = boardId || window.currentBoardId;
+  if (!activeBoardId || activeBoardId === 'all') return;
+  if (window.currentBoardId && activeBoardId !== window.currentBoardId) return;
+  if (typeof window.loadBoardCards !== 'function') return;
+
+  const now = Date.now();
+  if (now - lastBoardResyncAt < 1000) return;
+  lastBoardResyncAt = now;
+
+  window.loadBoardCards(activeBoardId).catch(() => {});
 }
 
 function addPresenceUser(data) {
@@ -157,8 +171,11 @@ function wirePresenceHandlers(boardStream) {
   };
 
   boardStream.handlers.onConnected = () => {
+    const wasReconnect = !!boardStream._hasConnectedOnce;
+    boardStream._hasConnectedOnce = true;
     loadPresence(boardStream.boardId);
     updateConnectionDot(true);
+    if (wasReconnect) resyncCurrentBoard(boardStream.boardId);
   };
 
   boardStream.handlers.onDisconnect = () => {
@@ -218,6 +235,16 @@ function wirePresenceHandlers(boardStream) {
   };
 }
 
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    resyncCurrentBoard();
+  }
+});
+
+window.addEventListener('focus', () => {
+  resyncCurrentBoard();
+});
+
 function updateConnectionDot(connected) {
   let dot = document.querySelector('.connection-dot');
   if (!dot) {
@@ -235,6 +262,7 @@ window.presenceUsers = presenceUsers;
 window.renderPresence = renderPresence;
 window.loadPresence = loadPresence;
 window.clearPresence = clearPresence;
+window.resyncCurrentBoard = resyncCurrentBoard;
 window.addPresenceUser = addPresenceUser;
 window.removePresenceUser = removePresenceUser;
 window.showConflictToast = showConflictToast;
