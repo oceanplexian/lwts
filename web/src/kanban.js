@@ -95,9 +95,27 @@ const PRIORITY_ICONS = {
 let state = { backlog: [], todo: [], 'in-progress': [], done: [], cleared: [] };
 let nextId = Date.now();
 let currentBoardId = localStorage.getItem('lwts-board-id') || null;
+let lastConcreteBoardId = currentBoardId && currentBoardId !== 'all' ? currentBoardId : null;
 let boardList = [];
 // Map of card id → server card object (for version tracking)
 let cardIndex = {};
+
+function rememberConcreteBoard(boardId) {
+  if (!boardId || boardId === 'all') return lastConcreteBoardId;
+  lastConcreteBoardId = boardId;
+  localStorage.setItem('lwts-board-id', boardId);
+  return lastConcreteBoardId;
+}
+
+function getDefaultBoardId() {
+  if (lastConcreteBoardId && boardList.find(b => b.id === lastConcreteBoardId)) {
+    return lastConcreteBoardId;
+  }
+  if (currentBoardId && currentBoardId !== 'all' && boardList.find(b => b.id === currentBoardId)) {
+    return currentBoardId;
+  }
+  return (boardList[0] && boardList[0].id) || null;
+}
 
 // Convert server card to local format
 function fromAPI(card) {
@@ -162,7 +180,7 @@ async function loadFromAPI() {
     if (!currentBoardId || !boardList.find(b => b.id === currentBoardId)) {
       currentBoardId = boardList[0].id;
     }
-    localStorage.setItem('lwts-board-id', currentBoardId);
+    rememberConcreteBoard(currentBoardId);
     // Sync URL with active board
     const url = new URL(window.location);
     url.searchParams.set('board', currentBoardId);
@@ -332,7 +350,13 @@ function renderBoardPicker() {
   // Update label
   const current = boardList.find(b => b.id === currentBoardId);
   const label = document.getElementById('board-picker-label');
-  if (label && current) label.textContent = _capitalize(current.name);
+  if (label) {
+    label.textContent = currentBoardId === 'all'
+      ? 'All Boards'
+      : current
+        ? _capitalize(current.name)
+        : '';
+  }
 }
 
 // ── Drag state ──
@@ -2012,15 +2036,24 @@ function switchBoard(id, name) {
   if (typeof window.selectBoard === "function") {
     window.selectBoard(id, name || id);
   } else {
+    const isAllBoards = id === 'all';
     currentBoardId = id;
-    localStorage.setItem('lwts-board-id', id);
+    if (!isAllBoards) rememberConcreteBoard(id);
     // Update URL with board ID for persistence across refreshes
     const url = new URL(window.location);
-    url.searchParams.set('board', id);
+    if (isAllBoards) {
+      url.searchParams.delete('board');
+    } else {
+      url.searchParams.set('board', id);
+    }
     window.history.replaceState(null, '', url);
-    document.getElementById('board-picker-label').textContent = _capitalize(name || id);
+    document.getElementById('board-picker-label').textContent = isAllBoards ? 'All Boards' : _capitalize(name || id);
     closeBoardPicker();
-    loadBoardCards(id);
+    if (isAllBoards) {
+      loadAllBoardCards();
+    } else {
+      loadBoardCards(id);
+    }
   }
   window.renderBoardPicker();
 }
@@ -2587,6 +2620,7 @@ window.PRIORITY_ICONS = PRIORITY_ICONS;
 Object.defineProperty(window, 'state', { get() { return state; }, set(v) { state = v; }, configurable: true });
 Object.defineProperty(window, 'nextId', { get() { return nextId; }, set(v) { nextId = v; }, configurable: true });
 Object.defineProperty(window, 'currentBoardId', { get() { return currentBoardId; }, set(v) { currentBoardId = v; }, configurable: true });
+Object.defineProperty(window, 'lastConcreteBoardId', { get() { return lastConcreteBoardId; }, set(v) { lastConcreteBoardId = v; }, configurable: true });
 Object.defineProperty(window, 'boardList', { get() { return boardList; }, set(v) { boardList = v; }, configurable: true });
 Object.defineProperty(window, 'cardIndex', { get() { return cardIndex; }, set(v) { cardIndex = v; }, configurable: true });
 window.fromAPI = fromAPI;
@@ -2594,6 +2628,8 @@ window.showWelcome = showWelcome;
 window.closeWelcome = closeWelcome;
 window.loadFromAPI = loadFromAPI;
 window.loadBoardCards = loadBoardCards;
+window.rememberConcreteBoard = rememberConcreteBoard;
+window.getDefaultBoardId = getDefaultBoardId;
 window.loadFromLocalStorage = loadFromLocalStorage;
 window.save = save;
 window.render = render;

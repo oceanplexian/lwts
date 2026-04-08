@@ -26,7 +26,7 @@ async function loadBoardList() {
   // kanban.js loadFromAPI() already fetches boards and sets boardList/currentBoardId.
   // If boards are already loaded, just ensure the SSE stream is connected.
   if (window.boardList && window.boardList.length > 0) {
-    if (!currentBoardStream && window.currentBoardId) {
+    if (!currentBoardStream && window.currentBoardId && window.currentBoardId !== 'all') {
       connectBoardStream(window.currentBoardId);
     }
     return;
@@ -138,7 +138,13 @@ function renderBoardPicker() {
   // Update label
   const current = window.boardList.find(b => b.id === window.currentBoardId);
   const label = document.getElementById('board-picker-label');
-  if (label && current) label.textContent = _cap(current.name);
+  if (label) {
+    label.textContent = window.currentBoardId === 'all'
+      ? 'All Boards'
+      : current
+        ? _cap(current.name)
+        : '';
+  }
 }
 
 async function deleteBoard(boardId, boardName) {
@@ -159,14 +165,19 @@ async function deleteBoard(boardId, boardName) {
 }
 
 function selectBoard(boardId, boardName) {
+  const isAllBoards = boardId === 'all';
+  const resolvedBoardName = boardName || window.boardList.find(b => b.id === boardId)?.name || boardId;
+
   window._renderAnimateCards = true;
+  if (!isAllBoards && typeof window.rememberConcreteBoard === 'function') {
+    window.rememberConcreteBoard(boardId);
+  }
   window.currentBoardId = boardId;
-  localStorage.setItem('lwts-board-id', boardId);
-  document.getElementById('board-picker-label').textContent = _cap(boardName);
+  document.getElementById('board-picker-label').textContent = isAllBoards ? 'All Boards' : _cap(resolvedBoardName);
 
   // Update URL with board ID for persistence across refreshes
   const url = new URL(window.location);
-  if (boardId === 'all') {
+  if (isAllBoards) {
     url.searchParams.delete('board');
   } else {
     url.searchParams.set('board', boardId);
@@ -176,8 +187,20 @@ function selectBoard(boardId, boardName) {
   // Close picker
   if (typeof window.closeBoardPicker === 'function') window.closeBoardPicker();
 
-  if (boardId === 'all') {
-    // Load cards from all boards
+  if (isAllBoards) {
+    if (currentBoardStream) {
+      currentBoardStream.disconnect();
+      currentBoardStream = null;
+      window.currentBoardStream = null;
+    }
+    if (typeof window.clearPresence === 'function') window.clearPresence();
+    if (typeof window.updateConnectionDot === 'function') window.updateConnectionDot(false);
+    // "All Boards" is only meaningful in list view; keep board view pinned to a concrete board.
+    if (typeof window.currentView !== 'undefined' && window.currentView !== 'list' && typeof window.switchView === 'function') {
+      const listView = document.getElementById('list-view');
+      if (listView) listView.innerHTML = '';
+      window.switchView('list');
+    }
     window.loadAllBoardCards();
   } else {
     // Disconnect old SSE stream, connect new

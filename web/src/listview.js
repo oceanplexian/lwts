@@ -47,12 +47,16 @@ function switchView(view) {
 
   if (view === 'board') {
     listView.style.display = 'none';
-    // If coming from "All Boards" in list view, switch back to first board
+    // "All Boards" is list-only. When returning to the board, restore the last concrete board.
     if (window.currentBoardId === 'all' && window.boardList && window.boardList.length > 0) {
+      const fallbackBoardId = typeof window.getDefaultBoardId === 'function'
+        ? window.getDefaultBoardId()
+        : window.boardList[0].id;
+      const fallbackBoard = window.boardList.find(b => b.id === fallbackBoardId);
       // Clear old content first to avoid flash of stale board
       board.innerHTML = '';
       board.style.display = '';
-      window.selectBoard(window.boardList[0].id, window.boardList[0].name);
+      window.selectBoard(fallbackBoardId, fallbackBoard ? fallbackBoard.name : fallbackBoardId);
       return;
     }
     board.style.display = '';
@@ -60,14 +64,6 @@ function switchView(view) {
     window.render();
   } else {
     board.style.display = 'none';
-    // Default to All Boards when entering list view
-    if (window.currentBoardId !== 'all') {
-      // Clear old content first to avoid flash of stale list
-      listView.innerHTML = '';
-      listView.style.display = '';
-      window.selectBoard('all', 'All Boards');
-      return;
-    }
     listView.style.display = '';
     renderListView();
   }

@@ -98,7 +98,7 @@ const API = {
 
   searchCards(query, boardId) {
     let path = '/api/v1/search?q=' + encodeURIComponent(query);
-    if (boardId) path += '&board_id=' + encodeURIComponent(boardId);
+    if (boardId && boardId !== 'all') path += '&board_id=' + encodeURIComponent(boardId);
     return this.get(path);
   },
 

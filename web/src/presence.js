@@ -68,6 +68,11 @@ function loadPresence(boardId) {
     .catch(() => {});
 }
 
+function clearPresence() {
+  presenceUsers = [];
+  renderPresence();
+}
+
 function addPresenceUser(data) {
   if (presenceUsers.some(u => u.id === data.user_id)) return;
   presenceUsers.push({
@@ -229,6 +234,7 @@ function updateConnectionDot(connected) {
 window.presenceUsers = presenceUsers;
 window.renderPresence = renderPresence;
 window.loadPresence = loadPresence;
+window.clearPresence = clearPresence;
 window.addPresenceUser = addPresenceUser;
 window.removePresenceUser = removePresenceUser;
 window.showConflictToast = showConflictToast;
