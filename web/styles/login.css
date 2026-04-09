@@ -288,9 +288,9 @@ body.light-theme .auth-card::before {
   height: 42px;
   min-width: 42px;
   min-height: 42px;
-  background: linear-gradient(180deg, #579DFF 0%, #2B7DE9 100%);
+  background: var(--brand-logo-bg, linear-gradient(180deg, #579DFF 0%, #2B7DE9 100%));
   border-radius: 9px;
-  box-shadow: 0 2px 8px rgba(43, 125, 233, 0.35), inset 0 1px 0 rgba(255,255,255,0.2);
+  box-shadow: 0 2px 8px var(--brand-logo-glow, rgba(43,125,233,0.35)), inset 0 1px 0 rgba(255,255,255,0.2);
   flex-shrink: 0;
   overflow: hidden;
 }

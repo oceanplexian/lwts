@@ -468,6 +468,175 @@ function showSettingsSection(id, _fromHash) {
 
 // ── Appearance Application ──
 
+const DEFAULT_LANE_OPACITY = 81;
+const DEFAULT_CARD_OPACITY = 100;
+const DEFAULT_SURFACE_BLUR = 15;
+
+function _resolveThemeId(themeId) {
+  if (typeof window.resolveBoardThemeId === 'function') {
+    return window.resolveBoardThemeId(themeId);
+  }
+  return (window.BOARD_THEMES && window.BOARD_THEMES[themeId]) ? themeId : 'default';
+}
+
+function _normalizeAppearanceSettings(data) {
+  return Object.assign({
+    theme: 'default',
+    lane_opacity: DEFAULT_LANE_OPACITY,
+    card_opacity: DEFAULT_CARD_OPACITY,
+    surface_blur: DEFAULT_SURFACE_BLUR,
+  }, data || {});
+}
+
+function _normalizeLaneOpacity(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return DEFAULT_LANE_OPACITY;
+  const rounded = Math.round(numeric);
+  return Math.min(100, Math.max(0, rounded));
+}
+
+function _updateSettingsRangeFill(input) {
+  if (!input) return;
+  const min = Number(input.min || 0);
+  const max = Number(input.max || 100);
+  const value = Number(input.value || min);
+  const percent = max === min ? 0 : ((value - min) / (max - min)) * 100;
+  input.style.setProperty('--range-fill', percent.toFixed(2) + '%');
+}
+
+function _applyLaneOpacity(value) {
+  const laneOpacity = _normalizeLaneOpacity(value);
+  const listOpacity = Math.round(laneOpacity * 0.79);
+  const rowOpacity = Math.round(laneOpacity * 0.43);
+  const rowHoverOpacity = Math.round(laneOpacity * 0.86);
+  const shellAlpha = laneOpacity <= 0 ? 0 : 0.09 * Math.sqrt(laneOpacity / 100);
+  const rootStyle = document.documentElement.style;
+  rootStyle.setProperty('--board-pattern-lane-opacity', laneOpacity + '%');
+  rootStyle.setProperty('--board-pattern-list-opacity', listOpacity + '%');
+  rootStyle.setProperty('--board-pattern-row-opacity', rowOpacity + '%');
+  rootStyle.setProperty('--board-pattern-row-hover-opacity', rowHoverOpacity + '%');
+  rootStyle.setProperty('--board-pattern-shell-alpha', shellAlpha.toFixed(3));
+
+  const input = document.querySelector('[data-setting="appearance.lane_opacity"]');
+  if (input && input.value !== String(laneOpacity)) {
+    input.value = String(laneOpacity);
+  }
+  _updateSettingsRangeFill(input);
+  const valueEl = document.getElementById('settings-lane-opacity-value');
+  if (valueEl) valueEl.textContent = laneOpacity + '%';
+}
+
+function _normalizeSurfaceBlur(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return DEFAULT_SURFACE_BLUR;
+  const rounded = Math.round(numeric);
+  return Math.min(100, Math.max(0, rounded));
+}
+
+function _getSurfaceBlurScale(blur) {
+  if (blur <= 50) return blur / 50;
+  return 1 + ((blur - 50) / 50) * 0.5;
+}
+
+function _applySurfaceBlur(value) {
+  const surfaceBlur = _normalizeSurfaceBlur(value);
+  const blurScale = _getSurfaceBlurScale(surfaceBlur);
+  const rootStyle = document.documentElement.style;
+  rootStyle.setProperty('--board-pattern-epic-blur', (12 * blurScale).toFixed(2) + 'px');
+  rootStyle.setProperty('--board-pattern-column-blur', (2 * blurScale).toFixed(2) + 'px');
+  rootStyle.setProperty('--board-pattern-list-blur', (24 * blurScale).toFixed(2) + 'px');
+  rootStyle.setProperty('--board-pattern-list-header-blur', (38 * blurScale).toFixed(2) + 'px');
+  rootStyle.setProperty('--board-pattern-epic-header-blur', (24 * blurScale).toFixed(2) + 'px');
+  rootStyle.setProperty('--board-pattern-epic-child-blur', (18 * blurScale).toFixed(2) + 'px');
+
+  const input = document.querySelector('[data-setting="appearance.surface_blur"]');
+  if (input && input.value !== String(surfaceBlur)) {
+    input.value = String(surfaceBlur);
+  }
+  _updateSettingsRangeFill(input);
+  const valueEl = document.getElementById('settings-surface-blur-value');
+  if (valueEl) valueEl.textContent = surfaceBlur + '%';
+}
+
+function _normalizeCardOpacity(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return DEFAULT_CARD_OPACITY;
+  const rounded = Math.round(numeric);
+  return Math.min(100, Math.max(0, rounded));
+}
+
+function _applyCardOpacity(value) {
+  const cardOpacity = _normalizeCardOpacity(value);
+  const lightAlpha = Math.max(0.82, Math.min(0.96, 0.52 + (cardOpacity / 200)));
+  const rootStyle = document.documentElement.style;
+  rootStyle.setProperty('--board-pattern-card-opacity', cardOpacity + '%');
+  rootStyle.setProperty('--board-pattern-card-hover-opacity', Math.min(98, cardOpacity + 8) + '%');
+  rootStyle.setProperty('--board-pattern-card-dark-opacity', Math.min(96, cardOpacity + 6) + '%');
+  rootStyle.setProperty('--board-pattern-card-dark-hover-opacity', Math.min(98, cardOpacity + 8) + '%');
+  rootStyle.setProperty('--board-pattern-card-light-alpha', lightAlpha.toFixed(3));
+  rootStyle.setProperty('--board-pattern-card-light-hover-alpha', Math.min(0.98, lightAlpha + 0.04).toFixed(3));
+
+  const input = document.querySelector('[data-setting="appearance.card_opacity"]');
+  if (input && input.value !== String(cardOpacity)) {
+    input.value = String(cardOpacity);
+  }
+  _updateSettingsRangeFill(input);
+  const valueEl = document.getElementById('settings-card-opacity-value');
+  if (valueEl) valueEl.textContent = cardOpacity + '%';
+}
+
+function _renderThemeOptions(selectedThemeId) {
+  const resolvedThemeId = _resolveThemeId(selectedThemeId);
+  const themes = Object.values(window.BOARD_THEMES || {});
+  return themes.map(theme => `
+    <button
+      type="button"
+      class="board-theme-option appearance-theme-option${theme.id === resolvedThemeId ? ' selected' : ''}"
+      data-theme-id="${theme.id}"
+      aria-pressed="${theme.id === resolvedThemeId ? 'true' : 'false'}"
+    >
+      <span class="board-theme-preview" data-theme-id="${theme.id}">
+        <span class="board-theme-preview-card card-a"></span>
+        <span class="board-theme-preview-card card-b"></span>
+        <span class="board-theme-preview-card card-c"></span>
+      </span>
+      <span class="board-theme-copy">
+        <span class="board-theme-label">${_escHtml(theme.label)}</span>
+        <span class="board-theme-desc">${_escHtml(theme.description)}</span>
+      </span>
+    </button>
+  `).join('');
+}
+
+function _setSelectedAppearanceTheme(themeId) {
+  const resolvedThemeId = _resolveThemeId(themeId);
+  document.querySelectorAll('.appearance-theme-option').forEach(el => {
+    const isSelected = el.dataset.themeId === resolvedThemeId;
+    el.classList.toggle('selected', isSelected);
+    el.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+  });
+}
+
+function _renderAppearanceThemePicker(selectedThemeId) {
+  const container = document.getElementById('settings-theme-grid');
+  if (!container) return;
+  container.innerHTML = _renderThemeOptions(selectedThemeId);
+  document.querySelectorAll('.appearance-theme-option').forEach(el => {
+    el.onclick = () => _saveAppearanceTheme(el.dataset.themeId);
+  });
+}
+
+function _saveAppearanceTheme(themeId) {
+  const resolvedThemeId = _resolveThemeId(themeId);
+  if (!_settingsCache.appearance) _settingsCache.appearance = _normalizeAppearanceSettings();
+  _settingsCache.appearance.theme = resolvedThemeId;
+  applyAppearanceSettings({ theme: resolvedThemeId });
+  clearTimeout(_settingsDebounce.appearance);
+  _settingsDebounce.appearance = setTimeout(() => {
+    window.API.putSettings('appearance', { theme: resolvedThemeId }).catch(() => {});
+  }, 500);
+}
+
 function applyAppearanceSettings(data) {
   const body = document.body;
 
@@ -497,6 +666,16 @@ function applyAppearanceSettings(data) {
     body.classList.toggle('no-animations', !data.card_animations);
   }
 
+  if ('theme' in data) {
+    const themeId = _resolveThemeId(data.theme);
+    if (typeof window.applyBoardTheme === 'function') {
+      window.applyBoardTheme(themeId);
+    } else {
+      body.dataset.boardTheme = themeId;
+    }
+    _setSelectedAppearanceTheme(themeId);
+  }
+
   // Density
   if (data.density) {
     body.classList.remove('density-compact', 'density-comfortable');
@@ -523,12 +702,21 @@ function applyAppearanceSettings(data) {
   if ('show_priority_icons' in data) {
     body.classList.toggle('hide-priority', !data.show_priority_icons);
   }
+  if ('lane_opacity' in data) {
+    _applyLaneOpacity(data.lane_opacity);
+  }
+  if ('card_opacity' in data) {
+    _applyCardOpacity(data.card_opacity);
+  }
+  if ('surface_blur' in data) {
+    _applySurfaceBlur(data.surface_blur);
+  }
 }
 
 // Load and apply appearance on page load
 async function initAppearance() {
   try {
-    const data = await window.API.getSettings('appearance');
+    const data = _normalizeAppearanceSettings(await window.API.getSettings('appearance'));
     _settingsCache['appearance'] = data;
     applyAppearanceSettings(data);
   } catch (e) {
@@ -544,7 +732,8 @@ let _settingsDropdowns = {};
 
 async function loadSettings(category) {
   try {
-    const data = await window.API.getSettings(category);
+    const raw = await window.API.getSettings(category);
+    const data = category === 'appearance' ? _normalizeAppearanceSettings(raw) : raw;
     _settingsCache[category] = data;
     populateSettingsForm(category, data);
     if (category === 'appearance') applyAppearanceSettings(data);
@@ -586,12 +775,16 @@ function populateSettingsForm(category, data) {
     }
   }
   if (category === 'appearance') {
+    _renderAppearanceThemePicker(data.theme);
     if (data.density && _settingsDropdowns.density) {
       _settingsDropdowns.density.setValue(data.density, true);
     }
     if (data.font_size && _settingsDropdowns.font_size) {
       _settingsDropdowns.font_size.setValue(data.font_size, true);
     }
+    _applyLaneOpacity(data.lane_opacity);
+    _applyCardOpacity(data.card_opacity);
+    _applySurfaceBlur(data.surface_blur);
   }
 }
 
@@ -657,8 +850,10 @@ function initSettingsBindings() {
   document.querySelectorAll('[data-setting]').forEach(el => {
     const [category, key] = el.dataset.setting.split('.');
     const event = el.type === 'checkbox' ? 'change' : 'input';
+    if (el.type === 'range') _updateSettingsRangeFill(el);
     el.addEventListener(event, () => {
       const value = el.type === 'checkbox' ? el.checked : el.value;
+      if (el.type === 'range') _updateSettingsRangeFill(el);
       // Update local cache immediately
       if (!_settingsCache[category]) _settingsCache[category] = {};
       _settingsCache[category][key] = value;
@@ -681,6 +876,7 @@ function initSettingsBindings() {
       }, 500);
     });
   });
+  _renderAppearanceThemePicker((_settingsCache.appearance || {}).theme || (typeof window.getCachedBoardThemeId === 'function' ? window.getCachedBoardThemeId() : 'default'));
 }
 
 // ── Team Section ──
@@ -1272,6 +1468,10 @@ async function loadBoardsSettings() {
       container.innerHTML = '<div style="color:var(--text-dimmed);font-size:0.85rem;padding:8px 0">No boards yet</div>';
       return;
     }
+    window.boardList = boards;
+    if (typeof window.syncCurrentBoardTheme === 'function') {
+      window.syncCurrentBoardTheme();
+    }
 
     // Fetch card counts for each board in parallel
     const details = await Promise.all(boards.map(b => window.API.getBoard(b.id).catch(() => null)));
@@ -1307,6 +1507,7 @@ async function loadBoardsSettings() {
       config.id = configId;
 
       // Configuration group
+      const settings = window.parseBoardSettings ? window.parseBoardSettings(board.settings) : JSON.parse(board.settings || '{}');
       let configHTML = `
         <div class="settings-group">
           <div class="settings-group-title">Configuration</div>
@@ -1330,7 +1531,6 @@ async function loadBoardsSettings() {
       configHTML += '</div>';
 
       // Webhooks group
-      const settings = JSON.parse(board.settings || '{}');
       const webhooks = settings.webhooks || {};
       configHTML += `
         <div class="settings-group">
@@ -1423,7 +1623,7 @@ function _saveBoardWebhooks(boardId) {
   const inputs = document.querySelectorAll(`.board-webhook-input[data-board-id="${boardId}"]`);
   const board = window.boardList.find(b => b.id === boardId);
   if (!board) return;
-  const settings = JSON.parse(board.settings || '{}');
+  const settings = window.parseBoardSettings ? window.parseBoardSettings(board.settings) : JSON.parse(board.settings || '{}');
   if (!settings.webhooks) settings.webhooks = {};
   inputs.forEach(input => {
     settings.webhooks[input.dataset.webhook] = input.value.trim();

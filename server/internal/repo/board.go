@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/oceanplexian/lwts/server/internal/db"
 	"github.com/google/uuid"
+	"github.com/oceanplexian/lwts/server/internal/db"
 )
 
 type BoardRepository struct {
@@ -22,11 +22,12 @@ func (r *BoardRepository) Create(ctx context.Context, name, projectKey, ownerID 
 	id := uuid.New().String()
 	now := time.Now().UTC()
 	defaultCols := `[{"id":"backlog","label":"Backlog"},{"id":"todo","label":"To Do"},{"id":"in-progress","label":"In Progress"},{"id":"done","label":"Done"}]`
+	defaultSettings := `{}`
 
 	_, err := r.ds.Exec(ctx,
 		`INSERT INTO boards (id, name, project_key, owner_id, columns, settings, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		id, name, projectKey, ownerID, defaultCols, "{}", now, now,
+		id, name, projectKey, ownerID, defaultCols, defaultSettings, now, now,
 	)
 	if err != nil {
 		return Board{}, err
@@ -38,7 +39,7 @@ func (r *BoardRepository) Create(ctx context.Context, name, projectKey, ownerID 
 		ProjectKey: projectKey,
 		OwnerID:    ownerID,
 		Columns:    defaultCols,
-		Settings:   "{}",
+		Settings:   defaultSettings,
 		CreatedAt:  now,
 		UpdatedAt:  now,
 	}, nil

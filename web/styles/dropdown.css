@@ -31,9 +31,9 @@
 }
 
 .fn-dropdown-trigger.open {
-  border-color: rgba(130,177,255,0.5);
-  background: var(--gray-950);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.3), 0 0 0 2px rgba(130,177,255,0.15);
+  border-color: var(--dropdown-focus-border, rgba(130,177,255,0.5));
+  background: var(--dropdown-trigger-open-bg, var(--gray-950));
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3), 0 0 0 2px var(--dropdown-focus-ring, rgba(130,177,255,0.15));
 }
 
 .fn-dropdown-trigger span {
@@ -157,16 +157,16 @@
 }
 
 .fn-dropdown-option:hover {
-  background: var(--surface-hover);
+  background: var(--dropdown-option-hover-bg, var(--surface-hover));
 }
 
 .fn-dropdown-option.selected {
-  background: rgba(255,255,255,0.06);
-  color: var(--text-bright);
+  background: var(--dropdown-option-selected-bg, rgba(255,255,255,0.06));
+  color: var(--dropdown-option-selected-color, var(--text-bright));
 }
 
 .fn-dropdown-option.selected:hover {
-  background: rgba(255,255,255,0.09);
+  background: var(--dropdown-option-selected-hover-bg, rgba(255,255,255,0.09));
 }
 
 /* Checkmark */
@@ -185,6 +185,7 @@
 }
 
 .fn-dropdown-option.selected .fn-dropdown-check {
+  stroke: var(--dropdown-option-check-color, var(--text-bright));
   opacity: 1;
   transform: scale(1);
 }

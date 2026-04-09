@@ -251,6 +251,9 @@ async function loadBoardCards(boardId) {
   if (typeof window.currentView !== "undefined" && window.currentView === 'list' && typeof renderListView === 'function') {
     window.renderListView();
   }
+  if (typeof window.syncCurrentBoardTheme === 'function') {
+    window.syncCurrentBoardTheme(boardId);
+  }
 }
 
 async function loadAllBoardCards() {
@@ -285,6 +288,9 @@ async function loadAllBoardCards() {
   window.render();
   if (typeof window.currentView !== "undefined" && window.currentView === 'list' && typeof renderListView === 'function') {
     window.renderListView();
+  }
+  if (typeof window.syncCurrentBoardTheme === 'function') {
+    window.syncCurrentBoardTheme('all');
   }
 }
 window.loadAllBoardCards = loadAllBoardCards;
@@ -381,6 +387,57 @@ let commentEditor = null;
 // ═══════════════════════════════════════════════════════════════
 
 let _renderAnimateCards = true;
+let _columnHeightSyncFrame = 0;
+
+function _syncEqualHeightGroup(items, floorHeight) {
+  const elements = (items || []).filter(Boolean);
+  if (elements.length === 0) return;
+
+  elements.forEach(el => { el.style.minHeight = ''; });
+
+  const targetHeight = Math.max(
+    floorHeight || 0,
+    ...elements.map(el => Math.max(el.offsetHeight, el.scrollHeight))
+  );
+
+  elements.forEach(el => { el.style.minHeight = targetHeight + 'px'; });
+}
+
+function _scheduleColumnHeightSync() {
+  if (typeof window.currentView !== 'undefined' && window.currentView === 'list') return;
+
+  const board = document.getElementById('board');
+  if (!board || board.style.display === 'none' || board.childElementCount === 0) return;
+
+  cancelAnimationFrame(_columnHeightSyncFrame);
+  _columnHeightSyncFrame = requestAnimationFrame(() => {
+    if (!board.isConnected || board.style.display === 'none') return;
+
+    const styles = window.getComputedStyle(board);
+    const paddingTop = parseFloat(styles.paddingTop || '0') || 0;
+    const paddingBottom = parseFloat(styles.paddingBottom || '0') || 0;
+    const floorHeight = Math.max(0, board.clientHeight - paddingTop - paddingBottom);
+
+    if (board.classList.contains('board-epic-mode')) {
+      Array.from(board.children)
+        .filter(el => el.classList && el.classList.contains('epic-lane'))
+        .forEach(lane => {
+          const row = lane.querySelector('.epic-lane-columns');
+          if (!row) return;
+          _syncEqualHeightGroup(
+            Array.from(row.children).filter(el => el.classList && el.classList.contains('epic-lane-cell')),
+            floorHeight
+          );
+        });
+      return;
+    }
+
+    _syncEqualHeightGroup(
+      Array.from(board.children).filter(el => el.classList && el.classList.contains('column')),
+      floorHeight
+    );
+  });
+}
 
 function render() {
   EPIC_LANE_COLORS = _getEpicColors();
@@ -420,6 +477,7 @@ function render() {
 
   board.innerHTML = '';
   board.appendChild(frag);
+  _scheduleColumnHeightSync();
 
 }
 
@@ -2063,6 +2121,9 @@ function switchBoard(id, name) {
     } else {
       loadBoardCards(id);
     }
+    if (typeof window.syncCurrentBoardTheme === 'function') {
+      window.syncCurrentBoardTheme(id);
+    }
   }
   window.renderBoardPicker();
 }
@@ -2642,6 +2703,7 @@ window.getDefaultBoardId = getDefaultBoardId;
 window.loadFromLocalStorage = loadFromLocalStorage;
 window.save = save;
 window.render = render;
+window._scheduleColumnHeightSync = _scheduleColumnHeightSync;
 window.createCardEl = createCardEl;
 window.onDragStart = onDragStart;
 window.onDragEnd = onDragEnd;
@@ -2715,6 +2777,15 @@ window.renderBoardPicker = renderBoardPicker;
 window.SIDEBAR_FIELDS = SIDEBAR_FIELDS;
 window.refreshGithubLinks = refreshGithubLinks;
 window.parseGithubUrls = parseGithubUrls;
+
+if (!window._lwtsColumnHeightSyncBound) {
+  window._lwtsColumnHeightSyncBound = true;
+  window.addEventListener('resize', () => {
+    if (typeof window._scheduleColumnHeightSync === 'function') {
+      window._scheduleColumnHeightSync();
+    }
+  });
+}
 
 // Mutable state — defineProperty so cross-file reads see current values
 Object.defineProperty(window, 'detailCard', { get() { return detailCard; }, set(v) { detailCard = v; }, configurable: true });

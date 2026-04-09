@@ -7,6 +7,31 @@
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
+  position: relative;
+  isolation: isolate;
+}
+
+#app-board::before,
+#app-board::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+#app-board::before {
+  z-index: -2;
+  background: var(--board-theme-workspace);
+  background-position: center;
+}
+
+#app-board::after {
+  z-index: -1;
+  background: var(--board-theme-overlay, linear-gradient(180deg, rgba(5,8,13,0.58) 0%, rgba(5,8,13,0.26) 18%, rgba(5,8,13,0.6) 100%));
+}
+
+body.light-theme #app-board::after {
+  background: var(--board-theme-overlay-light, linear-gradient(180deg, rgba(248,249,252,0.76) 0%, rgba(248,249,252,0.42) 18%, rgba(248,249,252,0.8) 100%));
 }
 
 /* ── Header ── */
@@ -16,7 +41,10 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
-  background: #101010;
+  background: var(--board-header-bg);
+  border-bottom: 1px solid var(--board-header-border);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
   flex-shrink: 0;
   z-index: 100;
 }
@@ -42,7 +70,7 @@
   justify-content: center;
   width: 22px;
   height: 22px;
-  background: linear-gradient(180deg, #579DFF 0%, #2B7DE9 100%);
+  background: var(--brand-logo-bg, linear-gradient(180deg, #579DFF 0%, #2B7DE9 100%));
   border-radius: 5px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.2);
   flex-shrink: 0;
@@ -59,7 +87,7 @@
   transition: transform 0.1s ease;
 }
 .header-title:hover .header-logo-box {
-  box-shadow: 0 2px 8px rgba(43,125,233,0.4), inset 0 1px 0 rgba(255,255,255,0.2);
+  box-shadow: 0 2px 8px var(--brand-logo-glow, rgba(43,125,233,0.4)), inset 0 1px 0 rgba(255,255,255,0.2);
 }
 .header-logo {
   height: 16px;
@@ -484,7 +512,9 @@
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--page-bg);
+  background: var(--board-sticky-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   padding-bottom: 6px;
   margin-bottom: 2px;
 }
@@ -498,8 +528,8 @@
   border-radius: 10px;
   margin-bottom: 0;
   padding: 2px 0;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(var(--board-pattern-epic-blur, 12px));
+  -webkit-backdrop-filter: blur(var(--board-pattern-epic-blur, 12px));
   border: 1px solid rgba(255,255,255,0.06);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 3px rgba(0,0,0,0.1);
 }
@@ -613,6 +643,14 @@ body.light-theme .epic-lane {
 .card:hover {
   background: var(--surface-hover);
   border-color: var(--border-light);
+}
+body:not(.light-theme) .card {
+  backdrop-filter: blur(14px) saturate(132%);
+  -webkit-backdrop-filter: blur(14px) saturate(132%);
+  box-shadow: 0 12px 26px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.07);
+}
+body:not(.light-theme) .card:hover {
+  box-shadow: 0 16px 32px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.1);
 }
 .card:active {
   cursor: grabbing;
@@ -996,6 +1034,12 @@ body.light-theme .card.drop-target {
   font-weight: 300;
   min-height: 60px;
 }
+body:not(.light-theme) .column-label {
+  color: var(--text-near-white);
+}
+body:not(.light-theme) .column-empty {
+  color: var(--text-high);
+}
 
 /* Column drop target highlight */
 .column-body.drag-over {
@@ -1010,7 +1054,9 @@ body.light-theme .card.drop-target {
   justify-content: space-between;
   flex-shrink: 0;
   z-index: 99;
-  background: var(--page-bg);
+  background: var(--board-sticky-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   padding: var(--filter-bar-padding);
   gap: 8px;
 }
@@ -1044,6 +1090,80 @@ body.light-theme .card.drop-target {
   border-color: var(--border-light);
   color: var(--text-primary);
 }
+
+body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .epic-lane {
+  background: rgba(6, 8, 12, var(--board-pattern-shell-alpha, 0.05));
+  border-color: var(--board-pattern-border, rgba(255,255,255,0.08));
+}
+
+body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .column,
+body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .epic-lane-cell {
+  background: var(--board-pattern-column-bg, rgba(24,24,28,0.8));
+  background: color-mix(in srgb, var(--board-pattern-column-bg, rgba(24,24,28,0.8)) var(--board-pattern-lane-opacity, 28%), transparent);
+  border-color: var(--board-pattern-border, rgba(255,255,255,0.08));
+  box-shadow: 0 8px 18px rgba(0,0,0,0.08);
+  backdrop-filter: blur(var(--board-pattern-column-blur, 2px)) saturate(var(--board-pattern-column-saturate, 101%));
+  -webkit-backdrop-filter: blur(var(--board-pattern-column-blur, 2px)) saturate(var(--board-pattern-column-saturate, 101%));
+}
+
+body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .card {
+  background: var(--board-pattern-card-bg, rgba(18,18,22,0.92));
+  background: color-mix(in srgb, var(--board-pattern-card-bg, rgba(18,18,22,0.92)) var(--board-pattern-card-opacity, 76%), transparent);
+  border-color: var(--board-pattern-border, rgba(255,255,255,0.08));
+  box-shadow: 0 10px 22px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.08);
+  backdrop-filter: blur(calc(var(--board-pattern-column-blur, 2px) + 10px)) saturate(132%);
+  -webkit-backdrop-filter: blur(calc(var(--board-pattern-column-blur, 2px) + 10px)) saturate(132%);
+}
+
+body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .card:hover {
+  background: var(--board-pattern-card-hover-bg, rgba(24,24,28,0.96));
+  background: color-mix(in srgb, var(--board-pattern-card-hover-bg, rgba(24,24,28,0.96)) var(--board-pattern-card-hover-opacity, 84%), transparent);
+  border-color: var(--board-pattern-chip-border, rgba(255,255,255,0.16));
+  box-shadow: 0 14px 28px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.11);
+}
+
+body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .column-count,
+body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .filter-btn,
+body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .epic-lane-key {
+  background: var(--board-pattern-chip-bg, rgba(32,32,36,0.78));
+  background: color-mix(in srgb, var(--board-pattern-chip-bg, rgba(32,32,36,0.78)) 60%, transparent);
+  border-color: var(--board-pattern-chip-border, rgba(255,255,255,0.14));
+  color: var(--text-high);
+}
+
+body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .filter-btn:hover {
+  background: var(--board-pattern-card-hover-bg, rgba(24,24,28,0.96));
+  background: color-mix(in srgb, var(--board-pattern-card-hover-bg, rgba(24,24,28,0.96)) 70%, transparent);
+  border-color: var(--board-pattern-chip-border, rgba(255,255,255,0.16));
+  color: var(--text-near-white);
+}
+
+body:not(.light-theme):is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .card {
+  background: color-mix(in srgb, var(--board-pattern-card-bg, rgba(18,18,22,0.92)) var(--board-pattern-card-dark-opacity, 82%), black);
+  box-shadow: 0 14px 28px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+body:not(.light-theme):is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .card:hover {
+  background: color-mix(in srgb, var(--board-pattern-card-hover-bg, rgba(24,24,28,0.96)) var(--board-pattern-card-dark-hover-opacity, 84%), black);
+  box-shadow: 0 18px 34px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+body.light-theme:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .card {
+  background: rgba(255,255,255,var(--board-pattern-card-light-alpha, 0.9));
+  border-color: rgba(0,0,0,0.08);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+body.light-theme:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .card:hover {
+  background: rgba(255,255,255,var(--board-pattern-card-light-hover-alpha, 0.94));
+  border-color: rgba(0,0,0,0.22);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+}
+
+body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .column-body.drag-over {
+  background: rgba(255,255,255,0.08);
+}
+
 .filter-badge {
   font-size: 0.6rem;
   font-weight: 700;
@@ -1262,6 +1382,10 @@ body.light-theme .card.drop-target {
   color: var(--text-dimmed);
   background: var(--surface-02);
   border-color: var(--border-faint);
+}
+
+body:not(.light-theme) .card-due-chip.due-future {
+  color: var(--text-label);
 }
 
 /* Due date chip inside detail sidebar */

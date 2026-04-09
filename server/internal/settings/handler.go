@@ -77,7 +77,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMW, adminMW func(http.H
 
 var defaultSettings = map[string]string{
 	"general":    `{"workspace_name":"LWTS","default_assignee_id":"","auto_save":true,"compact_cards":false,"allow_registration":false,"base_url":"","session_length_days":7}`,
-	"appearance": `{"dark_mode":true,"accent_color":"#e50914","card_animations":true,"density":"default","font_size":"medium","show_card_ids":true,"show_avatars":true,"show_priority_icons":true}`,
+	"appearance": `{"dark_mode":true,"accent_color":"#e50914","card_animations":true,"density":"default","font_size":"medium","show_card_ids":true,"show_avatars":true,"show_priority_icons":true,"theme":"default","lane_opacity":81,"card_opacity":100,"surface_blur":15}`,
 }
 
 // IsRegistrationAllowed checks the general settings to see if user registration is enabled.
