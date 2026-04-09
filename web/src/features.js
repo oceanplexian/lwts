@@ -175,6 +175,9 @@ function selectBoard(boardId, boardName) {
     window.rememberConcreteBoard(boardId);
   }
   window.currentBoardId = boardId;
+  if (typeof window.syncCurrentBoardTheme === 'function') {
+    window.syncCurrentBoardTheme(boardId);
+  }
   document.getElementById('board-picker-label').textContent = isAllBoards ? 'All Boards' : _cap(resolvedBoardName);
 
   // Update URL with board ID for persistence across refreshes

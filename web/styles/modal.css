@@ -36,7 +36,7 @@
 }
 
 .lwts-modal {
-  background: var(--page-bg-alt);
+  background: var(--modal-surface-bg, var(--page-bg-alt));
   border: 1px solid var(--border-light);
   border-radius: 12px;
   width: min(var(--modal-width, 720px), 100vw);
@@ -86,7 +86,7 @@
   background: transparent;
   border: none;
   border-radius: var(--radius-md);
-  color: var(--text-muted);
+  color: var(--modal-text-muted, var(--text-muted));
   font-size: 1.3rem;
   cursor: pointer;
   line-height: 1;
@@ -174,7 +174,7 @@
   gap: 0.4rem;
   font-size: 0.75rem;
   font-weight: 500;
-  color: var(--text-tertiary);
+  color: var(--modal-text-tertiary, var(--text-tertiary));
   margin-bottom: 0.4rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -197,7 +197,7 @@
 
 .lwts-modal .form-group input::placeholder,
 .lwts-modal .form-group textarea::placeholder {
-  color: var(--text-muted);
+  color: var(--modal-text-muted, var(--text-muted));
 }
 
 .lwts-modal .form-group input:focus,
@@ -232,7 +232,7 @@
   background: transparent;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
-  color: var(--text-secondary);
+  color: var(--modal-text-secondary, var(--text-secondary));
   font-size: 0.9rem;
   font-weight: 500;
   font-family: inherit;
@@ -283,7 +283,7 @@
   gap: 10px;
   font-size: 0.8rem;
   font-weight: 400;
-  color: var(--text-secondary);
+  color: var(--modal-text-secondary, var(--text-secondary));
   cursor: pointer;
   user-select: none;
   transition: color 0.15s ease;
@@ -356,7 +356,7 @@
   padding: 0;
   background: transparent;
   border: none;
-  color: var(--text-muted);
+  color: var(--modal-text-muted, var(--text-muted));
   font-size: 0.8rem;
   font-weight: 500;
   font-family: inherit;

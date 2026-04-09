@@ -24,10 +24,82 @@
 // Anti-FOUC: apply cached appearance before first paint
 (function() {
   try {
+    var b = document.body;
+    var validThemes = {
+      "default": 1,
+      "summer-duotone": 1,
+      "round-geometric": 1,
+      "squares": 1,
+      "space-doodles": 1,
+      "deep-cosmos": 1,
+      "space": 1,
+      "aurora": 1,
+      "blueprint": 1
+    };
+    function normalizeLaneOpacity(value) {
+      var numeric = Number(value);
+      if (!Number.isFinite(numeric)) return 81;
+      var rounded = Math.round(numeric);
+      if (rounded < 0) return 0;
+      if (rounded > 100) return 100;
+      return rounded;
+    }
+    function normalizeCardOpacity(value) {
+      var numeric = Number(value);
+      if (!Number.isFinite(numeric)) return 100;
+      var rounded = Math.round(numeric);
+      if (rounded < 0) return 0;
+      if (rounded > 100) return 100;
+      return rounded;
+    }
+    function normalizeSurfaceBlur(value) {
+      var numeric = Number(value);
+      if (!Number.isFinite(numeric)) return 15;
+      var rounded = Math.round(numeric);
+      if (rounded < 0) return 0;
+      if (rounded > 100) return 100;
+      return rounded;
+    }
+    function getSurfaceBlurScale(value) {
+      if (value <= 50) return value / 50;
+      return 1 + ((value - 50) / 50) * 0.5;
+    }
+    function applyLaneOpacity(value) {
+      var laneOpacity = normalizeLaneOpacity(value);
+      var listOpacity = Math.round(laneOpacity * 0.79);
+      var rowOpacity = Math.round(laneOpacity * 0.43);
+      var rowHoverOpacity = Math.round(laneOpacity * 0.86);
+      var shellAlpha = laneOpacity <= 0 ? 0 : 0.09 * Math.sqrt(laneOpacity / 100);
+      document.documentElement.style.setProperty('--board-pattern-lane-opacity', laneOpacity + '%');
+      document.documentElement.style.setProperty('--board-pattern-list-opacity', listOpacity + '%');
+      document.documentElement.style.setProperty('--board-pattern-row-opacity', rowOpacity + '%');
+      document.documentElement.style.setProperty('--board-pattern-row-hover-opacity', rowHoverOpacity + '%');
+      document.documentElement.style.setProperty('--board-pattern-shell-alpha', shellAlpha.toFixed(3));
+    }
+    function applyCardOpacity(value) {
+      var cardOpacity = normalizeCardOpacity(value);
+      var lightAlpha = Math.max(0.82, Math.min(0.96, 0.52 + (cardOpacity / 200)));
+      document.documentElement.style.setProperty('--board-pattern-card-opacity', cardOpacity + '%');
+      document.documentElement.style.setProperty('--board-pattern-card-hover-opacity', Math.min(98, cardOpacity + 8) + '%');
+      document.documentElement.style.setProperty('--board-pattern-card-dark-opacity', Math.min(96, cardOpacity + 6) + '%');
+      document.documentElement.style.setProperty('--board-pattern-card-dark-hover-opacity', Math.min(98, cardOpacity + 8) + '%');
+      document.documentElement.style.setProperty('--board-pattern-card-light-alpha', lightAlpha.toFixed(3));
+      document.documentElement.style.setProperty('--board-pattern-card-light-hover-alpha', Math.min(0.98, lightAlpha + 0.04).toFixed(3));
+    }
+    function applySurfaceBlur(value) {
+      var surfaceBlur = normalizeSurfaceBlur(value);
+      var blurScale = getSurfaceBlurScale(surfaceBlur);
+      document.documentElement.style.setProperty('--board-pattern-epic-blur', (12 * blurScale).toFixed(2) + 'px');
+      document.documentElement.style.setProperty('--board-pattern-column-blur', (2 * blurScale).toFixed(2) + 'px');
+      document.documentElement.style.setProperty('--board-pattern-list-blur', (24 * blurScale).toFixed(2) + 'px');
+      document.documentElement.style.setProperty('--board-pattern-list-header-blur', (38 * blurScale).toFixed(2) + 'px');
+      document.documentElement.style.setProperty('--board-pattern-epic-header-blur', (24 * blurScale).toFixed(2) + 'px');
+      document.documentElement.style.setProperty('--board-pattern-epic-child-blur', (18 * blurScale).toFixed(2) + 'px');
+    }
+    var data = {};
     var cached = localStorage.getItem('lwts-appearance');
     if (cached) {
-      var data = JSON.parse(cached);
-      var b = document.body;
+      data = JSON.parse(cached) || {};
       if ('dark_mode' in data && !data.dark_mode) b.classList.add('light-theme');
       if (data.density && data.density !== 'default') b.classList.add('density-' + data.density);
       if (data.font_size && data.font_size !== 'medium') b.classList.add('font-' + data.font_size);
@@ -42,6 +114,11 @@
         document.documentElement.style.setProperty('--accent-blue-border', h + '33');
       }
     }
+    applyLaneOpacity(data.lane_opacity);
+    applyCardOpacity(data.card_opacity);
+    applySurfaceBlur(data.surface_blur);
+    var themeId = typeof data.theme === 'string' && validThemes[data.theme] ? data.theme : 'default';
+    b.dataset.boardTheme = themeId;
   } catch(e) {}
 })();
 </script>
@@ -355,6 +432,11 @@
         <div class="settings-row"><div class="settings-row-label"><div class="settings-row-title">Dark mode</div><div class="settings-row-desc">Use dark color scheme</div></div><div class="settings-row-control"><label class="settings-toggle"><input type="checkbox" data-setting="appearance.dark_mode" checked><span class="toggle-track"></span></label></div></div>
         <div class="settings-row"><div class="settings-row-label"><div class="settings-row-title">Accent color</div><div class="settings-row-desc">Primary accent for interactive elements</div></div><div class="settings-row-control"><input class="settings-input" data-setting="appearance.accent_color" value="#579DFF" style="width:100px" /></div></div>
         <div class="settings-row"><div class="settings-row-label"><div class="settings-row-title">Card animations</div><div class="settings-row-desc">Spring animations on cards and transitions</div></div><div class="settings-row-control"><label class="settings-toggle"><input type="checkbox" data-setting="appearance.card_animations" checked><span class="toggle-track"></span></label></div></div>
+        <div class="board-theme-intro">
+          <div class="settings-row-title">Workspace theme</div>
+          <div class="settings-row-desc">Applies across all boards and list views.</div>
+        </div>
+        <div class="board-theme-grid" id="settings-theme-grid"></div>
       </div>
       <div class="settings-group">
         <div class="settings-group-title">Density</div>
@@ -366,6 +448,20 @@
         <div class="settings-row"><div class="settings-row-label"><div class="settings-row-title">Show card IDs</div><div class="settings-row-desc">Display ticket keys on board cards</div></div><div class="settings-row-control"><label class="settings-toggle"><input type="checkbox" data-setting="appearance.show_card_ids" checked><span class="toggle-track"></span></label></div></div>
         <div class="settings-row"><div class="settings-row-label"><div class="settings-row-title">Show avatars</div><div class="settings-row-desc">Display assignee avatars on cards</div></div><div class="settings-row-control"><label class="settings-toggle"><input type="checkbox" data-setting="appearance.show_avatars" checked><span class="toggle-track"></span></label></div></div>
         <div class="settings-row"><div class="settings-row-label"><div class="settings-row-title">Show priority icons</div><div class="settings-row-desc">Display priority arrows on cards</div></div><div class="settings-row-control"><label class="settings-toggle"><input type="checkbox" data-setting="appearance.show_priority_icons" checked><span class="toggle-track"></span></label></div></div>
+        <details class="settings-advanced">
+          <summary class="settings-advanced-summary">
+            <div class="settings-advanced-copy">
+              <div class="settings-advanced-title">Advanced surface controls</div>
+              <div class="settings-advanced-desc">Fine-tune lane transparency, card transparency, and blur for themed boards and list view.</div>
+            </div>
+            <svg class="settings-advanced-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+          </summary>
+          <div class="settings-advanced-content">
+            <div class="settings-row"><div class="settings-row-label"><div class="settings-row-title">Lane transparency</div><div class="settings-row-desc">Adjust how much of the background shows through lanes and list surfaces</div></div><div class="settings-row-control"><div class="settings-range-group"><input class="settings-range" type="range" min="0" max="100" step="1" value="81" data-setting="appearance.lane_opacity" /><span class="settings-range-value" id="settings-lane-opacity-value">81%</span></div></div></div>
+            <div class="settings-row"><div class="settings-row-label"><div class="settings-row-title">Card transparency</div><div class="settings-row-desc">Adjust how much of the background shows through board cards</div></div><div class="settings-row-control"><div class="settings-range-group"><input class="settings-range" type="range" min="0" max="100" step="1" value="100" data-setting="appearance.card_opacity" /><span class="settings-range-value" id="settings-card-opacity-value">100%</span></div></div></div>
+            <div class="settings-row"><div class="settings-row-label"><div class="settings-row-title">Blur</div><div class="settings-row-desc">Adjust the glass blur on lanes and list surfaces</div></div><div class="settings-row-control"><div class="settings-range-group"><input class="settings-range" type="range" min="0" max="100" step="1" value="15" data-setting="appearance.surface_blur" /><span class="settings-range-value" id="settings-surface-blur-value">15%</span></div></div></div>
+          </div>
+        </details>
       </div>
     </div>
 

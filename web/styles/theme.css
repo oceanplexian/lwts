@@ -22,6 +22,10 @@
   --surface-hover: rgba(255,255,255,0.06);
   --surface-active: rgba(255,255,255,0.08);
   --surface-raised: rgba(22,22,24,0.98);
+  --modal-surface-bg: var(--page-bg-alt);
+  --modal-text-secondary: rgba(255,255,255,0.78);
+  --modal-text-tertiary: rgba(255,255,255,0.7);
+  --modal-text-muted: rgba(255,255,255,0.6);
   --overlay-bg: rgba(0,0,0,0.8);
   --border-faint: rgba(255,255,255,0.04);
   --border-xlight: rgba(255,255,255,0.05);
@@ -44,6 +48,14 @@
   --accent-red-bg: rgba(248,113,113,0.1);
   --accent-red-border: rgba(248,113,113,0.2);
   --gray-950: #0d0d0d;
+  --dropdown-focus-border: rgba(130,177,255,0.5);
+  --dropdown-focus-ring: rgba(130,177,255,0.15);
+  --dropdown-trigger-open-bg: var(--gray-950);
+  --dropdown-option-hover-bg: var(--surface-hover);
+  --dropdown-option-selected-bg: rgba(255,255,255,0.06);
+  --dropdown-option-selected-hover-bg: rgba(255,255,255,0.09);
+  --dropdown-option-selected-color: var(--text-bright);
+  --dropdown-option-check-color: var(--text-bright);
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
   --shadow-md: 0 4px 24px rgba(0,0,0,0.2);
   --shadow-lg: 0 8px 32px rgba(0,0,0,0.3);
@@ -82,6 +94,34 @@
   --list-padding: 16px;
   --list-radius: 12px;
   --list-dot-size: 8px;
+  --board-theme-workspace:
+    radial-gradient(circle at 50% 0%, rgba(87,157,255,0.18) 0%, transparent 32%),
+    linear-gradient(180deg, #0f131b 0%, #0c0f15 46%, #090a0f 100%);
+  --board-header-bg: rgba(16,16,16,0.78);
+  --board-header-border: rgba(255,255,255,0.06);
+  --board-sticky-bg: rgba(13,13,13,0.62);
+  --settings-shell-bg: linear-gradient(180deg, rgba(10,12,17,0.78), rgba(10,12,17,0.68));
+  --brand-logo-bg: linear-gradient(180deg, #579DFF 0%, #2B7DE9 100%);
+  --brand-logo-glow: rgba(43,125,233,0.4);
+  --board-pattern-lane-opacity: 81%;
+  --board-pattern-list-opacity: 64%;
+  --board-pattern-row-opacity: 35%;
+  --board-pattern-row-hover-opacity: 70%;
+  --board-pattern-shell-alpha: 0.081;
+  --board-pattern-epic-blur: 3.6px;
+  --board-pattern-column-blur: 0.6px;
+  --board-pattern-column-saturate: 101%;
+  --board-pattern-list-blur: 7.2px;
+  --board-pattern-list-saturate: 108%;
+  --board-pattern-list-header-blur: 11.4px;
+  --board-pattern-epic-header-blur: 7.2px;
+  --board-pattern-epic-child-blur: 5.4px;
+  --board-pattern-card-opacity: 100%;
+  --board-pattern-card-hover-opacity: 98%;
+  --board-pattern-card-dark-opacity: 96%;
+  --board-pattern-card-dark-hover-opacity: 98%;
+  --board-pattern-card-light-alpha: 0.96;
+  --board-pattern-card-light-hover-alpha: 0.98;
 }
 
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -98,6 +138,196 @@ body {
   font-size: 14px;
   line-height: 1.5;
   overflow: hidden;
+}
+
+body[data-board-theme="default"],
+.board-theme-preview[data-theme-id="default"] {
+  --board-theme-workspace:
+    radial-gradient(circle at 50% 0%, rgba(87,157,255,0.18) 0%, transparent 32%),
+    linear-gradient(180deg, #0f131b 0%, #0c0f15 46%, #090a0f 100%);
+  --board-header-bg: rgba(16,16,16,0.78);
+  --board-header-border: rgba(255,255,255,0.06);
+  --board-sticky-bg: rgba(13,13,13,0.62);
+  --board-pattern-column-bg: rgba(18, 24, 34, 0.82);
+  --board-pattern-card-bg: rgba(17, 22, 31, 0.92);
+  --board-pattern-card-hover-bg: rgba(22, 28, 39, 0.96);
+  --board-pattern-chip-bg: rgba(24, 31, 44, 0.78);
+  --board-pattern-border: rgba(130, 177, 255, 0.12);
+  --board-pattern-chip-border: rgba(130, 177, 255, 0.16);
+}
+
+body[data-board-theme="summer-duotone"],
+.board-theme-preview[data-theme-id="summer-duotone"] {
+  --board-theme-workspace: url("/themes/summer-duotone.webp") center/640px 640px repeat;
+  --board-theme-overlay: linear-gradient(180deg, rgba(49,12,24,0.86) 0%, rgba(58,17,30,0.58) 18%, rgba(33,10,18,0.88) 100%);
+  --board-header-bg: rgba(74, 23, 34, 0.82);
+  --board-header-border: rgba(255, 225, 163, 0.14);
+  --board-sticky-bg: rgba(66, 19, 29, 0.74);
+  --board-pattern-column-bg: rgba(72, 20, 32, 0.78);
+  --board-pattern-card-bg: rgba(57, 18, 27, 0.92);
+  --board-pattern-card-hover-bg: rgba(68, 24, 34, 0.96);
+  --board-pattern-chip-bg: rgba(86, 29, 42, 0.78);
+  --board-pattern-border: rgba(255, 223, 170, 0.12);
+  --board-pattern-chip-border: rgba(255, 223, 170, 0.16);
+}
+
+body[data-board-theme="round-geometric"],
+.board-theme-preview[data-theme-id="round-geometric"] {
+  --board-theme-workspace: url("/themes/round-geometric.webp") center/640px 640px repeat;
+  --board-theme-overlay: linear-gradient(180deg, rgba(26,24,24,0.9) 0%, rgba(24,22,22,0.62) 18%, rgba(19,18,18,0.9) 100%);
+  --board-header-bg: rgba(28, 25, 24, 0.84);
+  --board-header-border: rgba(229, 208, 182, 0.14);
+  --board-sticky-bg: rgba(22, 20, 19, 0.72);
+  --board-pattern-column-bg: rgba(34, 31, 30, 0.78);
+  --board-pattern-card-bg: rgba(27, 25, 24, 0.92);
+  --board-pattern-card-hover-bg: rgba(35, 32, 31, 0.96);
+  --board-pattern-chip-bg: rgba(48, 43, 40, 0.78);
+  --board-pattern-border: rgba(229, 208, 182, 0.12);
+  --board-pattern-chip-border: rgba(229, 208, 182, 0.16);
+}
+
+body[data-board-theme="squares"],
+.board-theme-preview[data-theme-id="squares"] {
+  --board-theme-workspace: url("/themes/squares.webp") center/768px 768px repeat;
+  --board-theme-overlay: linear-gradient(180deg, rgba(6,14,31,0.82) 0%, rgba(5,12,27,0.52) 18%, rgba(4,10,22,0.86) 100%);
+  --board-header-bg: rgba(7, 16, 35, 0.82);
+  --board-header-border: rgba(109, 212, 255, 0.14);
+  --board-sticky-bg: rgba(6, 15, 32, 0.72);
+  --board-pattern-column-bg: rgba(8, 21, 40, 0.8);
+  --board-pattern-card-bg: rgba(10, 20, 37, 0.92);
+  --board-pattern-card-hover-bg: rgba(14, 27, 47, 0.96);
+  --board-pattern-chip-bg: rgba(15, 32, 56, 0.78);
+  --board-pattern-border: rgba(103, 208, 255, 0.12);
+  --board-pattern-chip-border: rgba(103, 208, 255, 0.18);
+}
+
+body[data-board-theme="space-doodles"],
+.board-theme-preview[data-theme-id="space-doodles"] {
+  --board-theme-workspace: url("/themes/space-doodles.webp") center/640px 640px repeat;
+  --board-theme-overlay: linear-gradient(180deg, rgba(7,9,16,0.76) 0%, rgba(8,10,18,0.42) 18%, rgba(5,7,14,0.8) 100%);
+  --board-header-bg: rgba(9, 12, 22, 0.82);
+  --board-header-border: rgba(214, 230, 255, 0.12);
+  --board-sticky-bg: rgba(8, 11, 20, 0.7);
+  --board-pattern-column-bg: rgba(12, 15, 26, 0.78);
+  --board-pattern-card-bg: rgba(9, 12, 22, 0.94);
+  --board-pattern-card-hover-bg: rgba(13, 17, 28, 0.97);
+  --board-pattern-chip-bg: rgba(18, 22, 34, 0.78);
+  --board-pattern-border: rgba(218, 232, 255, 0.12);
+  --board-pattern-chip-border: rgba(218, 232, 255, 0.16);
+}
+
+body[data-board-theme="deep-cosmos"],
+.board-theme-preview[data-theme-id="deep-cosmos"] {
+  --board-theme-workspace: url("/themes/deep-cosmos.webp") center/640px 640px repeat;
+  --board-theme-overlay: linear-gradient(180deg, rgba(4,11,24,0.68) 0%, rgba(5,14,28,0.38) 18%, rgba(4,10,22,0.74) 100%);
+  --board-header-bg: rgba(6, 16, 34, 0.82);
+  --board-header-border: rgba(173, 205, 255, 0.12);
+  --board-sticky-bg: rgba(6, 15, 32, 0.7);
+  --board-pattern-column-bg: rgba(9, 18, 36, 0.78);
+  --board-pattern-card-bg: rgba(9, 17, 32, 0.92);
+  --board-pattern-card-hover-bg: rgba(14, 23, 41, 0.96);
+  --board-pattern-chip-bg: rgba(15, 28, 48, 0.78);
+  --board-pattern-border: rgba(182, 212, 255, 0.12);
+  --board-pattern-chip-border: rgba(182, 212, 255, 0.16);
+}
+
+body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"]) {
+  --board-theme-overlay: linear-gradient(180deg, rgba(8,10,16,0.34) 0%, rgba(8,10,16,0.12) 18%, rgba(8,10,16,0.38) 100%);
+}
+
+body[data-board-theme="space"],
+.board-theme-preview[data-theme-id="space"] {
+  --board-theme-workspace:
+    radial-gradient(circle at 18% 18%, rgba(93,102,255,0.16) 0%, transparent 24%),
+    radial-gradient(circle at 78% 10%, rgba(52,183,255,0.1) 0%, transparent 20%),
+    radial-gradient(circle at 55% 72%, rgba(255,119,203,0.05) 0%, transparent 24%),
+    linear-gradient(180deg, #010205 0%, #02050b 48%, #000000 100%),
+    url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20520%20520%22%3E%0A%20%20%3Cg%20fill%3D%22%23f5fbff%22%3E%0A%20%20%20%20%3Ccircle%20cx%3D%2252%22%20cy%3D%2264%22%20r%3D%221.5%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22110%22%20cy%3D%2294%22%20r%3D%221.2%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22160%22%20cy%3D%2240%22%20r%3D%221.8%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2286%22%20r%3D%221.4%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22318%22%20cy%3D%2254%22%20r%3D%221.3%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22404%22%20cy%3D%22102%22%20r%3D%221.8%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22470%22%20cy%3D%2258%22%20r%3D%221.1%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%2272%22%20cy%3D%22184%22%20r%3D%221.3%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22140%22%20cy%3D%22164%22%20r%3D%221.6%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22224%22%20cy%3D%22148%22%20r%3D%221.1%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22330%22%20cy%3D%22178%22%20r%3D%221.7%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22438%22%20cy%3D%22162%22%20r%3D%221.2%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22486%22%20cy%3D%22226%22%20r%3D%221.4%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%2298%22%20cy%3D%22274%22%20r%3D%221.8%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22186%22%20cy%3D%22238%22%20r%3D%221.3%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22260%22%20cy%3D%22282%22%20r%3D%221.5%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22342%22%20cy%3D%22250%22%20r%3D%221.1%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22418%22%20cy%3D%22296%22%20r%3D%221.7%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%2270%22%20cy%3D%22372%22%20r%3D%221.2%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22150%22%20cy%3D%22334%22%20r%3D%221.4%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22238%22%20cy%3D%22392%22%20r%3D%221.8%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22318%22%20cy%3D%22352%22%20r%3D%221.3%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22436%22%20cy%3D%22378%22%20r%3D%221.6%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22100%22%20cy%3D%22462%22%20r%3D%221.7%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22190%22%20cy%3D%22450%22%20r%3D%221.2%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22282%22%20cy%3D%22438%22%20r%3D%221.6%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22384%22%20cy%3D%22458%22%20r%3D%221.2%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22458%22%20cy%3D%22430%22%20r%3D%221.8%22%2F%3E%0A%20%20%3C%2Fg%3E%0A%20%20%3Cg%20stroke%3D%22%23d8eeff%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%20opacity%3D%220.75%22%3E%0A%20%20%20%20%3Cpath%20d%3D%22M204%2092v10M199%2097h10%22%2F%3E%0A%20%20%20%20%3Cpath%20d%3D%22M392%20208v12M386%20214h12%22%2F%3E%0A%20%20%20%20%3Cpath%20d%3D%22M142%20392v10M137%20397h10%22%2F%3E%0A%20%20%20%20%3Cpath%20d%3D%22M330%20430v12M324%20436h12%22%2F%3E%0A%20%20%3C%2Fg%3E%0A%20%20%3Cg%20opacity%3D%220.38%22%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22356%22%20cy%3D%22118%22%20r%3D%2242%22%20fill%3D%22%2382c7ff%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22356%22%20cy%3D%22118%22%20r%3D%2226%22%20fill%3D%22%23fff8ff%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22116%22%20cy%3D%22322%22%20r%3D%2230%22%20fill%3D%22%23ffc7ea%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22116%22%20cy%3D%22322%22%20r%3D%2218%22%20fill%3D%22%23fff8ff%22%2F%3E%0A%20%20%3C%2Fg%3E%0A%20%20%3Cpath%20d%3D%22M414%2062c28%2018%2046%2025%2054%2021-14%2018-29%2032-46%2040%22%20fill%3D%22none%22%20stroke%3D%22%23fff4c8%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20opacity%3D%220.55%22%2F%3E%0A%3C%2Fsvg%3E") center/520px 520px repeat;
+  --board-theme-overlay: linear-gradient(180deg, rgba(2,3,6,0.72) 0%, rgba(2,3,6,0.34) 18%, rgba(1,2,4,0.76) 100%);
+  --board-header-bg: rgba(4,6,11,0.82);
+  --board-header-border: rgba(144,179,255,0.08);
+  --board-sticky-bg: rgba(3,5,9,0.72);
+  --board-pattern-column-bg: rgba(6, 8, 13, 0.84);
+  --board-pattern-card-bg: rgba(7, 8, 12, 0.92);
+  --board-pattern-card-hover-bg: rgba(11, 13, 18, 0.96);
+  --board-pattern-chip-bg: rgba(12, 15, 21, 0.8);
+  --board-pattern-border: rgba(174, 197, 255, 0.09);
+  --board-pattern-chip-border: rgba(174, 197, 255, 0.12);
+}
+
+body[data-board-theme="aurora"],
+.board-theme-preview[data-theme-id="aurora"] {
+  --board-theme-workspace:
+    linear-gradient(112deg, transparent 10%, rgba(39,255,194,0.28) 30%, rgba(39,255,194,0.1) 43%, transparent 56%),
+    linear-gradient(72deg, transparent 18%, rgba(150,96,255,0.24) 34%, rgba(82,166,255,0.12) 44%, transparent 58%),
+    radial-gradient(circle at 16% 10%, rgba(94,255,214,0.18) 0%, transparent 24%),
+    radial-gradient(circle at 82% 12%, rgba(157,96,255,0.18) 0%, transparent 22%),
+    linear-gradient(180deg, #04131a 0%, #082532 44%, #030d14 100%);
+  --board-header-bg: rgba(4,24,30,0.8);
+  --board-header-border: rgba(129,255,216,0.1);
+  --board-sticky-bg: rgba(4,22,29,0.64);
+  --board-pattern-column-bg: rgba(7, 24, 28, 0.8);
+  --board-pattern-card-bg: rgba(9, 22, 28, 0.92);
+  --board-pattern-card-hover-bg: rgba(14, 28, 34, 0.96);
+  --board-pattern-chip-bg: rgba(15, 33, 39, 0.78);
+  --board-pattern-border: rgba(129, 255, 216, 0.12);
+  --board-pattern-chip-border: rgba(129, 255, 216, 0.16);
+}
+
+body[data-board-theme="blueprint"],
+.board-theme-preview[data-theme-id="blueprint"] {
+  --board-theme-workspace:
+    linear-gradient(rgba(145,240,255,0.14) 1px, transparent 1px) 0 0/28px 28px repeat,
+    linear-gradient(90deg, rgba(145,240,255,0.14) 1px, transparent 1px) 0 0/28px 28px repeat,
+    linear-gradient(rgba(145,240,255,0.06) 1px, transparent 1px) 0 0/112px 112px repeat,
+    linear-gradient(90deg, rgba(145,240,255,0.06) 1px, transparent 1px) 0 0/112px 112px repeat,
+    radial-gradient(circle at 18% 22%, rgba(116,236,255,0.16) 0%, transparent 28%),
+    radial-gradient(circle at 78% 10%, rgba(116,236,255,0.1) 0%, transparent 24%),
+    linear-gradient(180deg, #03111d 0%, #092135 100%);
+  --board-header-bg: rgba(4,17,29,0.8);
+  --board-header-border: rgba(145,240,255,0.12);
+  --board-sticky-bg: rgba(4,16,27,0.66);
+  --board-pattern-column-bg: rgba(7, 18, 31, 0.82);
+  --board-pattern-card-bg: rgba(8, 18, 29, 0.92);
+  --board-pattern-card-hover-bg: rgba(12, 24, 38, 0.96);
+  --board-pattern-chip-bg: rgba(14, 29, 44, 0.78);
+  --board-pattern-border: rgba(145, 240, 255, 0.12);
+  --board-pattern-chip-border: rgba(145, 240, 255, 0.16);
+}
+
+body:not(.light-theme):is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) {
+  --page-bg: color-mix(in srgb, var(--board-pattern-column-bg, rgba(18,24,34,0.82)) 22%, black 78%);
+  --page-bg-alt: color-mix(in srgb, var(--board-pattern-card-bg, rgba(17,22,31,0.92)) 34%, black 66%);
+  --surface-01: color-mix(in srgb, var(--board-pattern-column-bg, rgba(18,24,34,0.82)) 18%, transparent);
+  --surface-02: color-mix(in srgb, var(--board-pattern-column-bg, rgba(18,24,34,0.82)) 28%, transparent);
+  --surface-03: color-mix(in srgb, var(--board-pattern-column-bg, rgba(18,24,34,0.82)) 38%, transparent);
+  --surface-hover: color-mix(in srgb, var(--board-pattern-card-hover-bg, rgba(22,28,39,0.96)) 42%, transparent);
+  --surface-active: color-mix(in srgb, var(--board-pattern-card-hover-bg, rgba(22,28,39,0.96)) 54%, transparent);
+  --surface-raised: color-mix(in srgb, var(--board-pattern-card-bg, rgba(17,22,31,0.92)) 90%, black 10%);
+  --modal-surface-bg: color-mix(in srgb, var(--page-bg-alt) 70%, var(--board-pattern-card-bg, rgba(17,22,31,0.92)) 30%);
+  --surface-dropdown: color-mix(in srgb, var(--board-pattern-card-bg, rgba(17,22,31,0.92)) 94%, black 6%);
+  --overlay-bg: color-mix(in srgb, black 84%, var(--board-pattern-chip-border, rgba(255,255,255,0.16)) 16%);
+  --border-faint: color-mix(in srgb, var(--board-pattern-border, rgba(255,255,255,0.12)) 68%, transparent);
+  --border-xlight: color-mix(in srgb, var(--board-pattern-border, rgba(255,255,255,0.12)) 82%, transparent);
+  --border-light: color-mix(in srgb, var(--board-pattern-chip-border, rgba(255,255,255,0.16)) 88%, transparent);
+  --border-subtle: color-mix(in srgb, var(--board-pattern-chip-border, rgba(255,255,255,0.16)) 82%, white 18%);
+  --border-medium: color-mix(in srgb, var(--board-pattern-chip-border, rgba(255,255,255,0.16)) 74%, white 26%);
+  --border-heavy: color-mix(in srgb, var(--board-pattern-chip-border, rgba(255,255,255,0.16)) 66%, white 34%);
+  --border-xheavy: color-mix(in srgb, var(--board-pattern-chip-border, rgba(255,255,255,0.16)) 58%, white 42%);
+  --border-xfaint: color-mix(in srgb, var(--board-pattern-chip-border, rgba(255,255,255,0.16)) 74%, transparent);
+  --settings-shell-bg: linear-gradient(180deg, color-mix(in srgb, var(--page-bg-alt) 82%, transparent), color-mix(in srgb, var(--page-bg) 74%, transparent));
+  --brand-logo-bg: linear-gradient(180deg,
+    color-mix(in srgb, var(--board-pattern-chip-bg, rgba(24,31,44,0.78)) 72%, white 28%) 0%,
+    color-mix(in srgb, var(--board-pattern-chip-bg, rgba(24,31,44,0.78)) 88%, black 12%) 100%);
+  --brand-logo-glow: color-mix(in srgb, var(--board-pattern-chip-border, rgba(130,177,255,0.2)) 100%, transparent);
+  --dropdown-focus-border: color-mix(in srgb, var(--board-pattern-chip-border, rgba(255,255,255,0.16)) 82%, white 18%);
+  --dropdown-focus-ring: color-mix(in srgb, var(--board-pattern-border, rgba(255,255,255,0.12)) 74%, transparent);
+  --dropdown-trigger-open-bg: color-mix(in srgb, var(--board-pattern-column-bg, rgba(18,24,34,0.82)) 82%, black 18%);
+  --dropdown-option-hover-bg: color-mix(in srgb, var(--board-pattern-chip-bg, rgba(24,31,44,0.78)) 58%, transparent);
+  --dropdown-option-selected-bg: color-mix(in srgb, var(--board-pattern-chip-bg, rgba(24,31,44,0.78)) 74%, transparent);
+  --dropdown-option-selected-hover-bg: color-mix(in srgb, var(--board-pattern-card-hover-bg, rgba(22,28,39,0.96)) 78%, transparent);
+  --dropdown-option-selected-color: var(--text-primary);
+  --dropdown-option-check-color: color-mix(in srgb, var(--board-pattern-chip-border, rgba(255,255,255,0.16)) 72%, white 28%);
 }
 
 /* Toast notifications */
@@ -164,6 +394,10 @@ body.light-theme {
   --surface-hover: rgba(0,0,0,0.06);
   --surface-active: rgba(0,0,0,0.09);
   --surface-raised: rgba(255,255,255,0.95);
+  --modal-surface-bg: var(--page-bg-alt);
+  --modal-text-secondary: var(--text-secondary);
+  --modal-text-tertiary: var(--text-tertiary);
+  --modal-text-muted: var(--text-muted);
   --overlay-bg: rgba(0,0,0,0.4);
   --border-faint: rgba(0,0,0,0.06);
   --border-xlight: rgba(0,0,0,0.08);
@@ -174,13 +408,62 @@ body.light-theme {
   --border-xheavy: rgba(0,0,0,0.28);
   --border-xfaint: rgba(0,0,0,0.2);
   --gray-950: #f5f5f5;
+  --dropdown-focus-border: rgba(43,125,233,0.5);
+  --dropdown-focus-ring: rgba(43,125,233,0.15);
+  --dropdown-trigger-open-bg: #f0f5ff;
+  --dropdown-option-hover-bg: rgba(43,125,233,0.08);
+  --dropdown-option-selected-bg: rgba(43,125,233,0.12);
+  --dropdown-option-selected-hover-bg: rgba(43,125,233,0.16);
+  --dropdown-option-selected-color: #2B7DE9;
+  --dropdown-option-check-color: #2B7DE9;
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
   --shadow-md: 0 4px 24px rgba(0,0,0,0.1);
   --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
   --surface-dropdown: rgba(255,255,255,0.98);
+  --board-header-bg: rgba(255,255,255,0.84);
+  --board-header-border: rgba(0,0,0,0.08);
+  --board-sticky-bg: rgba(245,245,245,0.76);
+}
+
+body.light-theme:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) {
+  --page-bg: color-mix(in srgb, white 96%, var(--board-pattern-column-bg, rgba(18,24,34,0.82)) 4%);
+  --page-bg-alt: color-mix(in srgb, white 90%, var(--board-pattern-column-bg, rgba(18,24,34,0.82)) 10%);
+  --surface-01: color-mix(in srgb, var(--board-pattern-column-bg, rgba(18,24,34,0.82)) 6%, transparent);
+  --surface-02: color-mix(in srgb, var(--board-pattern-column-bg, rgba(18,24,34,0.82)) 10%, transparent);
+  --surface-03: color-mix(in srgb, var(--board-pattern-column-bg, rgba(18,24,34,0.82)) 14%, transparent);
+  --surface-hover: color-mix(in srgb, var(--board-pattern-chip-bg, rgba(24,31,44,0.78)) 12%, transparent);
+  --surface-active: color-mix(in srgb, var(--board-pattern-chip-bg, rgba(24,31,44,0.78)) 18%, transparent);
+  --surface-raised: color-mix(in srgb, white 92%, var(--board-pattern-card-bg, rgba(17,22,31,0.92)) 8%);
+  --modal-surface-bg: color-mix(in srgb, white 84%, var(--board-pattern-card-bg, rgba(17,22,31,0.92)) 16%);
+  --surface-dropdown: color-mix(in srgb, white 94%, var(--board-pattern-card-bg, rgba(17,22,31,0.92)) 6%);
+  --overlay-bg: color-mix(in srgb, rgba(0,0,0,0.38) 76%, var(--board-pattern-border, rgba(255,255,255,0.12)) 24%);
+  --border-faint: color-mix(in srgb, rgba(0,0,0,0.06) 74%, var(--board-pattern-border, rgba(255,255,255,0.12)) 26%);
+  --border-xlight: color-mix(in srgb, rgba(0,0,0,0.08) 68%, var(--board-pattern-border, rgba(255,255,255,0.12)) 32%);
+  --border-light: color-mix(in srgb, rgba(0,0,0,0.12) 62%, var(--board-pattern-chip-border, rgba(255,255,255,0.16)) 38%);
+  --border-subtle: color-mix(in srgb, rgba(0,0,0,0.15) 58%, var(--board-pattern-chip-border, rgba(255,255,255,0.16)) 42%);
+  --border-medium: color-mix(in srgb, rgba(0,0,0,0.18) 54%, var(--board-pattern-chip-border, rgba(255,255,255,0.16)) 46%);
+  --border-heavy: color-mix(in srgb, rgba(0,0,0,0.22) 52%, var(--board-pattern-chip-border, rgba(255,255,255,0.16)) 48%);
+  --border-xheavy: color-mix(in srgb, rgba(0,0,0,0.28) 50%, var(--board-pattern-chip-border, rgba(255,255,255,0.16)) 50%);
+  --border-xfaint: color-mix(in srgb, rgba(0,0,0,0.2) 58%, var(--board-pattern-chip-border, rgba(255,255,255,0.16)) 42%);
+  --gray-950: color-mix(in srgb, white 92%, var(--board-pattern-column-bg, rgba(18,24,34,0.82)) 8%);
+  --settings-shell-bg: linear-gradient(180deg,
+    color-mix(in srgb, white 84%, var(--board-pattern-card-bg, rgba(17,22,31,0.92)) 16%),
+    color-mix(in srgb, white 93%, var(--board-pattern-column-bg, rgba(18,24,34,0.82)) 7%));
+  --brand-logo-bg: linear-gradient(180deg,
+    color-mix(in srgb, white 70%, var(--board-pattern-chip-bg, rgba(24,31,44,0.78)) 30%) 0%,
+    color-mix(in srgb, white 50%, var(--board-pattern-chip-bg, rgba(24,31,44,0.78)) 50%) 100%);
+  --brand-logo-glow: color-mix(in srgb, var(--board-pattern-chip-border, rgba(130,177,255,0.2)) 56%, transparent);
+  --dropdown-focus-border: color-mix(in srgb, rgba(0,0,0,0.22) 44%, var(--board-pattern-chip-border, rgba(255,255,255,0.16)) 56%);
+  --dropdown-focus-ring: color-mix(in srgb, var(--board-pattern-border, rgba(255,255,255,0.12)) 42%, transparent);
+  --dropdown-trigger-open-bg: color-mix(in srgb, white 88%, var(--board-pattern-column-bg, rgba(18,24,34,0.82)) 12%);
+  --dropdown-option-hover-bg: color-mix(in srgb, white 82%, var(--board-pattern-chip-bg, rgba(24,31,44,0.78)) 18%);
+  --dropdown-option-selected-bg: color-mix(in srgb, white 74%, var(--board-pattern-chip-bg, rgba(24,31,44,0.78)) 26%);
+  --dropdown-option-selected-hover-bg: color-mix(in srgb, white 68%, var(--board-pattern-card-hover-bg, rgba(22,28,39,0.96)) 32%);
+  --dropdown-option-selected-color: color-mix(in srgb, black 70%, var(--board-pattern-chip-bg, rgba(24,31,44,0.78)) 30%);
+  --dropdown-option-check-color: color-mix(in srgb, black 70%, var(--board-pattern-chip-bg, rgba(24,31,44,0.78)) 30%);
 }
 /* Header — clean white like Jira */
-body.light-theme .header { background: #fff; border-bottom: 1px solid rgba(0,0,0,0.08); }
+body.light-theme .header { background: var(--board-header-bg); border-bottom: 1px solid var(--board-header-border); }
 
 /* Buttons — outline style matching filter buttons */
 body.light-theme .btn { background: #fff; border: 1px solid rgba(0,0,0,0.15); color: #44546f; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
@@ -193,10 +476,10 @@ body.light-theme .btn-icon:hover { background: #f5f8ff; border-color: rgba(0,0,0
 body.light-theme .lwts-modal-btn-primary { background: linear-gradient(180deg, #579DFF 0%, #2B7DE9 100%); border: 1px solid #2B7DE9; color: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.2); }
 body.light-theme .lwts-modal-btn-primary:hover:not(:disabled) { background: linear-gradient(180deg, #4C93F5 0%, #1C6FDB 100%); border-color: #1C6FDB; box-shadow: 0 2px 4px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.15); }
 
-/* Cards — pure white with subtle shadow */
-body.light-theme .card { background: #fff; border-color: rgba(0,0,0,0.08); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-body.light-theme .card:hover { background: #fff; border-color: rgba(0,0,0,0.22); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
-body.light-theme .kanban-card { background: #fff; border-color: rgba(0,0,0,0.08); }
+/* Cards — lightly translucent in light mode */
+body.light-theme .card { background: rgba(255,255,255,var(--board-pattern-card-light-alpha, 0.96)); border-color: rgba(0,0,0,0.08); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+body.light-theme .card:hover { background: rgba(255,255,255,var(--board-pattern-card-light-hover-alpha, 0.98)); border-color: rgba(0,0,0,0.22); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+body.light-theme .kanban-card { background: rgba(255,255,255,var(--board-pattern-card-light-alpha, 0.96)); border-color: rgba(0,0,0,0.08); }
 
 /* Columns */
 body.light-theme .column { background: rgba(0,0,0,0.02); }
@@ -228,10 +511,10 @@ body.light-theme .settings-input { background: #fff; color: #1a1a1a; border-colo
 body.light-theme .settings-role-select { background: #fff; color: #1a1a1a; border-color: rgba(0,0,0,0.2); }
 
 /* Dropdown option hover/selected — blue tint (Task 15) */
-body.light-theme .fn-dropdown-option:hover { background: rgba(43,125,233,0.08); }
-body.light-theme .fn-dropdown-option.selected { background: rgba(43,125,233,0.12); color: #2B7DE9; }
-body.light-theme .fn-dropdown-option.selected:hover { background: rgba(43,125,233,0.16); color: #2B7DE9; }
-body.light-theme .fn-dropdown-option.selected .fn-dropdown-check { stroke: #2B7DE9; }
+body.light-theme .fn-dropdown-option:hover { background: var(--dropdown-option-hover-bg); }
+body.light-theme .fn-dropdown-option.selected { background: var(--dropdown-option-selected-bg); color: var(--dropdown-option-selected-color); }
+body.light-theme .fn-dropdown-option.selected:hover { background: var(--dropdown-option-selected-hover-bg); color: var(--dropdown-option-selected-color); }
+body.light-theme .fn-dropdown-option.selected .fn-dropdown-check { stroke: var(--dropdown-option-check-color); }
 body.light-theme .header-board-option:hover { background: rgba(43,125,233,0.08); }
 body.light-theme .header-board-option.active { background: rgba(43,125,233,0.1); color: #2B7DE9; }
 body.light-theme .filter-checkbox-item:hover { background: rgba(43,125,233,0.08); }

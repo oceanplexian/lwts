@@ -9,6 +9,7 @@ import './editor.js';
 import './boardstream.js';
 import './presence.js';
 import './kanban.js';
+import './boardthemes.js';
 import './settings.js';
 import './listview.js';
 import './features.js';
