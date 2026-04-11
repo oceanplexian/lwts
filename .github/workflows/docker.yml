@@ -166,6 +166,16 @@ jobs:
           echo "list=$TAGS" >> $GITHUB_OUTPUT
           echo "version=$SHA_TAG" >> $GITHUB_OUTPUT
 
+      - name: Notify Keel to deploy
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        run: |
+          curl -sf --max-time 10 \
+            http://keel.keel.svc.cluster.local:9300/v1/webhooks/native \
+            -H 'Content-Type: application/json' \
+            -d '{"name":"ghcr.io/oceanplexian/lwts","tag":"latest"}' \
+            || true
+
       - name: Comment on commit
         uses: peter-evans/commit-comment@v3
         with:
