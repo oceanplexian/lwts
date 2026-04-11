@@ -475,10 +475,7 @@ body.light-theme #app-board::after {
   border-radius: 50%;
   flex-shrink: 0;
 }
-.column-dot.backlog    { background: var(--text-dimmed); }
-.column-dot.todo       { background: var(--accent-blue); }
-.column-dot.in-progress { background: var(--accent-orange); }
-.column-dot.done       { background: var(--accent-green); }
+/* Column dot colors are set inline from board column config */
 
 .column-count {
   font-size: 0.75rem;

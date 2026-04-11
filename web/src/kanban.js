@@ -1,11 +1,13 @@
 // fn2 Kanban — Board Logic
 
 const COLUMNS = [
-  { id: 'backlog',     label: 'Backlog' },
-  { id: 'todo',        label: 'To Do' },
-  { id: 'in-progress', label: 'In Progress' },
-  { id: 'done',        label: 'Done' },
+  { id: 'backlog',     label: 'Backlog',     color: '#8c8c8c', type: 'start' },
+  { id: 'todo',        label: 'To Do',       color: '#579DFF', type: 'active' },
+  { id: 'in-progress', label: 'In Progress', color: '#fb8c00', type: 'active' },
+  { id: 'done',        label: 'Done',        color: '#4ade80', type: 'done' },
 ];
+const _COL_PALETTE = ['#8c8c8c','#579DFF','#fb8c00','#4ade80','#f44336','#9f8fef','#6cc3e0','#f5cd47'];
+function _colColor(col, idx) { return col.color || _COL_PALETTE[idx % _COL_PALETTE.length]; }
 
 const TAG_LABELS = { blue: 'feature', green: 'fix', orange: 'infra', red: 'bug', epic: 'epic' };
 const TAG_COLORS = {
@@ -92,7 +94,7 @@ const PRIORITY_ICONS = {
 };
 
 // ── State ──
-let state = { backlog: [], todo: [], 'in-progress': [], done: [], cleared: [] };
+let state = { cleared: [] };
 let nextId = Date.now();
 let currentBoardId = localStorage.getItem('lwts-board-id') || null;
 let lastConcreteBoardId = currentBoardId && currentBoardId !== 'all' ? currentBoardId : null;
@@ -482,14 +484,14 @@ function render() {
 }
 
 function _renderStandardBoard(frag) {
-  COLUMNS.forEach(col => {
+  COLUMNS.forEach((col, ci) => {
     const cards = state[col.id] || [];
     const colEl = document.createElement('div');
     colEl.className = 'column';
     colEl.innerHTML = `
       <div class="column-header">
         <span class="column-label">
-          <span class="column-dot ${col.id}"></span>
+          <span class="column-dot" data-col="${col.id}" style="background:${_colColor(col, ci)}"></span>
           ${col.label}
         </span>
         <span class="column-count">${cards.length}</span>
@@ -524,13 +526,13 @@ function _renderEpicBoard(frag, epics) {
   // Sticky column headers
   const headerRow = document.createElement('div');
   headerRow.className = 'board-column-headers';
-  COLUMNS.forEach(col => {
+  COLUMNS.forEach((col, ci) => {
     const total = (state[col.id] || []).length;
     const hdr = document.createElement('div');
     hdr.className = 'column-header';
     hdr.innerHTML = `
       <span class="column-label">
-        <span class="column-dot ${col.id}"></span>
+        <span class="column-dot" data-col="${col.id}" style="background:${_colColor(col, ci)}"></span>
         ${col.label}
       </span>
       <span class="column-count">${total}</span>
@@ -2181,14 +2183,16 @@ function autoResizeTextarea(el) {
 }
 
 function clearCompleted() {
-  const doneCards = state.done.slice();
+  const doneCol = COLUMNS.find(c => c.type === 'done');
+  const doneId = doneCol ? doneCol.id : 'done';
+  const doneCards = (state[doneId] || []).slice();
   if (doneCards.length === 0) return;
 
   // Collect DOM elements to animate (board cards + list rows)
   const isList = typeof window.currentView !== 'undefined' && window.currentView === 'list';
   const cardEls = isList
-    ? Array.from(document.querySelectorAll('.list-row[data-col="done"]'))
-    : Array.from(document.querySelectorAll('.column-body[data-col="done"] .card'));
+    ? Array.from(document.querySelectorAll('.list-row[data-col="' + doneId + '"]'))
+    : Array.from(document.querySelectorAll('.column-body[data-col="' + doneId + '"] .card'));
 
   if (cardEls.length === 0) {
     // No visible elements — fall through to instant clear
@@ -2225,7 +2229,9 @@ function clearCompleted() {
 }
 
 function _finishClear(doneCards) {
-  state.done = [];
+  const doneCol = COLUMNS.find(c => c.type === 'done');
+  const doneId = doneCol ? doneCol.id : 'done';
+  state[doneId] = [];
   if (!state.cleared) state.cleared = [];
   state.cleared.push(...doneCards);
   save(); window.render();
@@ -2452,7 +2458,7 @@ function filterCardsInline(query) {
     if (!countEl) return;
     const dot = hdr.querySelector('.column-dot');
     if (!dot) return;
-    const colId = [...dot.classList].find(c => c !== 'column-dot') || '';
+    const colId = dot.dataset.col || '';
     const allInCol = document.querySelectorAll('.column-body[data-col="' + colId + '"] .card');
     const visibleInCol = document.querySelectorAll('.column-body[data-col="' + colId + '"] .card:not(.search-hidden)');
     countEl.textContent = query ? visibleInCol.length + '/' + allInCol.length : allInCol.length;

@@ -25,7 +25,10 @@ function _findCardById(id) {
 }
 
 function _isCardDone(card) {
-  return card && card.column_id === 'done';
+  if (!card) return false;
+  const cols = (typeof window.COLUMNS !== 'undefined') ? window.COLUMNS : [];
+  const col = cols.find(c => c.id === card.column_id || c.id === card._column);
+  return col ? col.type === 'done' : card.column_id === 'done';
 }
 
 function _saveCardLinks(card, field, ids) {

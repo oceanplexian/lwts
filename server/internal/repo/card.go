@@ -516,3 +516,23 @@ func (r *CardRepository) bulkMoveOnce(ctx context.Context, ids []string, toColum
 	}
 	return result, nil
 }
+
+// MigrateColumn moves all cards in a board from one column to another, appending them at the end.
+func (r *CardRepository) MigrateColumn(ctx context.Context, boardID, fromColumn, toColumn string) (int, error) {
+	// Get max position in target column
+	row := r.ds.QueryRow(ctx,
+		`SELECT COALESCE(MAX(position), -1) FROM cards WHERE board_id = $1 AND column_id = $2`,
+		boardID, toColumn)
+	var maxPos int
+	if err := row.Scan(&maxPos); err != nil {
+		return 0, err
+	}
+
+	// Use a subquery to assign sequential positions
+	now := time.Now().UTC()
+	n, err := r.ds.Exec(ctx,
+		`UPDATE cards SET column_id = $1, position = $2 + position, version = version + 1, updated_at = $3
+		 WHERE board_id = $4 AND column_id = $5`,
+		toColumn, maxPos+1, now, boardID, fromColumn)
+	return int(n), err
+}

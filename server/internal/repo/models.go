@@ -1,6 +1,47 @@
 package repo
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
+
+// BoardColumn represents a single column in a board's columns JSON array.
+type BoardColumn struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Color string `json:"color,omitempty"`
+	Type  string `json:"type,omitempty"` // "start", "active", or "done"
+}
+
+// ParseColumns parses the board's columns JSON string into a slice.
+func ParseColumns(columnsJSON string) ([]BoardColumn, error) {
+	var cols []BoardColumn
+	if err := json.Unmarshal([]byte(columnsJSON), &cols); err != nil {
+		return nil, err
+	}
+	return cols, nil
+}
+
+// ColumnTypeMap builds a map from column ID to its type ("start", "active", "done").
+// Columns without an explicit type get inferred: first = "start", last = "done", others = "active".
+func ColumnTypeMap(cols []BoardColumn) map[string]string {
+	m := make(map[string]string, len(cols))
+	for i, c := range cols {
+		t := c.Type
+		if t == "" {
+			switch {
+			case i == 0:
+				t = "start"
+			case i == len(cols)-1:
+				t = "done"
+			default:
+				t = "active"
+			}
+		}
+		m[c.ID] = t
+	}
+	return m
+}
 
 type User struct {
 	ID           string    `json:"id"`

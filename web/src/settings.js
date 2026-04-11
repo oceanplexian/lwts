@@ -1517,18 +1517,31 @@ async function loadBoardsSettings() {
           </div>
         </div>`;
 
-      // Columns group with editable labels
+      // Columns group with editable labels, colors, drag reorder, add/remove
+      const COL_PALETTE = ['#8c8c8c','#579DFF','#fb8c00','#4ade80','#f44336','#9f8fef','#6cc3e0','#f5cd47'];
       configHTML += `
         <div class="settings-group">
-          <div class="settings-group-title">Columns</div>`;
+          <div class="settings-group-title">Columns</div>
+          <div class="settings-columns-list" data-board-id="${board.id}">`;
       columns.forEach((col, ci) => {
+        const count = cardCounts[col.id] || 0;
+        const color = col.color || COL_PALETTE[ci % COL_PALETTE.length];
+        const isFirst = ci === 0;
+        const isLast = ci === columns.length - 1;
+        const typeLabel = isFirst ? 'Start' : isLast ? 'Done' : '';
         configHTML += `
-          <div class="settings-row">
-            <div class="settings-row-label"><div class="settings-row-title"><input class="settings-input board-column-label-input" data-board-id="${board.id}" data-col-index="${ci}" value="${_escHtml(col.label)}" style="width:160px;height:32px;font-size:0.92rem;font-weight:500" /></div>${ci === 0 ? '<div class="settings-row-desc">Starting column</div>' : ''}</div>
-            <div class="settings-row-control" style="font-size:0.78rem;color:var(--text-dimmed)">${cardCounts[col.id] || 0} card${(cardCounts[col.id] || 0) !== 1 ? 's' : ''}</div>
-          </div>`;
+            <div class="settings-column-row" draggable="true" data-col-index="${ci}" data-col-id="${_escHtml(col.id)}">
+              <span class="settings-column-drag" title="Drag to reorder">&#x2261;</span>
+              <input class="settings-input board-column-label-input" data-board-id="${board.id}" data-col-index="${ci}" value="${_escHtml(col.label)}" style="width:140px;height:30px;font-size:0.88rem;font-weight:500" />
+              <button class="settings-column-color-btn" data-col-index="${ci}" style="background:${color}" title="Change color"></button>
+              <span class="settings-column-count">${count} card${count !== 1 ? 's' : ''}${typeLabel ? ' · ' + typeLabel : ''}</span>
+              ${columns.length > 2 ? '<button class="settings-column-remove-btn" data-col-index="' + ci + '" data-col-id="' + _escHtml(col.id) + '" data-card-count="' + count + '" title="Remove column">&times;</button>' : ''}
+            </div>`;
       });
-      configHTML += '</div>';
+      configHTML += `
+          </div>
+          <button class="btn settings-column-add-btn" data-board-id="${board.id}" style="margin-top:10px;font-size:0.82rem;padding:4px 14px">+ Add column</button>
+        </div>`;
 
       // Webhooks group
       const webhooks = settings.webhooks || {};
@@ -1581,6 +1594,40 @@ function _bindBoardSettingsInputs() {
     });
   });
 
+  // Column color buttons
+  document.querySelectorAll('.settings-column-color-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const row = btn.closest('.settings-column-row');
+      const list = btn.closest('.settings-columns-list');
+      const boardId = list.dataset.boardId;
+      _showColumnColorPicker(btn, boardId, parseInt(row.dataset.colIndex));
+    });
+  });
+
+  // Column remove buttons
+  document.querySelectorAll('.settings-column-remove-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const list = btn.closest('.settings-columns-list');
+      const boardId = list.dataset.boardId;
+      const colId = btn.dataset.colId;
+      const cardCount = parseInt(btn.dataset.cardCount);
+      _removeColumn(boardId, colId, cardCount);
+    });
+  });
+
+  // Column add buttons
+  document.querySelectorAll('.settings-column-add-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _addColumn(btn.dataset.boardId);
+    });
+  });
+
+  // Column drag reorder
+  document.querySelectorAll('.settings-columns-list').forEach(list => {
+    _bindColumnDragReorder(list);
+  });
+
   // Webhook inputs
   document.querySelectorAll('.board-webhook-input').forEach(el => {
     el.addEventListener('input', () => {
@@ -1593,30 +1640,176 @@ function _bindBoardSettingsInputs() {
   });
 }
 
-function _saveBoardColumns(boardId) {
-  const inputs = document.querySelectorAll(`.board-column-label-input[data-board-id="${boardId}"]`);
-  // Find the board in boardList to get current column IDs
+function _saveBoardColumns(boardId, opts) {
   const board = window.boardList.find(b => b.id === boardId);
   if (!board) return;
-  const columns = JSON.parse(board.columns || '[]');
+  let columns = JSON.parse(board.columns || '[]');
+
+  // Sync labels from DOM inputs if they exist
+  const inputs = document.querySelectorAll(`.board-column-label-input[data-board-id="${boardId}"]`);
   inputs.forEach(input => {
     const idx = parseInt(input.dataset.colIndex);
     if (columns[idx]) {
       columns[idx].label = input.value.trim() || columns[idx].label;
     }
   });
+
+  // Ensure types are assigned: first = start, last = done, rest = active
+  columns.forEach((col, i) => {
+    if (i === 0) col.type = 'start';
+    else if (i === columns.length - 1) col.type = 'done';
+    else col.type = 'active';
+  });
+
   const columnsJSON = JSON.stringify(columns);
-  // Update local boardList
   board.columns = columnsJSON;
-  window.API.updateBoard(boardId, { columns: columnsJSON }).then(() => {
-    // If this is the current board, update the COLUMNS array and re-render
+  const payload = { columns: columnsJSON };
+  if (opts && opts.migrate_to) payload.migrate_to = opts.migrate_to;
+
+  window.API.updateBoard(boardId, payload).then(() => {
     if (boardId === window.currentBoardId && typeof window.COLUMNS !== 'undefined') {
       window.COLUMNS.length = 0;
       columns.forEach(c => window.COLUMNS.push(c));
       if (typeof window.render === 'function') window.render();
     }
     window.Toast.success('Columns updated');
-  }).catch(() => window.Toast.error('Failed to update columns'));
+  }).catch((err) => {
+    // Handle column_has_cards conflict (409)
+    const data = err && err.data;
+    if (data && data.column_id) {
+      window.Toast.error('Column "' + data.column_id + '" still has ' + data.card_count + ' cards');
+    } else {
+      window.Toast.error(data && data.error ? data.error : 'Failed to update columns');
+    }
+  });
+}
+
+function _slugifyColumnId(label) {
+  let slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  if (!slug) slug = 'column';
+  return slug;
+}
+
+function _uniqueColumnId(slug, columns) {
+  const ids = new Set(columns.map(c => c.id));
+  if (!ids.has(slug)) return slug;
+  let n = 2;
+  while (ids.has(slug + '-' + n)) n++;
+  return slug + '-' + n;
+}
+
+function _addColumn(boardId) {
+  const board = window.boardList.find(b => b.id === boardId);
+  if (!board) return;
+  const columns = JSON.parse(board.columns || '[]');
+  const COL_PALETTE = ['#8c8c8c','#579DFF','#fb8c00','#4ade80','#f44336','#9f8fef','#6cc3e0','#f5cd47'];
+  const label = 'New Column';
+  const id = _uniqueColumnId(_slugifyColumnId(label), columns);
+  columns.push({ id, label, color: COL_PALETTE[columns.length % COL_PALETTE.length], type: 'active' });
+  board.columns = JSON.stringify(columns);
+  _saveBoardColumns(boardId);
+  // Re-render settings boards section to reflect new column
+  loadBoardsSettings();
+}
+
+function _removeColumn(boardId, colId, cardCount) {
+  const board = window.boardList.find(b => b.id === boardId);
+  if (!board) return;
+  const columns = JSON.parse(board.columns || '[]');
+  if (columns.length <= 2) {
+    window.Toast.error('Board must have at least 2 columns');
+    return;
+  }
+
+  const doRemove = (migrateTo) => {
+    const newCols = columns.filter(c => c.id !== colId);
+    board.columns = JSON.stringify(newCols);
+    _saveBoardColumns(boardId, migrateTo ? { migrate_to: migrateTo } : undefined);
+    loadBoardsSettings();
+  };
+
+  if (cardCount > 0) {
+    // Show a simple confirmation with migration target
+    const otherCols = columns.filter(c => c.id !== colId);
+    const target = otherCols[0]; // migrate to first available column
+    if (confirm('Column has ' + cardCount + ' card(s). Move them to "' + target.label + '" and remove?')) {
+      doRemove(target.id);
+    }
+  } else {
+    doRemove(null);
+  }
+}
+
+function _showColumnColorPicker(btn, boardId, colIndex) {
+  // Remove any existing picker
+  document.querySelectorAll('.settings-color-picker').forEach(p => p.remove());
+
+  const COL_PALETTE = ['#8c8c8c','#579DFF','#fb8c00','#4ade80','#f44336','#9f8fef','#6cc3e0','#f5cd47'];
+  const picker = document.createElement('div');
+  picker.className = 'settings-color-picker';
+  picker.style.cssText = 'position:absolute;display:flex;gap:6px;padding:8px;background:var(--surface-dropdown,#222);border:1px solid var(--border-light);border-radius:8px;box-shadow:var(--shadow-md);z-index:200';
+
+  COL_PALETTE.forEach(color => {
+    const swatch = document.createElement('button');
+    swatch.style.cssText = 'width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;background:' + color;
+    swatch.addEventListener('click', () => {
+      btn.style.background = color;
+      picker.remove();
+      const board = window.boardList.find(b => b.id === boardId);
+      if (!board) return;
+      const columns = JSON.parse(board.columns || '[]');
+      if (columns[colIndex]) {
+        columns[colIndex].color = color;
+        board.columns = JSON.stringify(columns);
+        _saveBoardColumns(boardId);
+      }
+    });
+    picker.appendChild(swatch);
+  });
+
+  btn.style.position = 'relative';
+  btn.parentElement.style.position = 'relative';
+  btn.parentElement.appendChild(picker);
+  picker.style.top = btn.offsetTop + btn.offsetHeight + 4 + 'px';
+  picker.style.left = btn.offsetLeft + 'px';
+
+  // Close on outside click
+  const close = (e) => { if (!picker.contains(e.target) && e.target !== btn) { picker.remove(); document.removeEventListener('click', close); } };
+  setTimeout(() => document.addEventListener('click', close), 0);
+}
+
+function _bindColumnDragReorder(list) {
+  let dragIdx = null;
+  list.querySelectorAll('.settings-column-row').forEach(row => {
+    row.addEventListener('dragstart', (e) => {
+      dragIdx = parseInt(row.dataset.colIndex);
+      row.style.opacity = '0.4';
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    row.addEventListener('dragend', () => { row.style.opacity = ''; });
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      row.style.borderTop = '2px solid var(--accent-blue)';
+    });
+    row.addEventListener('dragleave', () => { row.style.borderTop = ''; });
+    row.addEventListener('drop', (e) => {
+      e.preventDefault();
+      row.style.borderTop = '';
+      const dropIdx = parseInt(row.dataset.colIndex);
+      if (dragIdx === null || dragIdx === dropIdx) return;
+      const boardId = list.dataset.boardId;
+      const board = window.boardList.find(b => b.id === boardId);
+      if (!board) return;
+      const columns = JSON.parse(board.columns || '[]');
+      const [moved] = columns.splice(dragIdx, 1);
+      columns.splice(dropIdx, 0, moved);
+      board.columns = JSON.stringify(columns);
+      _saveBoardColumns(boardId);
+      loadBoardsSettings();
+      dragIdx = null;
+    });
+  });
 }
 
 function _saveBoardWebhooks(boardId) {

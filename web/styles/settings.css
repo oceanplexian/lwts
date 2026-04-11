@@ -202,6 +202,61 @@ body.light-theme .settings-page {
   box-shadow: 0 0 0 2px rgba(130,177,255,0.15);
 }
 
+/* Column management rows */
+.settings-columns-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.settings-column-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border-faint);
+  border-radius: 6px;
+  transition: background 0.12s;
+}
+.settings-column-row:last-child { border-bottom: none; }
+.settings-column-row:hover { background: var(--surface-01); }
+.settings-column-row[draggable="true"] { cursor: grab; }
+.settings-column-drag {
+  font-size: 1.2rem;
+  color: var(--text-dimmed);
+  cursor: grab;
+  user-select: none;
+  line-height: 1;
+}
+.settings-column-color-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--border-light);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.15s;
+}
+.settings-column-color-btn:hover { border-color: var(--text-secondary); }
+.settings-column-count {
+  font-size: 0.78rem;
+  color: var(--text-dimmed);
+  flex: 1;
+  text-align: right;
+  white-space: nowrap;
+}
+.settings-column-remove-btn {
+  background: none;
+  border: none;
+  color: var(--text-dimmed);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 0.12s, background 0.12s;
+}
+.settings-column-remove-btn:hover { color: var(--accent-red, #f44336); background: rgba(244,67,54,0.1); }
+
 .settings-range-group {
   display: flex;
   align-items: center;

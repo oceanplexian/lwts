@@ -215,10 +215,7 @@ body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"
   border-radius: 50%;
   flex-shrink: 0;
 }
-.list-status-dot.backlog     { background: var(--text-dimmed); }
-.list-status-dot.todo        { background: var(--accent-blue); }
-.list-status-dot.in-progress { background: var(--accent-orange); }
-.list-status-dot.done        { background: var(--accent-green); }
+/* Status dot colors are set inline from board column config */
 
 /* ── Cleared / Archived Rows ── */
 .list-row.cleared {

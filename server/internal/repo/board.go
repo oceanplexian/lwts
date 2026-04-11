@@ -21,7 +21,7 @@ func NewBoardRepository(ds db.Datasource) *BoardRepository {
 func (r *BoardRepository) Create(ctx context.Context, name, projectKey, ownerID string) (Board, error) {
 	id := uuid.New().String()
 	now := time.Now().UTC()
-	defaultCols := `[{"id":"backlog","label":"Backlog"},{"id":"todo","label":"To Do"},{"id":"in-progress","label":"In Progress"},{"id":"done","label":"Done"}]`
+	defaultCols := `[{"id":"backlog","label":"Backlog","color":"#8c8c8c","type":"start"},{"id":"todo","label":"To Do","color":"#579DFF","type":"active"},{"id":"in-progress","label":"In Progress","color":"#fb8c00","type":"active"},{"id":"done","label":"Done","color":"#4ade80","type":"done"}]`
 	defaultSettings := `{}`
 
 	_, err := r.ds.Exec(ctx,
