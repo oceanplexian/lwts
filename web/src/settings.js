@@ -1645,14 +1645,16 @@ function _saveBoardColumns(boardId, opts) {
   if (!board) return;
   let columns = JSON.parse(board.columns || '[]');
 
-  // Sync labels from DOM inputs if they exist
-  const inputs = document.querySelectorAll(`.board-column-label-input[data-board-id="${boardId}"]`);
-  inputs.forEach(input => {
-    const idx = parseInt(input.dataset.colIndex);
-    if (columns[idx]) {
-      columns[idx].label = input.value.trim() || columns[idx].label;
-    }
-  });
+  // Sync labels from DOM inputs if they exist (skip after reorder since indices are stale)
+  if (!(opts && opts.skipLabelSync)) {
+    const inputs = document.querySelectorAll(`.board-column-label-input[data-board-id="${boardId}"]`);
+    inputs.forEach(input => {
+      const idx = parseInt(input.dataset.colIndex);
+      if (columns[idx]) {
+        columns[idx].label = input.value.trim() || columns[idx].label;
+      }
+    });
+  }
 
   // Ensure types are assigned: first = start, last = done, rest = active
   columns.forEach((col, i) => {
@@ -1872,12 +1874,12 @@ function _bindColumnDragReorder(list) {
     row.addEventListener('dragover', (e) => {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
-      row.style.borderTop = '2px solid var(--accent-blue)';
+      row.style.boxShadow = 'inset 0 2px 0 0 rgba(100,100,100,0.6)';
     });
-    row.addEventListener('dragleave', () => { row.style.borderTop = ''; });
+    row.addEventListener('dragleave', () => { row.style.boxShadow = ''; });
     row.addEventListener('drop', (e) => {
       e.preventDefault();
-      row.style.borderTop = '';
+      row.style.boxShadow = '';
       const dropIdx = parseInt(row.dataset.colIndex);
       if (dragIdx === null || dragIdx === dropIdx) return;
       const boardId = list.dataset.boardId;
@@ -1887,8 +1889,8 @@ function _bindColumnDragReorder(list) {
       const [moved] = columns.splice(dragIdx, 1);
       columns.splice(dropIdx, 0, moved);
       board.columns = JSON.stringify(columns);
-      _saveBoardColumns(boardId, { silent: true });
       _rerenderColumnList(boardId);
+      _saveBoardColumns(boardId, { silent: true, skipLabelSync: true });
     });
   });
 }
