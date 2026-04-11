@@ -1530,8 +1530,8 @@ async function loadBoardsSettings() {
         const isLast = ci === columns.length - 1;
         const typeLabel = isFirst ? 'Start' : isLast ? 'Done' : '';
         configHTML += `
-            <div class="settings-column-row" draggable="true" data-col-index="${ci}" data-col-id="${_escHtml(col.id)}">
-              <span class="settings-column-drag" title="Drag to reorder">&#x2261;</span>
+            <div class="settings-column-row" data-col-index="${ci}" data-col-id="${_escHtml(col.id)}">
+              <span class="settings-column-drag" draggable="true" title="Drag to reorder">&#x2261;</span>
               <input class="settings-input board-column-label-input" data-board-id="${board.id}" data-col-index="${ci}" value="${_escHtml(col.label)}" style="width:140px;height:30px;font-size:0.88rem;font-weight:500" />
               <button class="settings-column-color-btn" data-col-index="${ci}" style="background:${color}" title="Change color"></button>
               <span class="settings-column-count">${count} card${count !== 1 ? 's' : ''}${typeLabel ? ' · ' + typeLabel : ''}</span>
@@ -1589,7 +1589,7 @@ function _bindBoardSettingsInputs() {
       const boardId = el.dataset.boardId;
       clearTimeout(_boardSettingsDebounce['col-' + boardId]);
       _boardSettingsDebounce['col-' + boardId] = setTimeout(() => {
-        _saveBoardColumns(boardId);
+        _saveBoardColumns(boardId, { silent: true });
       }, 600);
     });
   });
@@ -1665,6 +1665,7 @@ function _saveBoardColumns(boardId, opts) {
   board.columns = columnsJSON;
   const payload = { columns: columnsJSON };
   if (opts && opts.migrate_to) payload.migrate_to = opts.migrate_to;
+  const silent = opts && opts.silent;
 
   window.API.updateBoard(boardId, payload).then(() => {
     if (boardId === window.currentBoardId && typeof window.COLUMNS !== 'undefined') {
@@ -1672,9 +1673,8 @@ function _saveBoardColumns(boardId, opts) {
       columns.forEach(c => window.COLUMNS.push(c));
       if (typeof window.render === 'function') window.render();
     }
-    window.Toast.success('Columns updated');
+    if (!silent) window.Toast.success('Columns updated');
   }).catch((err) => {
-    // Handle column_has_cards conflict (409)
     const data = err && err.data;
     if (data && data.column_id) {
       window.Toast.error('Column "' + data.column_id + '" still has ' + data.card_count + ' cards');
@@ -1682,6 +1682,68 @@ function _saveBoardColumns(boardId, opts) {
       window.Toast.error(data && data.error ? data.error : 'Failed to update columns');
     }
   });
+}
+
+// Re-render just the column rows inside an already-open config panel
+function _rerenderColumnList(boardId) {
+  const list = document.querySelector(`.settings-columns-list[data-board-id="${boardId}"]`);
+  if (!list) return;
+  const board = window.boardList.find(b => b.id === boardId);
+  if (!board) return;
+  const columns = JSON.parse(board.columns || '[]');
+
+  // Fetch card counts from the existing rendered counts (avoid extra API call)
+  const cardCounts = {};
+  list.querySelectorAll('.settings-column-row').forEach(row => {
+    const colId = row.dataset.colId;
+    const countEl = row.querySelector('.settings-column-count');
+    if (countEl && colId) {
+      const m = countEl.textContent.match(/^(\d+)/);
+      if (m) cardCounts[colId] = parseInt(m[1]);
+    }
+  });
+
+  const COL_PALETTE = ['#8c8c8c','#579DFF','#fb8c00','#4ade80','#f44336','#9f8fef','#6cc3e0','#f5cd47'];
+  let html = '';
+  columns.forEach((col, ci) => {
+    const count = cardCounts[col.id] || 0;
+    const color = col.color || COL_PALETTE[ci % COL_PALETTE.length];
+    const isFirst = ci === 0;
+    const isLast = ci === columns.length - 1;
+    const typeLabel = isFirst ? 'Start' : isLast ? 'Done' : '';
+    html += `
+      <div class="settings-column-row" data-col-index="${ci}" data-col-id="${_escHtml(col.id)}">
+        <span class="settings-column-drag" draggable="true" title="Drag to reorder">&#x2261;</span>
+        <input class="settings-input board-column-label-input" data-board-id="${boardId}" data-col-index="${ci}" value="${_escHtml(col.label)}" style="width:140px;height:30px;font-size:0.88rem;font-weight:500" />
+        <button class="settings-column-color-btn" data-col-index="${ci}" style="background:${color}" title="Change color"></button>
+        <span class="settings-column-count">${count} card${count !== 1 ? 's' : ''}${typeLabel ? ' · ' + typeLabel : ''}</span>
+        ${columns.length > 2 ? '<button class="settings-column-remove-btn" data-col-index="' + ci + '" data-col-id="' + _escHtml(col.id) + '" data-card-count="' + count + '" title="Remove column">&times;</button>' : ''}
+      </div>`;
+  });
+  list.innerHTML = html;
+
+  // Re-bind events for the new elements inside this list
+  list.querySelectorAll('.board-column-label-input').forEach(el => {
+    el.addEventListener('input', () => {
+      clearTimeout(_boardSettingsDebounce['col-' + boardId]);
+      _boardSettingsDebounce['col-' + boardId] = setTimeout(() => {
+        _saveBoardColumns(boardId, { silent: true });
+      }, 600);
+    });
+  });
+  list.querySelectorAll('.settings-column-color-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const row = btn.closest('.settings-column-row');
+      _showColumnColorPicker(btn, boardId, parseInt(row.dataset.colIndex));
+    });
+  });
+  list.querySelectorAll('.settings-column-remove-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _removeColumn(boardId, btn.dataset.colId, parseInt(btn.dataset.cardCount));
+    });
+  });
+  _bindColumnDragReorder(list);
 }
 
 function _slugifyColumnId(label) {
@@ -1707,9 +1769,14 @@ function _addColumn(boardId) {
   const id = _uniqueColumnId(_slugifyColumnId(label), columns);
   columns.push({ id, label, color: COL_PALETTE[columns.length % COL_PALETTE.length], type: 'active' });
   board.columns = JSON.stringify(columns);
-  _saveBoardColumns(boardId);
-  // Re-render settings boards section to reflect new column
-  loadBoardsSettings();
+  _saveBoardColumns(boardId, { silent: true });
+  _rerenderColumnList(boardId);
+  // Focus the new column's label input
+  setTimeout(() => {
+    const inputs = document.querySelectorAll(`.board-column-label-input[data-board-id="${boardId}"]`);
+    const last = inputs[inputs.length - 1];
+    if (last) { last.focus(); last.select(); }
+  }, 50);
 }
 
 function _removeColumn(boardId, colId, cardCount) {
@@ -1724,8 +1791,10 @@ function _removeColumn(boardId, colId, cardCount) {
   const doRemove = (migrateTo) => {
     const newCols = columns.filter(c => c.id !== colId);
     board.columns = JSON.stringify(newCols);
-    _saveBoardColumns(boardId, migrateTo ? { migrate_to: migrateTo } : undefined);
-    loadBoardsSettings();
+    const opts = { silent: true };
+    if (migrateTo) opts.migrate_to = migrateTo;
+    _saveBoardColumns(boardId, opts);
+    _rerenderColumnList(boardId);
   };
 
   if (cardCount > 0) {
@@ -1780,13 +1849,26 @@ function _showColumnColorPicker(btn, boardId, colIndex) {
 
 function _bindColumnDragReorder(list) {
   let dragIdx = null;
-  list.querySelectorAll('.settings-column-row').forEach(row => {
-    row.addEventListener('dragstart', (e) => {
-      dragIdx = parseInt(row.dataset.colIndex);
-      row.style.opacity = '0.4';
+  let dragRow = null;
+
+  // Drag starts from the handle, but we track the parent row
+  list.querySelectorAll('.settings-column-drag').forEach(handle => {
+    handle.addEventListener('dragstart', (e) => {
+      dragRow = handle.closest('.settings-column-row');
+      dragIdx = parseInt(dragRow.dataset.colIndex);
+      dragRow.style.opacity = '0.4';
       e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setDragImage(dragRow, 0, 0);
     });
-    row.addEventListener('dragend', () => { row.style.opacity = ''; });
+    handle.addEventListener('dragend', () => {
+      if (dragRow) dragRow.style.opacity = '';
+      dragRow = null;
+      dragIdx = null;
+    });
+  });
+
+  // Drop targets are the rows
+  list.querySelectorAll('.settings-column-row').forEach(row => {
     row.addEventListener('dragover', (e) => {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
@@ -1805,9 +1887,8 @@ function _bindColumnDragReorder(list) {
       const [moved] = columns.splice(dragIdx, 1);
       columns.splice(dropIdx, 0, moved);
       board.columns = JSON.stringify(columns);
-      _saveBoardColumns(boardId);
-      loadBoardsSettings();
-      dragIdx = null;
+      _saveBoardColumns(boardId, { silent: true });
+      _rerenderColumnList(boardId);
     });
   });
 }
