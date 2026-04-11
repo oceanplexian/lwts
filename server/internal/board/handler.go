@@ -110,6 +110,7 @@ type updateBoardReq struct {
 	ProjectKey *string `json:"project_key"`
 	Columns    *string `json:"columns"`
 	Settings   *string `json:"settings"`
+	MigrateTo  string  `json:"migrate_to,omitempty"` // target column for cards in removed columns
 }
 
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
@@ -134,6 +135,86 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid request body")
 		return
+	}
+
+	// Validate columns if provided
+	if req.Columns != nil {
+		newCols, err := repo.ParseColumns(*req.Columns)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "invalid columns JSON")
+			return
+		}
+		if len(newCols) < 2 {
+			writeErr(w, http.StatusBadRequest, "board must have at least 2 columns")
+			return
+		}
+		seen := map[string]bool{}
+		for _, c := range newCols {
+			if c.ID == "" || c.Label == "" {
+				writeErr(w, http.StatusBadRequest, "each column must have a non-empty id and label")
+				return
+			}
+			if seen[c.ID] {
+				writeErr(w, http.StatusBadRequest, "duplicate column id: "+c.ID)
+				return
+			}
+			seen[c.ID] = true
+		}
+
+		// Auto-assign types: first = start, last = done, rest = active
+		for i := range newCols {
+			switch {
+			case i == 0:
+				newCols[i].Type = "start"
+			case i == len(newCols)-1:
+				newCols[i].Type = "done"
+			default:
+				if newCols[i].Type == "" || newCols[i].Type == "start" || newCols[i].Type == "done" {
+					newCols[i].Type = "active"
+				}
+			}
+		}
+
+		// Check for removed columns that still have cards
+		oldCols, _ := repo.ParseColumns(b.Columns)
+		newColSet := map[string]bool{}
+		for _, c := range newCols {
+			newColSet[c.ID] = true
+		}
+
+		cards, _ := h.cards.ListByBoard(r.Context(), id)
+		cardCounts := map[string]int{}
+		for _, c := range cards {
+			cardCounts[c.ColumnID]++
+		}
+
+		for _, oc := range oldCols {
+			if !newColSet[oc.ID] && cardCounts[oc.ID] > 0 {
+				if req.MigrateTo == "" {
+					writeJSON(w, http.StatusConflict, map[string]any{
+						"error":      "column_has_cards",
+						"column_id":  oc.ID,
+						"card_count": cardCounts[oc.ID],
+						"message":    "Column has cards — provide migrate_to or move cards first",
+					})
+					return
+				}
+				if !newColSet[req.MigrateTo] {
+					writeErr(w, http.StatusBadRequest, "migrate_to column does not exist in new columns")
+					return
+				}
+				// Bulk migrate cards from removed column to target
+				if _, err := h.cards.MigrateColumn(r.Context(), id, oc.ID, req.MigrateTo); err != nil {
+					writeErr(w, http.StatusInternalServerError, "failed to migrate cards")
+					return
+				}
+			}
+		}
+
+		// Re-serialize with enforced types
+		colJSON, _ := json.Marshal(newCols)
+		s := string(colJSON)
+		req.Columns = &s
 	}
 
 	updated, err := h.boards.Update(r.Context(), id, repo.BoardUpdate{

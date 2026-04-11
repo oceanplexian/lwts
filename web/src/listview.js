@@ -17,16 +17,34 @@ let listDragSourceCol = null;
 let listDragEl = null;
 let listDidDrag = false;
 
-const STATUS_ORDER = { backlog: 0, todo: 1, 'in-progress': 2, done: 3, cleared: 4 };
+// Build status maps dynamically from COLUMNS (falls back to defaults for legacy boards)
+function _buildStatusOrder() {
+  const cols = (typeof window.COLUMNS !== 'undefined' && window.COLUMNS.length) ? window.COLUMNS : [];
+  const order = {};
+  cols.forEach((c, i) => { order[c.id] = i; });
+  order.cleared = cols.length;
+  return order;
+}
+function _buildStatusColors() {
+  const cols = (typeof window.COLUMNS !== 'undefined' && window.COLUMNS.length) ? window.COLUMNS : [];
+  const palette = ['#8c8c8c','#579DFF','#fb8c00','#4ade80','#f44336','#9f8fef','#6cc3e0','#f5cd47'];
+  const colors = {};
+  cols.forEach((c, i) => { colors[c.id] = c.color || palette[i % palette.length]; });
+  colors.cleared = 'var(--text-dimmed)';
+  return colors;
+}
+function _buildStatusLabels() {
+  const cols = (typeof window.COLUMNS !== 'undefined' && window.COLUMNS.length) ? window.COLUMNS : [];
+  const labels = {};
+  cols.forEach(c => { labels[c.id] = c.label; });
+  labels.cleared = 'Cleared';
+  return labels;
+}
+// These are rebuilt each render to reflect current board columns
+let STATUS_ORDER = _buildStatusOrder();
 const PRIORITY_ORDER = { highest: 0, high: 1, medium: 2, low: 3, lowest: 4 };
-const STATUS_COLORS = {
-  backlog: 'var(--text-dimmed)',
-  todo: 'var(--accent-blue)',
-  'in-progress': 'var(--accent-orange)',
-  done: 'var(--accent-green)',
-  cleared: 'var(--text-dimmed)',
-};
-const STATUS_LABELS = { backlog: 'Backlog', todo: 'To Do', 'in-progress': 'In Progress', done: 'Done', cleared: 'Cleared' };
+let STATUS_COLORS = _buildStatusColors();
+let STATUS_LABELS = _buildStatusLabels();
 
 // ═══════════════════════════════════════════════════════════════
 // VIEW SWITCHING
@@ -310,6 +328,10 @@ function onListScroll() {
 let _listSurgicalDrop = false; // guard: true during surgical DOM moves
 
 function renderListView() {
+  // Rebuild status maps from current board columns
+  STATUS_ORDER = _buildStatusOrder();
+  STATUS_COLORS = _buildStatusColors();
+  STATUS_LABELS = _buildStatusLabels();
   if (_listSurgicalDrop) {
     console.error('BUG: renderListView called during surgical drop — should only mutate DOM directly');
     if (typeof window.__TEST__ !== 'undefined') throw new Error('renderListView during surgical drop');

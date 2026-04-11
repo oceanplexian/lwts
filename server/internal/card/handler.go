@@ -63,7 +63,15 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.ColumnID == "" {
-		req.ColumnID = "backlog"
+		// Default to the board's first column (type "start")
+		if board, err := h.boards.GetByID(r.Context(), boardID); err == nil {
+			if cols, err := repo.ParseColumns(board.Columns); err == nil && len(cols) > 0 {
+				req.ColumnID = cols[0].ID
+			}
+		}
+		if req.ColumnID == "" {
+			req.ColumnID = "backlog"
+		}
 	}
 
 	card, err := h.cards.Create(r.Context(), boardID, repo.CardCreate{
@@ -320,10 +328,11 @@ func (h *Handler) Move(w http.ResponseWriter, r *http.Request) {
 	user := auth.UserFromContext(r.Context())
 	broadcast(h.hub, card.BoardID, "card_moved", card, user.ID)
 
-	// Discord: detect move to done column
+	// Discord: detect move to a "done" type column
 	if h.discord != nil && current.ColumnID != req.ColumnID {
 		board, _ := h.boards.GetByID(r.Context(), card.BoardID)
-		if req.ColumnID == "done" {
+		colTypes := h.columnTypeMap(r.Context(), card.BoardID)
+		if colTypes[req.ColumnID] == "done" {
 			h.discord.Emit(discord.Event{
 				Type: discord.EventCardDone, Card: card, Board: board, User: derefUser(user),
 				OldValue: current.ColumnID,
@@ -371,8 +380,13 @@ func (h *Handler) checkTransitionRules(ctx context.Context, card repo.Card, toCo
 	rules := h.getTransitionRules(ctx, card.BoardID)
 	var blockers []TransitionBlocker
 
+	// Resolve column types from the board's column config
+	colTypes := h.columnTypeMap(ctx, card.BoardID)
+	toType := colTypes[toColumn]
+	fromType := colTypes[card.ColumnID]
+
 	// Rule: blocked cards cannot move to done
-	if rules.NoBlockedToDone && toColumn == "done" {
+	if rules.NoBlockedToDone && toType == "done" {
 		if card.BlockedCardIDs != "" && card.BlockedCardIDs != "[]" {
 			blockers = append(blockers, TransitionBlocker{
 				Rule:    "no_blocked_to_done",
@@ -382,7 +396,7 @@ func (h *Handler) checkTransitionRules(ctx context.Context, card repo.Card, toCo
 	}
 
 	// Rule: require at least one comment before moving to done
-	if rules.RequireCommentDone && toColumn == "done" {
+	if rules.RequireCommentDone && toType == "done" {
 		comments, err := h.comments.ListByCard(ctx, card.ID)
 		if err == nil && len(comments) == 0 {
 			blockers = append(blockers, TransitionBlocker{
@@ -392,8 +406,8 @@ func (h *Handler) checkTransitionRules(ctx context.Context, card repo.Card, toCo
 		}
 	}
 
-	// Rule: require assignee before moving to in-progress
-	if rules.RequireAssigneeProg && toColumn == "in-progress" {
+	// Rule: require assignee before moving to active
+	if rules.RequireAssigneeProg && toType == "active" {
 		if card.AssigneeID == nil || *card.AssigneeID == "" {
 			blockers = append(blockers, TransitionBlocker{
 				Rule:    "require_assignee_prog",
@@ -403,7 +417,7 @@ func (h *Handler) checkTransitionRules(ctx context.Context, card repo.Card, toCo
 	}
 
 	// Rule: require description before moving to done
-	if rules.RequireDescDone && toColumn == "done" {
+	if rules.RequireDescDone && toType == "done" {
 		if card.Description == "" {
 			blockers = append(blockers, TransitionBlocker{
 				Rule:    "require_desc_done",
@@ -413,7 +427,7 @@ func (h *Handler) checkTransitionRules(ctx context.Context, card repo.Card, toCo
 	}
 
 	// Rule: prevent moving cards backward out of done
-	if rules.NoDoneBackward && card.ColumnID == "done" && toColumn != "done" {
+	if rules.NoDoneBackward && fromType == "done" && toType != "done" {
 		blockers = append(blockers, TransitionBlocker{
 			Rule:    "no_done_backward",
 			Message: "Completed tickets cannot be reopened",
@@ -421,6 +435,19 @@ func (h *Handler) checkTransitionRules(ctx context.Context, card repo.Card, toCo
 	}
 
 	return blockers
+}
+
+// columnTypeMap returns a map of column ID → type for the given board.
+func (h *Handler) columnTypeMap(ctx context.Context, boardID string) map[string]string {
+	board, err := h.boards.GetByID(ctx, boardID)
+	if err != nil {
+		return nil
+	}
+	cols, err := repo.ParseColumns(board.Columns)
+	if err != nil {
+		return nil
+	}
+	return repo.ColumnTypeMap(cols)
 }
 
 type bulkMoveReq struct {
