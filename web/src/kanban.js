@@ -2183,55 +2183,52 @@ function autoResizeTextarea(el) {
 }
 
 function clearCompleted() {
-  const doneCol = COLUMNS.find(c => c.type === 'done');
-  const doneId = doneCol ? doneCol.id : 'done';
-  const doneCards = (state[doneId] || []).slice();
-  if (doneCards.length === 0) return;
+  if (!currentBoardId || currentBoardId === 'all') return;
 
-  // Collect DOM elements to animate (board cards + list rows)
+  // All done-type columns — a board can have more than one.
+  const doneIds = COLUMNS.filter(c => c.type === 'done').map(c => c.id);
+  if (doneIds.length === 0) doneIds.push('done');
+
+  // Optimistic snapshot for animation and UI; the server is the authority.
+  const doneCards = doneIds.flatMap(id => (state[id] || []).slice());
+
+  // Collect DOM elements to animate across every done column.
   const isList = typeof window.currentView !== 'undefined' && window.currentView === 'list';
-  const cardEls = isList
-    ? Array.from(document.querySelectorAll('.list-row[data-col="' + doneId + '"]'))
-    : Array.from(document.querySelectorAll('.column-body[data-col="' + doneId + '"] .card'));
+  const cardEls = doneIds.flatMap(id => isList
+    ? Array.from(document.querySelectorAll('.list-row[data-col="' + CSS.escape(id) + '"]'))
+    : Array.from(document.querySelectorAll('.column-body[data-col="' + CSS.escape(id) + '"] .card')));
 
-  if (cardEls.length === 0) {
-    // No visible elements — fall through to instant clear
-    _finishClear(doneCards);
-    return;
-  }
-
-  // Respect prefers-reduced-motion — skip animation entirely
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reducedMotion) {
-    _finishClear(doneCards);
+  if (cardEls.length === 0 || reducedMotion) {
+    _finishClear(doneIds, doneCards);
     return;
   }
 
-  // Stagger the .clearing class across cards
-  const STAGGER = 60; // ms between each card
+  // Stagger the .clearing class across cards.
+  const STAGGER = 60;
   cardEls.forEach((el, i) => {
     el.style.animationDelay = (i * STAGGER) + 'ms';
     el.classList.add('clearing');
   });
 
-  // Wait for the last card's animation to finish, then commit the state change
   const lastEl = cardEls[cardEls.length - 1];
-  const totalDuration = (cardEls.length - 1) * STAGGER + 300; // 300ms = animation duration
+  const totalDuration = (cardEls.length - 1) * STAGGER + 300;
 
+  let finished = false;
   function onDone() {
+    if (finished) return;
+    finished = true;
     lastEl.removeEventListener('animationend', onDone);
     clearTimeout(fallback);
-    _finishClear(doneCards);
+    _finishClear(doneIds, doneCards);
   }
   lastEl.addEventListener('animationend', onDone, { once: true });
-  // Safety fallback in case animationend never fires
   const fallback = setTimeout(onDone, totalDuration + 50);
 }
 
-function _finishClear(doneCards) {
-  const doneCol = COLUMNS.find(c => c.type === 'done');
-  const doneId = doneCol ? doneCol.id : 'done';
-  state[doneId] = [];
+function _finishClear(doneIds, doneCards) {
+  // Optimistic local clear — the server call is authoritative.
+  doneIds.forEach(id => { state[id] = []; });
   if (!state.cleared) state.cleared = [];
   state.cleared.push(...doneCards);
   save(); window.render();
@@ -2239,26 +2236,28 @@ function _finishClear(doneCards) {
     window.renderListView();
   }
 
-  // Bulk move cleared cards via API
-  if (currentBoardId) {
-    const ids = doneCards
-      .filter(card => card.id && !card.id.startsWith('temp-'))
-      .map(card => card.id);
-    if (ids.length > 0) {
-      window.API.bulkMoveCards(currentBoardId, ids, 'cleared').then(updated => {
-        if (Array.isArray(updated)) {
-          updated.forEach(u => {
-            const local = state.cleared.find(c => c.id === u.id);
-            if (local) local.version = u.version;
-            cardIndex[u.id] = u;
-          });
-        }
-      }).catch(err => {
-        window.Toast.error('Failed to clear cards: ' + (err.message || 'unknown error'));
-        loadBoardCards(currentBoardId);
-      });
-    }
-  }
+  if (!currentBoardId || currentBoardId === 'all') return;
+
+  window.API.clearDoneCards(currentBoardId).then(updated => {
+    if (!Array.isArray(updated)) return;
+    // Reconcile local state with the server truth. The server may have moved
+    // cards we didn't have locally (e.g., out-of-sync state) — merge those in.
+    updated.forEach(u => {
+      cardIndex[u.id] = u;
+      const local = fromAPI(u);
+      const existing = state.cleared.find(c => c.id === u.id);
+      if (existing) {
+        existing.version = u.version;
+        existing.column_id = 'cleared';
+      } else {
+        state.cleared.push(local);
+      }
+    });
+    save();
+  }).catch(err => {
+    window.Toast.error('Failed to clear cards: ' + (err.message || 'unknown error'));
+    loadBoardCards(currentBoardId);
+  });
 }
 
 function esc(s) {

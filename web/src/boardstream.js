@@ -45,6 +45,10 @@ class BoardStream {
             if (this.handlers.onCardDeleted) this.handlers.onCardDeleted(JSON.parse(e.data));
         });
 
+        this.es.addEventListener('cards_bulk_moved', (e) => {
+            if (this.handlers.onCardsBulkMoved) this.handlers.onCardsBulkMoved(JSON.parse(e.data));
+        });
+
         this.es.addEventListener('comment_added', (e) => {
             if (this.handlers.onCommentAdded) this.handlers.onCommentAdded(JSON.parse(e.data));
         });

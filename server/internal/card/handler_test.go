@@ -252,6 +252,81 @@ func TestCardGetWithComments(t *testing.T) {
 	}
 }
 
+func TestClearDoneMovesAllDoneCards(t *testing.T) {
+	users, boards, cards, comments := setupTest(t)
+	h := NewHandler(cards, boards, comments, nil)
+	ctx := context.Background()
+
+	user, _ := users.Create(ctx, "User", "u@t.com", "h")
+	board, _ := boards.Create(ctx, "B", "LWTS", user.ID)
+
+	// Create cards across columns; only "done"-type ones should move.
+	_, _ = cards.Create(ctx, board.ID, repo.CardCreate{ColumnID: "todo", Title: "Keep me 1"})
+	_, _ = cards.Create(ctx, board.ID, repo.CardCreate{ColumnID: "in-progress", Title: "Keep me 2"})
+	for i := 0; i < 5; i++ {
+		_, _ = cards.Create(ctx, board.ID, repo.CardCreate{ColumnID: "done", Title: "Done card"})
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle("POST /api/v1/boards/{boardId}/clear-done", noopAuth(http.HandlerFunc(h.ClearDone)))
+
+	req := httptest.NewRequest("POST", "/api/v1/boards/"+board.ID+"/clear-done", nil)
+	req = withUser(req, user)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: %d, body: %s", w.Code, w.Body.String())
+	}
+
+	var moved []repo.Card
+	if err := json.Unmarshal(w.Body.Bytes(), &moved); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(moved) != 5 {
+		t.Fatalf("expected 5 moved, got %d", len(moved))
+	}
+	for _, c := range moved {
+		if c.ColumnID != "cleared" {
+			t.Errorf("card %s column = %q, want cleared", c.ID, c.ColumnID)
+		}
+	}
+
+	// The board should have zero cards left in the done column.
+	all, _ := cards.ListByBoard(ctx, board.ID)
+	for _, c := range all {
+		if c.ColumnID == "done" {
+			t.Errorf("card %s still in done after clear", c.ID)
+		}
+	}
+}
+
+func TestClearDoneEmptyBoard(t *testing.T) {
+	users, boards, cards, comments := setupTest(t)
+	h := NewHandler(cards, boards, comments, nil)
+	ctx := context.Background()
+
+	user, _ := users.Create(ctx, "User", "u@t.com", "h")
+	board, _ := boards.Create(ctx, "B", "LWTS", user.ID)
+
+	mux := http.NewServeMux()
+	mux.Handle("POST /api/v1/boards/{boardId}/clear-done", noopAuth(http.HandlerFunc(h.ClearDone)))
+
+	req := httptest.NewRequest("POST", "/api/v1/boards/"+board.ID+"/clear-done", nil)
+	req = withUser(req, user)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: %d", w.Code)
+	}
+	var moved []repo.Card
+	_ = json.Unmarshal(w.Body.Bytes(), &moved)
+	if len(moved) != 0 {
+		t.Errorf("expected 0 moved on empty board, got %d", len(moved))
+	}
+}
+
 // ── Epic Tests ──
 
 func TestCreateEpicCard(t *testing.T) {

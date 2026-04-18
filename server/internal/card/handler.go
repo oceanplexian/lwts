@@ -56,6 +56,7 @@ func (h *Handler) embedAsync(cardID, title, description string) {
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMW func(http.Handler) http.Handler, memberMW func(http.Handler) http.Handler) {
 	mux.Handle("POST /api/v1/boards/{boardId}/cards/bulk-move", memberMW(http.HandlerFunc(h.BulkMove)))
+	mux.Handle("POST /api/v1/boards/{boardId}/clear-done", memberMW(http.HandlerFunc(h.ClearDone)))
 	mux.Handle("POST /api/v1/boards/{boardId}/cards", memberMW(http.HandlerFunc(h.Create)))
 	mux.Handle("GET /api/v1/boards/{boardId}/cards", authMW(http.HandlerFunc(h.ListByBoard)))
 	mux.Handle("GET /api/v1/cards/{id}", authMW(http.HandlerFunc(h.Get)))
@@ -517,6 +518,61 @@ func (h *Handler) BulkMove(w http.ResponseWriter, r *http.Request) {
 		"cards":     cards,
 		"column_id": req.ColumnID,
 	}, user.ID)
+
+	writeJSON(w, http.StatusOK, cards)
+}
+
+// ClearDone moves every card in any "done"-type column on the board to the
+// "cleared" column in a single atomic operation and broadcasts the change.
+func (h *Handler) ClearDone(w http.ResponseWriter, r *http.Request) {
+	boardID := r.PathValue("boardId")
+
+	board, err := h.boards.GetByID(r.Context(), boardID)
+	if err == repo.ErrNotFound {
+		writeErr(w, http.StatusNotFound, "board not found")
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	cols, err := repo.ParseColumns(board.Columns)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "invalid board columns")
+		return
+	}
+	typeMap := repo.ColumnTypeMap(cols)
+	var doneIDs []string
+	for id, t := range typeMap {
+		if t == "done" {
+			doneIDs = append(doneIDs, id)
+		}
+	}
+
+	movedIDs, err := h.cards.ClearDone(r.Context(), boardID, doneIDs)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "clear done failed")
+		return
+	}
+
+	cards, err := h.cards.ListByIDs(r.Context(), movedIDs)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	if cards == nil {
+		cards = []repo.Card{}
+	}
+
+	user := auth.UserFromContext(r.Context())
+	senderID := ""
+	if user != nil {
+		senderID = user.ID
+	}
+	broadcast(h.hub, boardID, "cards_bulk_moved", map[string]any{
+		"cards":     cards,
+		"column_id": "cleared",
+	}, senderID)
 
 	writeJSON(w, http.StatusOK, cards)
 }
