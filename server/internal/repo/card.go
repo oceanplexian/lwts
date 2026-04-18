@@ -517,6 +517,126 @@ func (r *CardRepository) bulkMoveOnce(ctx context.Context, ids []string, toColum
 	return result, nil
 }
 
+// ClearDone moves every card sitting in any of doneColumnIDs to the "cleared"
+// column for the given board in a single round-trip. Returns the IDs of the
+// cards that were moved. The operation is atomic: either all qualifying cards
+// move, or none do.
+func (r *CardRepository) ClearDone(ctx context.Context, boardID string, doneColumnIDs []string) ([]string, error) {
+	if len(doneColumnIDs) == 0 {
+		return nil, nil
+	}
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		ids, err := r.clearDoneOnce(ctx, boardID, doneColumnIDs)
+		if err == nil {
+			return ids, nil
+		}
+		if isRetryable(err) && attempt < maxRetries-1 {
+			retryBackoff(attempt)
+			continue
+		}
+		return nil, err
+	}
+	return nil, fmt.Errorf("clear done failed after %d retries", maxRetries)
+}
+
+func (r *CardRepository) clearDoneOnce(ctx context.Context, boardID string, doneColumnIDs []string) ([]string, error) {
+	tx, err := r.ds.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Build placeholders for (board_id=$1 AND column_id IN ($2,$3,...))
+	args := make([]any, 0, len(doneColumnIDs)+1)
+	args = append(args, boardID)
+	placeholders := make([]string, len(doneColumnIDs))
+	for i, id := range doneColumnIDs {
+		placeholders[i] = "$" + strconv.Itoa(i+2)
+		args = append(args, id)
+	}
+	inClause := strings.Join(placeholders, ",")
+
+	// Capture IDs in stable order so assigned positions are deterministic.
+	rows, err := tx.Query(ctx,
+		`SELECT id FROM cards WHERE board_id = $1 AND column_id IN (`+inClause+`)
+		 ORDER BY updated_at, id`, args...)
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return nil, tx.Commit(ctx)
+	}
+
+	// Max position in the cleared column, so new arrivals stack at the end.
+	row := tx.QueryRow(ctx,
+		`SELECT COALESCE(MAX(position), -1) FROM cards WHERE board_id = $1 AND column_id = 'cleared'`,
+		boardID)
+	var maxPos int
+	if err := row.Scan(&maxPos); err != nil {
+		return nil, err
+	}
+
+	now := time.Now().UTC()
+	for i, id := range ids {
+		if _, err := tx.Exec(ctx,
+			`UPDATE cards SET column_id = 'cleared', position = $1, version = version + 1, updated_at = $2 WHERE id = $3`,
+			maxPos+1+i, now, id); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+// ListByIDs fetches a batch of cards by their IDs in a single query.
+func (r *CardRepository) ListByIDs(ctx context.Context, ids []string) ([]Card, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	args := make([]any, len(ids))
+	placeholders := make([]string, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "$" + strconv.Itoa(i+1)
+		args[i] = id
+	}
+	rows, err := r.ds.Query(ctx,
+		`SELECT id, board_id, column_id, title, description, tag, priority, assignee_id, reporter_id,
+		        points, position, key, version, CAST(due_date AS TEXT), related_card_ids, blocked_card_ids, epic_id, created_at, updated_at
+		 FROM cards WHERE id IN (`+strings.Join(placeholders, ",")+`)`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var cards []Card
+	for rows.Next() {
+		var c Card
+		if err := rows.Scan(&c.ID, &c.BoardID, &c.ColumnID, &c.Title, &c.Description, &c.Tag, &c.Priority,
+			&c.AssigneeID, &c.ReporterID, &c.Points, &c.Position, &c.Key, &c.Version, &c.DueDate,
+			&c.RelatedCardIDs, &c.BlockedCardIDs, &c.EpicID, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			return nil, err
+		}
+		cards = append(cards, c)
+	}
+	return cards, rows.Err()
+}
+
 // MigrateColumn moves all cards in a board from one column to another, appending them at the end.
 func (r *CardRepository) MigrateColumn(ctx context.Context, boardID, fromColumn, toColumn string) (int, error) {
 	// Get max position in target column

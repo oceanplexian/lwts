@@ -170,6 +170,12 @@ function wirePresenceHandlers(boardStream) {
     if (typeof window.removeCardFromState === 'function') window.removeCardFromState(data);
   };
 
+  boardStream.handlers.onCardsBulkMoved = (data) => {
+    const cards = Array.isArray(data && data.cards) ? data.cards : [];
+    if (typeof window.moveCardInState !== 'function') return;
+    cards.forEach(c => window.moveCardInState(c));
+  };
+
   boardStream.handlers.onConnected = () => {
     const wasReconnect = !!boardStream._hasConnectedOnce;
     boardStream._hasConnectedOnce = true;

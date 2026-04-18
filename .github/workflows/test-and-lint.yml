@@ -45,7 +45,11 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
-      - run: go test -v -count=1 -tags=integration ./...
+      # -p=1 serializes test packages. Integration tests share one postgres
+      # instance, and concurrent CREATE TABLE / DROP SCHEMA between packages
+      # races on the pg catalog (pg_type_typname_nsp_index), which shows up
+      # as intermittent "duplicate key" / "no schema selected" failures.
+      - run: go test -v -count=1 -p=1 -tags=integration ./...
         env:
           DB_URL: postgres://lwts_test:lwts_test@localhost:5432/lwts_test?sslmode=disable
 
