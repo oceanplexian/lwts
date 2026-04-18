@@ -125,6 +125,9 @@ const API = {
   importJira(data)    { return this.post('/api/v1/import/jira', data); },
   importTrello(data)  { return this.post('/api/v1/import/trello', data); },
 
+  getEmbedStatus()    { return this.get('/api/v1/embed/status'); },
+  backfillEmbeddings() { return this.post('/api/v1/embed/backfill', {}); },
+
   resetWorkspace(mode) { return this.post('/api/v1/settings/reset', { mode: mode || 'empty' }); },
 
   getDiscord()          { return this.get('/api/v1/integrations/discord'); },

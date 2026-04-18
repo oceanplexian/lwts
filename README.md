@@ -36,6 +36,7 @@
 - **Kanban boards** — drag-and-drop cards between columns, reorder with real-time sync
 - **Real-time collaboration** — Server-Sent Events push updates instantly to all connected clients
 - **Full-text search** — find any card across all boards in milliseconds
+- **Optional semantic search** — opt-in pgvector + remote embeddings for natural-language queries (see [Semantic Search](#semantic-search))
 - **Card detail view** — descriptions, subtasks, attachments, comments, activity history
 - **Epic swimlanes** — group cards by epic to see progress across workstreams
 - **Multiple views** — board view, list view, and filtered views by assignee, priority, or tag
@@ -119,6 +120,10 @@ All configuration is via environment variables:
 | `TLS_CERT` | | Path to TLS certificate |
 | `TLS_KEY` | | Path to TLS private key |
 | `DEV` | `false` | Enable development mode (disables CORS/body limits, serves from `web/`) |
+| `EMBEDDING_API_URL` | | Optional. OpenAI-compatible `/v1/embeddings` endpoint for semantic search |
+| `EMBEDDING_API_KEY` | | Optional. Bearer token for the embedding endpoint (e.g. OpenAI key) |
+| `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | Model identifier sent to the embedding endpoint |
+| `EMBEDDING_DIM` | `384` | Vector dimension for the chosen model |
 
 ## API
 
@@ -244,6 +249,81 @@ web/
 docs/                        # landing page
 tf/                          # Terraform for Lambda deployment
 ```
+
+## Semantic Search
+
+LWTS ships with a fast, default substring search engine. For workspaces with
+hundreds or thousands of cards, an **optional** semantic search engine can be
+enabled. It catches paraphrased queries the substring engine misses
+("live realtime updates" → finds the card titled "Real-time board updates via
+WebSocket") while still pinning exact-string matches at the top via a guarded
+cascade.
+
+The feature is **off by default** and requires three things:
+
+1. **PostgreSQL with the [pgvector](https://github.com/pgvector/pgvector) extension**.
+   SQLite deployments can't enable semantic search.
+
+   ```sql
+   -- run once on your existing postgres database
+   CREATE EXTENSION vector;
+   ```
+
+2. **A reachable OpenAI-compatible embeddings endpoint** — set `EMBEDDING_API_URL`.
+   Any of these work out of the box:
+
+   - [text-embeddings-inference](https://github.com/huggingface/text-embeddings-inference)
+     (HuggingFace, recommended for self-hosted; runs CPU-only)
+   - [vLLM](https://docs.vllm.ai/) with an embedding model
+   - [Ollama](https://ollama.com/) (`/v1/embeddings` with `nomic-embed-text`)
+   - OpenAI (`https://api.openai.com`, set `EMBEDDING_API_KEY`)
+
+   Quickstart with TEI:
+
+   ```bash
+   docker run -p 8081:80 -v tei-data:/data \
+     ghcr.io/huggingface/text-embeddings-inference:cpu-latest \
+     --model-id BAAI/bge-small-en-v1.5
+
+   # then point lwts at it
+   export EMBEDDING_API_URL=http://localhost:8081
+   ```
+
+3. **A user toggle** in **Settings → General → Search → Semantic search**.
+   The toggle is disabled and shows a warning until both the extension and
+   endpoint are available; the server validates the prerequisites before
+   accepting the change.
+
+After enabling, click **Index all cards** in the same panel (or hit
+`POST /api/v1/embed/backfill` as an admin) to embed your existing data.
+New and updated cards are embedded automatically.
+
+### Resource expectations
+
+The embedding sidecar is the new cost. With `BAAI/bge-small-en-v1.5` on CPU:
+
+- **~250–400 MiB RAM** for the sidecar (text-embeddings-inference)
+- **~10 ms** per query (single-doc encode + pgvector HNSW lookup)
+- **~120 docs/sec** sustained throughput on Apple Silicon / modern x86
+- **~75 MB** pgvector storage per 10k cards (384-dim, HNSW)
+
+The lwts server itself adds **negligible** overhead — it just makes HTTP calls.
+
+### Status and operations
+
+```bash
+# Check whether semantic is available and how many cards are indexed.
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/v1/embed/status
+
+# Re-index everything (admin only). Useful after switching models.
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/v1/embed/backfill
+```
+
+If you switch to a different embedding model with a different dimension, set
+`EMBEDDING_DIM` to match before restarting; the existing column is left in
+place but you'll need to drop it manually (`ALTER TABLE cards DROP COLUMN
+embedding`) and let the server recreate it.
 
 ## Deployment
 

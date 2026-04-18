@@ -421,6 +421,35 @@
           <div class="settings-row-control"><div id="settings-session-length-dropdown"></div></div>
         </div>
       </div>
+      <div class="settings-group">
+        <div class="settings-group-title">Search</div>
+        <div class="settings-row">
+          <div class="settings-row-label">
+            <div class="settings-row-title">Semantic search</div>
+            <div class="settings-row-desc">Find cards by meaning instead of exact keywords. Off by default — uses substring search.</div>
+            <div class="settings-row-warn" id="semantic-search-warn">Requires PostgreSQL with the <strong>pgvector</strong> extension and an OpenAI-compatible <code>EMBEDDING_API_URL</code>. See README for setup instructions.</div>
+          </div>
+          <div class="settings-row-control">
+            <label class="settings-toggle">
+              <input type="checkbox"
+                     data-setting="general.search_mode"
+                     data-checked-value="semantic"
+                     data-unchecked-value="lexical"
+                     id="semantic-search-toggle">
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+        </div>
+        <div class="settings-row" id="semantic-search-status-row" style="display:none">
+          <div class="settings-row-label">
+            <div class="settings-row-title">Indexed cards</div>
+            <div class="settings-row-desc"><span id="semantic-search-counts">—</span></div>
+          </div>
+          <div class="settings-row-control">
+            <button class="btn-secondary" id="semantic-search-backfill-btn">Index all cards</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Appearance -->

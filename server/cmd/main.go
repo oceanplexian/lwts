@@ -22,6 +22,7 @@ import (
 	"github.com/oceanplexian/lwts/server/internal/config"
 	"github.com/oceanplexian/lwts/server/internal/db"
 	discordnotifier "github.com/oceanplexian/lwts/server/internal/discord"
+	"github.com/oceanplexian/lwts/server/internal/embed"
 	"github.com/oceanplexian/lwts/server/internal/middleware"
 	"github.com/oceanplexian/lwts/server/internal/repo"
 	settingshandler "github.com/oceanplexian/lwts/server/internal/settings"
@@ -158,6 +159,29 @@ func main() {
 		}
 	}
 
+	// Optional: provision pgvector schema if available. Never fatal — semantic
+	// search is opt-in and the app must keep running on SQLite or on Postgres
+	// without the extension.
+	pgvectorReady := false
+	if !cfg.LambdaDemo {
+		ready, err := embed.EnsureSchema(ctx, ds, cfg.EmbeddingDim)
+		switch {
+		case err != nil:
+			logger.Warn("pgvector schema setup failed; semantic search will be unavailable", "error", err)
+		case ready:
+			logger.Info("pgvector detected; semantic search schema ready", "dim", cfg.EmbeddingDim)
+			pgvectorReady = true
+		case ds.DBType() == "postgres":
+			logger.Info("pgvector extension not installed; semantic search will be unavailable until enabled")
+		}
+	}
+
+	embedClient := embed.NewClient(cfg.EmbeddingAPIURL, cfg.EmbeddingAPIKey, cfg.EmbeddingModel)
+	embedSvc := embed.NewService(ds, embedClient, logger)
+	if embedSvc != nil {
+		logger.Info("embedding endpoint configured", "url", cfg.EmbeddingAPIURL, "model", embedSvc.Model())
+	}
+
 	// SSE hub
 	sseHub := sse.NewHub()
 	go sseHub.Run()
@@ -195,6 +219,9 @@ func main() {
 	// Card routes
 	ch := cardhandler.NewHandler(cardRepo, boardRepo, commentRepo, sseHub)
 	ch.SetDiscord(discordN)
+	if embedSvc != nil {
+		ch.SetEmbed(embedSvc)
+	}
 	ch.RegisterRoutes(mux, authMW, memberMW)
 
 	// Comment routes
@@ -212,6 +239,7 @@ func main() {
 
 	// Search
 	sh := boardhandler.NewSearchHandler(ds)
+	sh.SetEmbed(embedSvc, pgvectorReady)
 	sh.RegisterRoutes(mux, authMW)
 
 	// Users list
@@ -242,9 +270,18 @@ func main() {
 	adminMW := func(next http.Handler) http.Handler {
 		return authMW(auth.RequireRole("admin")(next))
 	}
+	stg.SetSemanticAvailability(settingshandler.SemanticSearchAvailability{
+		Configured:    embedSvc.Configured(),
+		PgvectorReady: pgvectorReady,
+	})
 	stg.RegisterRoutes(mux, authMW, adminMW)
 	stg.RegisterDiscordRoutes(mux, adminMW)
 	stg.SyncSessionLength(ctx)
+
+	// Embedding status + backfill endpoints. Always registered; behavior
+	// depends on what was wired above.
+	embedHandler := embed.NewHandler(embedSvc, pgvectorReady, cfg.EmbeddingDim)
+	embedHandler.RegisterRoutes(mux, authMW, adminMW)
 	authHandler.SetRegistrationChecker(stg)
 	authHandler.SetSeedFunc(auth.SeedFunc(seedFunc))
 

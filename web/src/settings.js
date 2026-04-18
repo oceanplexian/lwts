@@ -751,6 +751,82 @@ function applyGeneralSettings(data) {
     document.getElementById('board').classList.remove('compact-cards');
   }
   applyRegistrationSetting(!!data.allow_registration);
+  refreshSemanticSearchStatus(data.search_mode === 'semantic');
+}
+
+let _embedStatusFetched = false;
+async function refreshSemanticSearchStatus(currentlyEnabled) {
+  const toggle = document.getElementById('semantic-search-toggle');
+  const warn = document.getElementById('semantic-search-warn');
+  const statusRow = document.getElementById('semantic-search-status-row');
+  const countsEl = document.getElementById('semantic-search-counts');
+  if (!toggle) return;
+
+  let status = null;
+  try {
+    status = await window.API.getEmbedStatus();
+  } catch (e) {
+    // Endpoint missing or down — treat as unavailable.
+  }
+  _embedStatusFetched = true;
+
+  const available = status && status.available;
+  toggle.disabled = !available && !currentlyEnabled;
+  if (warn) warn.style.display = available ? 'none' : 'block';
+
+  if (currentlyEnabled && status) {
+    if (statusRow) statusRow.style.display = '';
+    if (countsEl) {
+      countsEl.textContent = `${status.cards_with_embed} / ${status.cards_total} cards indexed (model: ${status.model || 'unknown'})`;
+    }
+  } else if (statusRow) {
+    statusRow.style.display = 'none';
+  }
+}
+
+function bindSemanticSearchControls() {
+  const toggle = document.getElementById('semantic-search-toggle');
+  if (toggle && !toggle.dataset.semBound) {
+    toggle.dataset.semBound = '1';
+    toggle.addEventListener('change', async () => {
+      // The generic data-setting binding fires the actual PUT. We just need to
+      // react to the success/failure to refresh the status row and revert on
+      // server-side rejection (e.g. pgvector missing).
+      const wantsSemantic = toggle.checked;
+      // Wait a tick so the debounced PUT has time to fire and resolve.
+      setTimeout(async () => {
+        try {
+          const data = await window.API.getSettings('general');
+          const actuallySet = data.search_mode === 'semantic';
+          if (actuallySet !== wantsSemantic) {
+            // Server rejected: revert UI and warn.
+            toggle.checked = actuallySet;
+            if (window.Toast) window.Toast.error('Could not enable semantic search — check that EMBEDDING_API_URL is set and pgvector is installed.');
+          }
+          refreshSemanticSearchStatus(actuallySet);
+        } catch (e) { /* network — ignore */ }
+      }, 700);
+    });
+  }
+  const btn = document.getElementById('semantic-search-backfill-btn');
+  if (btn && !btn.dataset.semBound) {
+    btn.dataset.semBound = '1';
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      const original = btn.textContent;
+      btn.textContent = 'Indexing...';
+      try {
+        const r = await window.API.backfillEmbeddings();
+        if (window.Toast) window.Toast.success(`Indexed ${r.embedded} cards (skipped ${r.skipped})`);
+      } catch (e) {
+        if (window.Toast) window.Toast.error('Backfill failed: ' + (e.message || 'unknown error'));
+      } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+        refreshSemanticSearchStatus(true);
+      }
+    });
+  }
 }
 
 function applyRegistrationSetting(allowed) {
@@ -763,7 +839,14 @@ function populateSettingsForm(category, data) {
     const key = el.dataset.setting.split('.')[1];
     if (!(key in data)) return;
     if (el.type === 'checkbox') {
-      el.checked = !!data[key];
+      // Enum-checkbox: data-checked-value="X" data-unchecked-value="Y" maps a
+      // boolean toggle to a string-valued setting (e.g. search_mode).
+      const checkedVal = el.dataset.checkedValue;
+      if (checkedVal !== undefined) {
+        el.checked = data[key] === checkedVal;
+      } else {
+        el.checked = !!data[key];
+      }
     } else {
       el.value = data[key];
     }
@@ -852,7 +935,18 @@ function initSettingsBindings() {
     const event = el.type === 'checkbox' ? 'change' : 'input';
     if (el.type === 'range') _updateSettingsRangeFill(el);
     el.addEventListener(event, () => {
-      const value = el.type === 'checkbox' ? el.checked : el.value;
+      let value;
+      if (el.type === 'checkbox') {
+        const checkedVal = el.dataset.checkedValue;
+        const uncheckedVal = el.dataset.uncheckedValue;
+        if (checkedVal !== undefined && uncheckedVal !== undefined) {
+          value = el.checked ? checkedVal : uncheckedVal;
+        } else {
+          value = el.checked;
+        }
+      } else {
+        value = el.value;
+      }
       if (el.type === 'range') _updateSettingsRangeFill(el);
       // Update local cache immediately
       if (!_settingsCache[category]) _settingsCache[category] = {};
@@ -1343,6 +1437,7 @@ async function openSettings(_fromHash) {
     showSettingsSection(window.activeSettingsSection);
     initSettingsDropdowns();
     initSettingsBindings();
+    bindSemanticSearchControls();
     loadSettings('general');
     loadSettings('appearance');
     loadBoardsSettings();
