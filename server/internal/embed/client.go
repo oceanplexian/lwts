@@ -39,7 +39,10 @@ func NewClient(baseURL, apiKey, model string) *Client {
 		baseURL: strings.TrimRight(baseURL, "/"),
 		apiKey:  apiKey,
 		model:   model,
-		http:    &http.Client{Timeout: 30 * time.Second},
+		// Generous timeout — CPU-only embedding of a full batch on a cold
+		// model can take well over 30s. This is a per-request timeout, not
+		// per-connection; Go keeps the socket open across requests.
+		http: &http.Client{Timeout: 5 * time.Minute},
 	}
 }
 
