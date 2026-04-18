@@ -25,6 +25,15 @@ type Config struct {
 	LambdaDemo     bool
 	DemoDBPath     string
 	StaticDir      string
+
+	// Optional semantic search via pgvector + an external OpenAI-compatible
+	// embeddings endpoint. All three are blank by default; the feature is
+	// disabled unless EmbeddingAPIURL is set AND the workspace setting
+	// search_mode is flipped to "semantic".
+	EmbeddingAPIURL string
+	EmbeddingAPIKey string
+	EmbeddingModel  string
+	EmbeddingDim    int
 }
 
 func Load() (*Config, error) {
@@ -99,6 +108,18 @@ func Load() (*Config, error) {
 	c.JWTSecret = os.Getenv("JWT_SECRET")
 	if c.JWTSecret == "" {
 		return nil, fmt.Errorf("JWT_SECRET is required")
+	}
+
+	c.EmbeddingAPIURL = os.Getenv("EMBEDDING_API_URL")
+	c.EmbeddingAPIKey = os.Getenv("EMBEDDING_API_KEY")
+	c.EmbeddingModel = os.Getenv("EMBEDDING_MODEL")
+	c.EmbeddingDim = 384
+	if v := os.Getenv("EMBEDDING_DIM"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n <= 0 {
+			return nil, fmt.Errorf("invalid EMBEDDING_DIM: %s", v)
+		}
+		c.EmbeddingDim = n
 	}
 
 	return c, nil

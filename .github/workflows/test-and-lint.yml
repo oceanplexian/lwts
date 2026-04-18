@@ -24,7 +24,10 @@ jobs:
     runs-on: arc-runner-set
     services:
       postgres:
-        image: postgres:16-alpine
+        # pgvector/pgvector:pg16 ships postgres 16 with the vector extension
+        # preinstalled. This unblocks the optional semantic search feature
+        # being exercised by integration tests.
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: lwts_test
           POSTGRES_PASSWORD: lwts_test

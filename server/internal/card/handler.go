@@ -12,12 +12,21 @@ import (
 	"github.com/oceanplexian/lwts/server/internal/sse"
 )
 
+// CardEmbedder is the minimal contract needed by this handler to enqueue
+// asynchronous embedding regeneration after card writes. The real
+// implementation lives in server/internal/embed; defined as a local interface
+// here to avoid an import cycle and make wiring optional.
+type CardEmbedder interface {
+	EmbedCardAsync(cardID, title, description string)
+}
+
 type Handler struct {
 	cards    *repo.CardRepository
 	boards   *repo.BoardRepository
 	comments *repo.CommentRepository
 	hub      *sse.Hub
 	discord  *discord.Notifier
+	embed    CardEmbedder
 }
 
 func NewHandler(cards *repo.CardRepository, boards *repo.BoardRepository, comments *repo.CommentRepository, hub *sse.Hub) *Handler {
@@ -25,6 +34,25 @@ func NewHandler(cards *repo.CardRepository, boards *repo.BoardRepository, commen
 }
 
 func (h *Handler) SetDiscord(d *discord.Notifier) { h.discord = d }
+
+// SetEmbed enables async embedding regeneration after card create/update.
+// Passing nil keeps the default no-op behavior.
+func (h *Handler) SetEmbed(e CardEmbedder) {
+	if e == nil {
+		// Tolerate typed-nil: callers may pass the result of a constructor
+		// that returns a nil concrete type when semantic search is disabled.
+		h.embed = nil
+		return
+	}
+	h.embed = e
+}
+
+func (h *Handler) embedAsync(cardID, title, description string) {
+	if h.embed == nil {
+		return
+	}
+	h.embed.EmbedCardAsync(cardID, title, description)
+}
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMW func(http.Handler) http.Handler, memberMW func(http.Handler) http.Handler) {
 	mux.Handle("POST /api/v1/boards/{boardId}/cards/bulk-move", memberMW(http.HandlerFunc(h.BulkMove)))
@@ -92,6 +120,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	card.ClientRequestID = req.ClientRequestID
 
+	h.embedAsync(card.ID, card.Title, card.Description)
 	broadcast(h.hub, boardID, "card_created", card, user.ID)
 
 	// Discord notifications
@@ -224,6 +253,12 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := auth.UserFromContext(r.Context())
+
+	// Re-embed only when the embedded text actually changed.
+	if (req.Title != nil && *req.Title != oldCard.Title) ||
+		(req.Description != nil && *req.Description != oldCard.Description) {
+		h.embedAsync(card.ID, card.Title, card.Description)
+	}
 	broadcast(h.hub, card.BoardID, "card_updated", card, user.ID)
 
 	// Discord notifications for field changes

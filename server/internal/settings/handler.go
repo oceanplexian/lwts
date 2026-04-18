@@ -20,13 +20,14 @@ import (
 type SeedFunc func(ctx context.Context, ownerID string) error
 
 type Handler struct {
-	ds         db.Datasource
-	users      *repo.UserRepository
-	boards     *repo.BoardRepository
-	cards      *repo.CardRepository
-	comments   *repo.CommentRepository
-	seedFunc   SeedFunc
-	lambdaDemo bool
+	ds            db.Datasource
+	users         *repo.UserRepository
+	boards        *repo.BoardRepository
+	cards         *repo.CardRepository
+	comments      *repo.CommentRepository
+	seedFunc      SeedFunc
+	lambdaDemo    bool
+	semanticAvail SemanticSearchAvailability
 }
 
 func NewHandler(ds db.Datasource, users *repo.UserRepository, boards *repo.BoardRepository, cards *repo.CardRepository, comments *repo.CommentRepository) *Handler {
@@ -76,8 +77,28 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMW, adminMW func(http.H
 // ── Settings KV ──
 
 var defaultSettings = map[string]string{
-	"general":    `{"workspace_name":"LWTS","default_assignee_id":"","auto_save":true,"compact_cards":false,"allow_registration":false,"base_url":"","session_length_days":7}`,
+	"general":    `{"workspace_name":"LWTS","default_assignee_id":"","auto_save":true,"compact_cards":false,"allow_registration":false,"base_url":"","session_length_days":7,"search_mode":"lexical"}`,
 	"appearance": `{"dark_mode":true,"accent_color":"#e50914","card_animations":true,"density":"default","font_size":"medium","show_card_ids":true,"show_avatars":true,"show_priority_icons":true,"theme":"default","lane_opacity":81,"card_opacity":100,"surface_blur":15}`,
+}
+
+// SemanticSearchAvailability is set by main.go after pgvector probing so that
+// settings PUT can refuse to flip search_mode=semantic when the runtime can't
+// support it. Both nil-safe via package-level state — embedding service can be
+// missing on minimal deployments.
+type SemanticSearchAvailability struct {
+	Configured    bool // EMBEDDING_API_URL is set
+	PgvectorReady bool // schema is provisioned
+}
+
+func (s SemanticSearchAvailability) Available() bool {
+	return s.Configured && s.PgvectorReady
+}
+
+// SetSemanticAvailability tells the settings handler whether semantic search
+// can be enabled. Must be called once at startup before any PUT settings/general
+// requests can hit a workspace flipping search_mode.
+func (h *Handler) SetSemanticAvailability(a SemanticSearchAvailability) {
+	h.semanticAvail = a
 }
 
 // IsRegistrationAllowed checks the general settings to see if user registration is enabled.
@@ -173,6 +194,33 @@ func (h *Handler) PutSettings(w http.ResponseWriter, r *http.Request) {
 	_ = json.Unmarshal([]byte(existing), &merged)
 	var updates map[string]any
 	_ = json.Unmarshal(body, &updates)
+
+	// Validate search_mode before merging. Refuse "semantic" when the runtime
+	// can't support it so the UI can surface the missing prerequisite.
+	if category == "general" {
+		if mode, ok := updates["search_mode"].(string); ok {
+			switch mode {
+			case "lexical", "semantic":
+			default:
+				writeErr(w, http.StatusBadRequest, "search_mode must be 'lexical' or 'semantic'")
+				return
+			}
+			if mode == "semantic" && !h.semanticAvail.Available() {
+				reason := "semantic search unavailable"
+				switch {
+				case !h.semanticAvail.Configured && !h.semanticAvail.PgvectorReady:
+					reason += ": EMBEDDING_API_URL not set and pgvector extension not installed"
+				case !h.semanticAvail.Configured:
+					reason += ": EMBEDDING_API_URL not set"
+				case !h.semanticAvail.PgvectorReady:
+					reason += ": pgvector extension not installed in postgres"
+				}
+				writeErr(w, http.StatusBadRequest, reason)
+				return
+			}
+		}
+	}
+
 	for k, v := range updates {
 		merged[k] = v
 	}
