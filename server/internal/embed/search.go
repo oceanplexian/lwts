@@ -202,13 +202,33 @@ func (s *Service) TitleWordBoundaryHits(ctx context.Context, ds db.Datasource, q
 	return ids, rows.Err()
 }
 
+// MatchKind tags how a result was surfaced. Callers use this to adjust trust:
+// a title-boundary pin is a strong, intentional match; a semantic hit is a
+// topical neighbor and may warrant a second look.
+type MatchKind string
+
+const (
+	MatchTitleBoundary MatchKind = "title_boundary"
+	MatchSemantic      MatchKind = "semantic"
+)
+
+// CascadeResult pairs an ID with its score and the kind of match that produced
+// it. For title_boundary pins the score is synthetic (1.0) since there's no
+// cosine distance; the pin is more trustworthy than any semantic hit anyway.
+type CascadeResult struct {
+	CardID string
+	Score  float64
+	Kind   MatchKind
+}
+
 // SearchCascade implements the production strategy chosen during evaluation:
 //   - if the query word-boundary-matches 1..3 card titles, pin those first
 //   - fill the rest from semantic search
 //   - dedupe; preserves filter constraints
 //
-// Returns ordered card IDs (no scores; the cascade order is the score).
-func (s *Service) SearchCascade(ctx context.Context, query string, opts SearchOptions) ([]string, error) {
+// Returns results in rank order with score + match kind attached so callers
+// can render snippets and confidence tiers.
+func (s *Service) SearchCascade(ctx context.Context, query string, opts SearchOptions) ([]CascadeResult, error) {
 	if s == nil {
 		return nil, fmt.Errorf("embed: service not configured")
 	}
@@ -224,12 +244,12 @@ func (s *Service) SearchCascade(ctx context.Context, query string, opts SearchOp
 	}
 
 	// Tier 1: pin small, confident match sets.
-	pinned := []string{}
+	pinned := []CascadeResult{}
 	seen := map[string]struct{}{}
 	if len(hits) >= 1 && len(hits) <= 3 {
 		for _, id := range hits {
 			if _, ok := seen[id]; !ok {
-				pinned = append(pinned, id)
+				pinned = append(pinned, CascadeResult{CardID: id, Score: 1.0, Kind: MatchTitleBoundary})
 				seen[id] = struct{}{}
 			}
 		}
@@ -243,13 +263,13 @@ func (s *Service) SearchCascade(ctx context.Context, query string, opts SearchOp
 		return nil, err
 	}
 
-	out := make([]string, 0, limit)
+	out := make([]CascadeResult, 0, limit)
 	out = append(out, pinned...)
 	for _, r := range sem {
 		if _, ok := seen[r.CardID]; ok {
 			continue
 		}
-		out = append(out, r.CardID)
+		out = append(out, CascadeResult{CardID: r.CardID, Score: r.Score, Kind: MatchSemantic})
 		seen[r.CardID] = struct{}{}
 		if len(out) >= limit {
 			break

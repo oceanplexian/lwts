@@ -43,6 +43,19 @@ func (h *SearchHandler) semanticAvailable(r *http.Request) bool {
 	return readSearchMode(r, h.ds) == "semantic"
 }
 
+// enrichedCard is the JSON shape returned by /api/v1/search. It inlines the
+// full Card fields (backward-compatible with existing clients) and adds four
+// new fields agents use to evaluate matches: score (0..1), match_kind
+// (title_boundary | semantic | lexical), snippet (why the card matched), and
+// assignee_name for human-readable display.
+type enrichedCard struct {
+	repo.Card
+	AssigneeName string  `json:"assignee_name"`
+	Score        float64 `json:"score"`
+	MatchKind    string  `json:"match_kind"`
+	Snippet      string  `json:"snippet"`
+}
+
 func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	boardID := r.URL.Query().Get("board_id")
@@ -52,14 +65,17 @@ func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 	tag := r.URL.Query().Get("tag")
 	priority := r.URL.Query().Get("priority")
 	limitStr := r.URL.Query().Get("limit")
+	// Agent-friendly opt-in filters. Defaults preserve pre-feature behavior
+	// (include done, no score floor) so the web UI search box is unchanged.
+	includeDone := r.URL.Query().Get("include_done") != "false" // default true
+	minScoreStr := r.URL.Query().Get("min_score")
 
-	// At least one filter required
 	if q == "" && assigneeID == "" && assigneeName == "" && columnID == "" && tag == "" && priority == "" && boardID == "" {
 		writeErr(w, http.StatusBadRequest, "at least one filter required (q, assignee_id, assignee, column_id, tag, priority, board_id)")
 		return
 	}
 
-	// If assignee is a name, resolve to user IDs
+	// Resolve assignee name → IDs
 	var assigneeIDs []string
 	if assigneeName != "" {
 		users := repo.NewUserRepository(h.ds)
@@ -74,7 +90,7 @@ func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if len(assigneeIDs) == 0 {
-			writeJSON(w, http.StatusOK, []repo.Card{})
+			writeSearchJSON(w, "lexical", 0, []enrichedCard{})
 			return
 		}
 	}
@@ -89,9 +105,15 @@ func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Semantic dispatch: if the query string is non-empty AND the workspace is
-	// configured for semantic search AND pgvector is ready, run the cascade
-	// engine. Filters still apply. Falls through to LIKE on any error.
+	minScore := 0.0
+	if minScoreStr != "" {
+		if s, err := strconv.ParseFloat(minScoreStr, 64); err == nil && s >= 0 && s <= 1 {
+			minScore = s
+		}
+	}
+
+	// Semantic dispatch: if query is non-empty AND workspace is configured
+	// for semantic AND pgvector is ready, run the cascade engine.
 	if q != "" && h.semanticAvailable(r) {
 		opts := embed.SearchOptions{
 			BoardID:     boardID,
@@ -101,24 +123,72 @@ func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 			Priority:    priority,
 			Limit:       limit,
 		}
-		ids, err := h.embed.SearchCascade(r.Context(), q, opts)
-		if err == nil {
-			cards, err := h.fetchCardsByIDs(r, ids)
-			if err == nil {
-				writeJSON(w, http.StatusOK, cards)
-				return
-			}
+		if h.runSemanticSearch(w, r, q, opts, includeDone, minScore) {
+			return
 		}
-		// fall through to LIKE on failure
+		// fall through to LIKE on any failure
 	}
 
-	h.likeSearch(w, r, q, boardID, assigneeIDs, columnID, tag, priority, limit)
+	h.runLikeSearch(w, r, q, boardID, assigneeIDs, columnID, tag, priority, limit, includeDone, minScore)
 }
 
-// likeSearch is the original substring engine, preserved unchanged so the
-// default behavior is identical to before this feature landed.
-func (h *SearchHandler) likeSearch(w http.ResponseWriter, r *http.Request,
+// runSemanticSearch returns true if it produced a response. Returns false on
+// any transient failure so the caller can fall back to LIKE.
+func (h *SearchHandler) runSemanticSearch(w http.ResponseWriter, r *http.Request, q string, opts embed.SearchOptions, includeDone bool, minScore float64) bool {
+	results, err := h.embed.SearchCascade(r.Context(), q, opts)
+	if err != nil {
+		return false
+	}
+
+	// Hydrate cards (full row) in cascade order.
+	ids := make([]string, len(results))
+	meta := make(map[string]embed.CascadeResult, len(results))
+	for i, res := range results {
+		ids[i] = res.CardID
+		meta[res.CardID] = res
+	}
+	cards, err := h.hydrateCards(r, ids)
+	if err != nil {
+		return false
+	}
+
+	// Apply post-query filters (done/cleared and min_score). Total is the
+	// count before truncation so the client knows whether to refine.
+	total := 0
+	out := make([]enrichedCard, 0, len(cards))
+	for _, c := range cards {
+		if !includeDone && isDoneColumn(c.ColumnID) {
+			continue
+		}
+		res, ok := meta[c.ID]
+		if !ok {
+			continue
+		}
+		if res.Score < minScore {
+			continue
+		}
+		total++
+		if len(out) >= opts.Limit {
+			continue
+		}
+		out = append(out, enrichedCard{
+			Card:         c.Card,
+			AssigneeName: c.AssigneeName,
+			Score:        res.Score,
+			MatchKind:    string(res.Kind),
+			Snippet:      buildSnippet(res.Kind, q, c.Title, c.Description),
+		})
+	}
+	writeSearchJSON(w, "semantic", total, out)
+	return true
+}
+
+// runLikeSearch is the substring-based engine. Preserves legacy behavior
+// (including unfiltered results) while still populating the new per-card
+// fields so agents calling through the CLI get a consistent shape.
+func (h *SearchHandler) runLikeSearch(w http.ResponseWriter, r *http.Request,
 	q, boardID string, assigneeIDs []string, columnID, tag, priority string, limit int,
+	includeDone bool, minScore float64,
 ) {
 	var conditions []string
 	var args []any
@@ -164,6 +234,17 @@ func (h *SearchHandler) likeSearch(w http.ResponseWriter, r *http.Request,
 		where = " WHERE " + strings.Join(conditions, " AND ")
 	}
 
+	// Overfetch to honor the min_score/include_done filters without needing
+	// cursor pagination; bound by a reasonable ceiling so we don't scan the
+	// entire table for tiny workspaces.
+	fetchLimit := limit * 4
+	if fetchLimit < 100 {
+		fetchLimit = 100
+	}
+	if fetchLimit > 500 {
+		fetchLimit = 500
+	}
+
 	query := `SELECT c.id, c.board_id, c.column_id, c.title, c.description, c.tag, c.priority,
 		c.assignee_id, c.reporter_id, c.points, c.position, c.key, c.version,
 		CAST(c.due_date AS TEXT), c.related_card_ids, c.blocked_card_ids, c.created_at, c.updated_at,
@@ -171,7 +252,7 @@ func (h *SearchHandler) likeSearch(w http.ResponseWriter, r *http.Request,
 		FROM cards c
 		LEFT JOIN users u ON c.assignee_id = u.id` +
 		where +
-		` ORDER BY c.updated_at DESC LIMIT ` + strconv.Itoa(limit)
+		` ORDER BY c.updated_at DESC LIMIT ` + strconv.Itoa(fetchLimit)
 
 	rows, err := h.ds.Query(r.Context(), query, args...)
 	if err != nil {
@@ -180,12 +261,8 @@ func (h *SearchHandler) likeSearch(w http.ResponseWriter, r *http.Request,
 	}
 	defer rows.Close()
 
-	type cardWithAssignee struct {
-		repo.Card
-		AssigneeName string `json:"assignee_name"`
-	}
-
-	var cards []cardWithAssignee
+	total := 0
+	out := make([]enrichedCard, 0, limit)
 	for rows.Next() {
 		var c cardWithAssignee
 		if err := rows.Scan(&c.ID, &c.BoardID, &c.ColumnID, &c.Title, &c.Description, &c.Tag, &c.Priority,
@@ -195,20 +272,40 @@ func (h *SearchHandler) likeSearch(w http.ResponseWriter, r *http.Request,
 			writeErr(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
-		cards = append(cards, c)
+		if !includeDone && isDoneColumn(c.ColumnID) {
+			continue
+		}
+		score, kind := scoreLexical(q, c.Title, c.Description)
+		if score < minScore {
+			continue
+		}
+		total++
+		if len(out) >= limit {
+			continue
+		}
+		out = append(out, enrichedCard{
+			Card:         c.Card,
+			AssigneeName: c.AssigneeName,
+			Score:        score,
+			MatchKind:    kind,
+			Snippet:      buildSnippet(embed.MatchKind(kind), q, c.Title, c.Description),
+		})
 	}
-	if cards == nil {
-		cards = []cardWithAssignee{}
-	}
-	writeJSON(w, http.StatusOK, cards)
+	writeSearchJSON(w, "lexical", total, out)
 }
 
-// fetchCardsByIDs hydrates a set of card IDs into the same JSON shape used by
-// likeSearch. Order is preserved per the input slice (matching the cascade
-// ranking, not updated_at).
-func (h *SearchHandler) fetchCardsByIDs(r *http.Request, ids []string) ([]any, error) {
+// cardWithAssignee is used internally during row scanning. Unexported;
+// enrichedCard is what we return to callers.
+type cardWithAssignee struct {
+	repo.Card
+	AssigneeName string
+}
+
+// hydrateCards fetches full card rows for a list of IDs, preserving the input
+// order (cascade ranking). Cards that vanished mid-flight are skipped.
+func (h *SearchHandler) hydrateCards(r *http.Request, ids []string) ([]cardWithAssignee, error) {
 	if len(ids) == 0 {
-		return []any{}, nil
+		return nil, nil
 	}
 	placeholders := make([]string, len(ids))
 	args := make([]any, len(ids))
@@ -216,7 +313,6 @@ func (h *SearchHandler) fetchCardsByIDs(r *http.Request, ids []string) ([]any, e
 		placeholders[i] = "$" + strconv.Itoa(i+1)
 		args[i] = id
 	}
-
 	q := `SELECT c.id, c.board_id, c.column_id, c.title, c.description, c.tag, c.priority,
 		c.assignee_id, c.reporter_id, c.points, c.position, c.key, c.version,
 		CAST(c.due_date AS TEXT), c.related_card_ids, c.blocked_card_ids, c.created_at, c.updated_at,
@@ -229,11 +325,6 @@ func (h *SearchHandler) fetchCardsByIDs(r *http.Request, ids []string) ([]any, e
 		return nil, err
 	}
 	defer rows.Close()
-
-	type cardWithAssignee struct {
-		repo.Card
-		AssigneeName string `json:"assignee_name"`
-	}
 
 	byID := make(map[string]cardWithAssignee, len(ids))
 	for rows.Next() {
@@ -249,15 +340,68 @@ func (h *SearchHandler) fetchCardsByIDs(r *http.Request, ids []string) ([]any, e
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-
-	// Preserve cascade order. Cards that vanished mid-flight are simply skipped.
-	out := make([]any, 0, len(ids))
+	out := make([]cardWithAssignee, 0, len(ids))
 	for _, id := range ids {
 		if c, ok := byID[id]; ok {
 			out = append(out, c)
 		}
 	}
 	return out, nil
+}
+
+// isDoneColumn matches the conventional terminal columns. Workspaces can add
+// custom columns; we only filter the standard done/cleared pair so as not to
+// silently hide work the user cares about.
+func isDoneColumn(id string) bool {
+	switch strings.ToLower(id) {
+	case "done", "cleared", "complete", "completed", "resolved":
+		return true
+	}
+	return false
+}
+
+// scoreLexical assigns a synthetic confidence for LIKE matches. Title hit is
+// stronger than description-only hit. Used so agents can apply a min_score
+// filter consistently across lexical and semantic results.
+func scoreLexical(q, title, description string) (float64, string) {
+	if q == "" {
+		return 0.5, "lexical"
+	}
+	qLower := strings.ToLower(q)
+	if strings.Contains(strings.ToLower(title), qLower) {
+		return 0.9, "lexical"
+	}
+	if strings.Contains(strings.ToLower(description), qLower) {
+		return 0.6, "lexical"
+	}
+	return 0.5, "lexical"
+}
+
+// buildSnippet picks an appropriate excerpt to show the caller. Title-boundary
+// pins don't need a snippet — the title itself is the evidence — but we still
+// return a short one for context when the description isn't empty.
+func buildSnippet(kind embed.MatchKind, q, title, description string) string {
+	body := strings.TrimSpace(description)
+	if body == "" {
+		body = title
+	}
+	if kind == embed.MatchTitleBoundary {
+		// Title already shows the match; include leading description for context.
+		return leadingChunk(body)
+	}
+	return extractSnippet(q, body)
+}
+
+// writeSearchJSON writes the legacy array response but also sets the
+// aggregate metadata headers the CLI/agents consume.
+func writeSearchJSON(w http.ResponseWriter, mode string, totalMatches int, cards []enrichedCard) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("X-Search-Mode", mode)
+	w.Header().Set("X-Total-Matches", strconv.Itoa(totalMatches))
+	if cards == nil {
+		cards = []enrichedCard{}
+	}
+	_ = json.NewEncoder(w).Encode(cards)
 }
 
 // readSearchMode reads the workspace search_mode preference from settings
