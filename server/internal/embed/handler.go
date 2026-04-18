@@ -26,13 +26,14 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMW, adminMW func(http.H
 
 // StatusResponse is the public-facing health check for the feature.
 type StatusResponse struct {
-	Configured       bool   `json:"configured"`        // EMBEDDING_API_URL is set
-	PgvectorReady    bool   `json:"pgvector_ready"`    // schema provisioned
-	Available        bool   `json:"available"`         // both above are true
-	Model            string `json:"model"`             // configured embedding model id
-	Dim              int    `json:"dim"`               // vector dimension
-	CardsWithEmbed   int    `json:"cards_with_embed"`  // count of embedded cards
-	CardsTotal       int    `json:"cards_total"`       // total card count
+	Configured     bool             `json:"configured"`      // EMBEDDING_API_URL is set
+	PgvectorReady  bool             `json:"pgvector_ready"`  // schema provisioned
+	Available      bool             `json:"available"`       // both above are true
+	Model          string           `json:"model"`           // configured embedding model id
+	Dim            int              `json:"dim"`             // vector dimension
+	CardsWithEmbed int              `json:"cards_with_embed"` // count of embedded cards
+	CardsTotal     int              `json:"cards_total"`      // total card count
+	Backfill       BackfillProgress `json:"backfill"`         // last/current backfill state
 }
 
 func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
@@ -49,13 +50,14 @@ func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
 			resp.CardsWithEmbed = w_
 			resp.CardsTotal = t
 		}
+		resp.Backfill = h.svc.BackfillProgress()
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// Backfill embeds all cards that don't currently have an embedding. Synchronous
-// for now — typical workspaces are small enough that a 30s wait is acceptable
-// and the feedback is more useful than fire-and-forget.
+// Backfill kicks off an async backfill and returns immediately. Poll
+// /api/v1/embed/status to watch progress. Returns 409 if one is already
+// running so the UI can react sensibly.
 func (h *Handler) Backfill(w http.ResponseWriter, r *http.Request) {
 	if h.svc == nil || !h.svc.Configured() {
 		writeJSON(w, http.StatusBadRequest, map[string]string{
@@ -69,14 +71,18 @@ func (h *Handler) Backfill(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	embedded, skipped, err := h.svc.Backfill(r.Context(), 32)
-	if err != nil {
+	if err := h.svc.StartBackfill(32); err != nil {
+		if err == ErrBackfillRunning {
+			writeJSON(w, http.StatusConflict, map[string]string{
+				"error": "backfill already running; poll /api/v1/embed/status for progress",
+			})
+			return
+		}
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"embedded": embedded,
-		"skipped":  skipped,
+	writeJSON(w, http.StatusAccepted, map[string]string{
+		"status": "backfill started; poll /api/v1/embed/status for progress",
 	})
 }
 

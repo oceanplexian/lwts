@@ -777,7 +777,13 @@ async function refreshSemanticSearchStatus(currentlyEnabled) {
   if (currentlyEnabled && status) {
     if (statusRow) statusRow.style.display = '';
     if (countsEl) {
-      countsEl.textContent = `${status.cards_with_embed} / ${status.cards_total} cards indexed (model: ${status.model || 'unknown'})`;
+      let txt = `${status.cards_with_embed} / ${status.cards_total} cards indexed (model: ${status.model || 'unknown'})`;
+      if (status.backfill && status.backfill.running) {
+        txt += ` — backfill running (${status.backfill.embedded} embedded so far)`;
+      } else if (status.backfill && status.backfill.last_error) {
+        txt += ` — last backfill error: ${status.backfill.last_error}`;
+      }
+      countsEl.textContent = txt;
     }
   } else if (statusRow) {
     statusRow.style.display = 'none';
@@ -814,16 +820,26 @@ function bindSemanticSearchControls() {
     btn.addEventListener('click', async () => {
       btn.disabled = true;
       const original = btn.textContent;
-      btn.textContent = 'Indexing...';
+      btn.textContent = 'Starting...';
       try {
-        const r = await window.API.backfillEmbeddings();
-        if (window.Toast) window.Toast.success(`Indexed ${r.embedded} cards (skipped ${r.skipped})`);
+        await window.API.backfillEmbeddings();
+        if (window.Toast) window.Toast.success('Backfill started — check the indexed-cards count for progress');
+        // Poll status every 3s until backfill stops running.
+        const poll = async () => {
+          const s = await window.API.getEmbedStatus();
+          refreshSemanticSearchStatus(true);
+          if (s && s.backfill && s.backfill.running) {
+            setTimeout(poll, 3000);
+          } else {
+            btn.disabled = false;
+            btn.textContent = original;
+          }
+        };
+        poll();
       } catch (e) {
         if (window.Toast) window.Toast.error('Backfill failed: ' + (e.message || 'unknown error'));
-      } finally {
         btn.disabled = false;
         btn.textContent = original;
-        refreshSemanticSearchStatus(true);
       }
     });
   }

@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/oceanplexian/lwts/server/internal/db"
-	"github.com/oceanplexian/lwts/server/migrations"
 )
 
 // pgDS opens a connection to the integration-test postgres. Skips if DB_URL is
@@ -32,12 +31,21 @@ func TestEnsureSchema_PostgresWithPgvector(t *testing.T) {
 	ds := pgDS(t)
 	ctx := context.Background()
 
-	// We need the cards table to exist before EnsureSchema can ALTER it.
-	if err := db.Migrate(ctx, ds, migrations.FS); err != nil {
-		t.Fatalf("migrate: %v", err)
+	// The integration postgres is shared across packages — prior test runs can
+	// leave the `cards` table in various states. Reset to a known-empty table
+	// so this test is self-contained regardless of execution order.
+	if _, err := ds.Exec(ctx, "DROP TABLE IF EXISTS cards CASCADE"); err != nil {
+		t.Fatalf("drop cards: %v", err)
 	}
+	if _, err := ds.Exec(ctx, "CREATE TABLE cards (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), title TEXT)"); err != nil {
+		t.Fatalf("create cards: %v", err)
+	}
+	t.Cleanup(func() {
+		// Drop ourselves so subsequent tests in the same package start clean and
+		// the repo.Migrate() in those tests re-creates the full schema.
+		_, _ = ds.Exec(context.Background(), "DROP TABLE IF EXISTS cards CASCADE")
+	})
 
-	// Pgvector must be installable. The CI service image ships it.
 	if _, err := ds.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS vector"); err != nil {
 		t.Skipf("pgvector not available, skipping: %v", err)
 	}
