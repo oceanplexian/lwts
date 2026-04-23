@@ -1035,6 +1035,8 @@ function initBrowserNotificationBindings() {
         if (window.Toast) window.Toast.error('Notification permission ' + perm);
       } else {
         N.setMasterEnabled(true);
+        // Immediate feedback ping so the user sees it working.
+        try { N.testNotification(); } catch {}
       }
     } else {
       N.setMasterEnabled(false);
