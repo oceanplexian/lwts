@@ -212,6 +212,45 @@ function handleCardsBulkMoved(data) {
   }
 }
 
+function testTriggerEvent(boardId, eventKey) {
+  if (!isSupported()) {
+    if (window.Toast) window.Toast.error('Browser notifications are not supported in this browser');
+    return;
+  }
+  if (Notification.permission !== 'granted' || !isMasterEnabled()) {
+    if (window.Toast) window.Toast.error('Enable the master toggle in Notifications first.');
+    return;
+  }
+  const board = boardName(boardId);
+  const suffix = board ? ' · ' + board : '';
+  const titleMap = {
+    on_create: 'New card' + suffix,
+    on_transition: 'Card moved' + suffix,
+    on_done: 'Card done' + suffix,
+    on_closed: 'Card closed' + suffix,
+  };
+  const bodyMap = {
+    on_create: 'Example card created',
+    on_transition: 'Example card → To Do',
+    on_done: 'Example card → Done',
+    on_closed: 'Example card → Closed',
+  };
+  try {
+    const n = new Notification(titleMap[eventKey] || 'Test', {
+      body: bodyMap[eventKey] || '',
+      icon: ICON_URL,
+      tag: 'lwts-test-' + (eventKey || ''),
+      renotify: true,
+    });
+    n.onclick = () => { try { window.focus(); } catch {} n.close(); };
+    n.onerror = () => {
+      if (window.Toast) window.Toast.error('OS rejected the notification — check macOS System Settings → Notifications → Chrome.');
+    };
+  } catch (err) {
+    if (window.Toast) window.Toast.error('Failed: ' + ((err && err.message) || 'unknown'));
+  }
+}
+
 function wireNotificationHandlers(boardStream) {
   if (!boardStream || !boardStream.handlers) return;
   const wrap = (key, fn) => {
@@ -266,6 +305,10 @@ window.Notifier = {
   normalizeTriggers,
   wireNotificationHandlers,
   testNotification,
+  testTriggerEvent,
+  handleCardCreated,
+  handleCardMoved,
+  handleCardsBulkMoved,
   fire,
 };
 
