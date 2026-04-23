@@ -125,27 +125,23 @@ function truncate(s, max) {
 function fire(title, opts) {
   if (!canNotify()) return null;
   const options = opts || {};
-  // Skip if the user is already focused on the tab — they don't need a ping.
-  if (options.onlyWhenHidden !== false) {
-    const visible = typeof document !== 'undefined' && !document.hidden;
-    const focused = typeof document !== 'undefined' && typeof document.hasFocus === 'function' ? document.hasFocus() : false;
-    if (visible && focused) return null;
-  }
   try {
     const n = new Notification(title, {
       icon: ICON_URL,
       badge: ICON_URL,
       body: options.body || '',
       tag: options.tag || undefined,
-      renotify: !!options.renotify,
+      renotify: options.renotify !== false,
       silent: !!options.silent,
     });
     n.onclick = () => {
       try { window.focus(); } catch {}
       n.close();
     };
+    n.onerror = (ev) => { console.warn('Notification error', ev); };
     return n;
-  } catch {
+  } catch (err) {
+    console.warn('Failed to fire notification', err);
     return null;
   }
 }
