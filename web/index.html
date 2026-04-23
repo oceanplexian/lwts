@@ -497,7 +497,7 @@
     <!-- Boards -->
     <div class="settings-section" id="settings-boards">
       <div class="settings-section-title">Boards</div>
-      <div class="settings-section-desc">Each board has its own key, columns, and webhooks.</div>
+      <div class="settings-section-desc">Each board has its own key, columns, and triggers.</div>
       <div id="settings-boards-list"></div>
     </div>
 
@@ -536,7 +536,16 @@
       <div class="settings-group">
         <div class="settings-group-title">Channels</div>
         <div class="settings-row"><div class="settings-row-label"><div class="settings-row-title">Email notifications</div><div class="settings-row-desc">Get notified when assigned or mentioned</div></div><div class="settings-row-control"><label class="settings-toggle disabled"><input type="checkbox" checked disabled><span class="toggle-track"></span></label></div></div>
-        <div class="settings-row"><div class="settings-row-label"><div class="settings-row-title">Browser notifications</div><div class="settings-row-desc">Desktop push notifications</div></div><div class="settings-row-control"><label class="settings-toggle"><input type="checkbox"><span class="toggle-track"></span></label></div></div>
+        <div class="settings-row">
+          <div class="settings-row-label">
+            <div class="settings-row-title">Browser notifications</div>
+            <div class="settings-row-desc">Desktop pings for board events. <span id="browser-notif-status" style="color:var(--text-dimmed)"></span></div>
+          </div>
+          <div class="settings-row-control" style="display:flex;gap:8px;align-items:center">
+            <button id="browser-notif-test" class="btn" style="font-size:0.78rem;display:none" onclick="testBrowserNotification()">Test</button>
+            <label class="settings-toggle"><input id="browser-notif-toggle" type="checkbox"><span class="toggle-track"></span></label>
+          </div>
+        </div>
         <div class="settings-row"><div class="settings-row-label"><div class="settings-row-title">Slack integration</div><div class="settings-row-desc">Post updates to a Slack channel</div></div><div class="settings-row-control"><button class="btn" style="font-size:0.78rem">Connect</button></div></div>
       </div>
     </div>

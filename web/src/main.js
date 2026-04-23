@@ -8,6 +8,7 @@ import './dropdown.js';
 import './editor.js';
 import './boardstream.js';
 import './presence.js';
+import './notifications.js';
 import './kanban.js';
 import './boardthemes.js';
 import './settings.js';

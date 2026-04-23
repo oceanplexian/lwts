@@ -987,6 +987,66 @@ function initSettingsBindings() {
     });
   });
   _renderAppearanceThemePicker((_settingsCache.appearance || {}).theme || (typeof window.getCachedBoardThemeId === 'function' ? window.getCachedBoardThemeId() : 'default'));
+  initBrowserNotificationBindings();
+}
+
+function initBrowserNotificationBindings() {
+  const toggle = document.getElementById('browser-notif-toggle');
+  const status = document.getElementById('browser-notif-status');
+  const testBtn = document.getElementById('browser-notif-test');
+  if (!toggle) return;
+  const N = window.Notifier;
+
+  const refresh = () => {
+    if (!N || !N.isSupported()) {
+      toggle.checked = false;
+      toggle.disabled = true;
+      if (status) status.textContent = 'Not supported in this browser.';
+      if (testBtn) testBtn.style.display = 'none';
+      return;
+    }
+    const perm = N.currentPermission();
+    const enabled = N.isMasterEnabled();
+    toggle.disabled = false;
+    toggle.checked = enabled && perm === 'granted';
+    if (status) {
+      if (perm === 'denied') {
+        status.textContent = 'Permission denied — enable it in your browser site settings.';
+      } else if (perm === 'default') {
+        status.textContent = 'Permission not yet granted.';
+      } else if (perm === 'granted' && enabled) {
+        status.textContent = 'Active.';
+      } else if (perm === 'granted') {
+        status.textContent = 'Ready — flip the toggle to turn on.';
+      } else {
+        status.textContent = '';
+      }
+    }
+    if (testBtn) testBtn.style.display = (perm === 'granted' && enabled) ? '' : 'none';
+  };
+
+  toggle.onchange = async () => {
+    if (!N || !N.isSupported()) { toggle.checked = false; return; }
+    if (toggle.checked) {
+      const perm = await N.requestPermission();
+      if (perm !== 'granted') {
+        toggle.checked = false;
+        N.setMasterEnabled(false);
+        if (window.Toast) window.Toast.error('Notification permission ' + perm);
+      } else {
+        N.setMasterEnabled(true);
+      }
+    } else {
+      N.setMasterEnabled(false);
+    }
+    refresh();
+  };
+
+  refresh();
+}
+
+function testBrowserNotification() {
+  if (window.Notifier) window.Notifier.testNotification();
 }
 
 // ── Team Section ──
@@ -1654,14 +1714,39 @@ async function loadBoardsSettings() {
           <button class="btn settings-column-add-btn" data-board-id="${board.id}" style="margin-top:10px;font-size:0.82rem;padding:4px 14px">+ Add column</button>
         </div>`;
 
-      // Webhooks group
-      const webhooks = settings.webhooks || {};
+      // Triggers group (browser notification + webhook per event)
+      const triggers = window.Notifier
+        ? window.Notifier.normalizeTriggers(settings)
+        : { on_create: {notify:false,webhook:''}, on_transition: {notify:false,webhook:''}, on_done: {notify:false,webhook:''}, on_closed: {notify:false,webhook:''} };
+      const triggerRow = (key, title, desc) => {
+        const t = triggers[key] || { notify: false, webhook: '' };
+        return `
+          <div class="settings-row">
+            <div class="settings-row-label">
+              <div class="settings-row-title">${title}</div>
+              <div class="settings-row-desc">${desc}</div>
+            </div>
+            <div class="settings-row-control" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+              <label class="settings-toggle" title="Browser notification">
+                <input type="checkbox" class="board-trigger-notify" data-board-id="${board.id}" data-trigger="${key}" ${t.notify ? 'checked' : ''}>
+                <span class="toggle-track"></span>
+              </label>
+              <input class="settings-input board-trigger-webhook" data-board-id="${board.id}" data-trigger="${key}" value="${_escHtml(t.webhook || '')}" placeholder="Webhook URL (optional)" style="min-width:220px" />
+              <button class="btn" style="font-size:0.78rem;flex-shrink:0" onclick="testWebhook(this)">Test</button>
+            </div>
+          </div>`;
+      };
       configHTML += `
         <div class="settings-group">
-          <div class="settings-group-title">Webhooks</div>
-          <div class="settings-row"><div class="settings-row-label"><div class="settings-row-title">On transition</div><div class="settings-row-desc">POST when a card moves columns</div></div><div class="settings-row-control" style="display:flex;gap:8px"><input class="settings-input board-webhook-input" data-board-id="${board.id}" data-webhook="on_transition" value="${_escHtml(webhooks.on_transition || '')}" placeholder="https://..." /><button class="btn" style="font-size:0.78rem;flex-shrink:0" onclick="testWebhook(this)">Test</button></div></div>
-          <div class="settings-row"><div class="settings-row-label"><div class="settings-row-title">On create</div><div class="settings-row-desc">POST when a new card is created</div></div><div class="settings-row-control" style="display:flex;gap:8px"><input class="settings-input board-webhook-input" data-board-id="${board.id}" data-webhook="on_create" value="${_escHtml(webhooks.on_create || '')}" placeholder="https://..." /><button class="btn" style="font-size:0.78rem;flex-shrink:0" onclick="testWebhook(this)">Test</button></div></div>
-          <div class="settings-row"><div class="settings-row-label"><div class="settings-row-title">On complete</div><div class="settings-row-desc">POST when a card moves to Done</div></div><div class="settings-row-control" style="display:flex;gap:8px"><input class="settings-input board-webhook-input" data-board-id="${board.id}" data-webhook="on_complete" value="${_escHtml(webhooks.on_complete || '')}" placeholder="https://..." /><button class="btn" style="font-size:0.78rem;flex-shrink:0" onclick="testWebhook(this)">Test</button></div></div>
+          <div class="settings-group-title">Triggers</div>
+          <div class="settings-row-desc" style="padding:0 0 10px 0;color:var(--text-dimmed);font-size:0.8rem">
+            For each event, enable a desktop notification and/or POST to a webhook.
+            Desktop notifications also require the global toggle in <em>Notifications</em>.
+          </div>
+          ${triggerRow('on_create', 'On create', 'A new card is created on this board')}
+          ${triggerRow('on_transition', 'On transition', 'A card moves between columns')}
+          ${triggerRow('on_done', 'On done', 'A card moves to a Done column')}
+          ${triggerRow('on_closed', 'On closed', 'A card moves to Closed (cleared)')}
         </div>`;
 
       config.innerHTML = configHTML;
@@ -1739,14 +1824,21 @@ function _bindBoardSettingsInputs() {
     _bindColumnDragReorder(list);
   });
 
-  // Webhook inputs
-  document.querySelectorAll('.board-webhook-input').forEach(el => {
+  // Trigger webhook inputs (debounced)
+  document.querySelectorAll('.board-trigger-webhook').forEach(el => {
     el.addEventListener('input', () => {
       const boardId = el.dataset.boardId;
-      clearTimeout(_boardSettingsDebounce['wh-' + boardId]);
-      _boardSettingsDebounce['wh-' + boardId] = setTimeout(() => {
-        _saveBoardWebhooks(boardId);
+      clearTimeout(_boardSettingsDebounce['tr-' + boardId]);
+      _boardSettingsDebounce['tr-' + boardId] = setTimeout(() => {
+        _saveBoardTriggers(boardId);
       }, 600);
+    });
+  });
+
+  // Trigger notify toggles (save immediately)
+  document.querySelectorAll('.board-trigger-notify').forEach(el => {
+    el.addEventListener('change', () => {
+      _saveBoardTriggers(el.dataset.boardId);
     });
   });
 }
@@ -2006,17 +2098,23 @@ function _bindColumnDragReorder(list) {
   });
 }
 
-function _saveBoardWebhooks(boardId) {
-  const inputs = document.querySelectorAll(`.board-webhook-input[data-board-id="${boardId}"]`);
+function _saveBoardTriggers(boardId) {
   const board = window.boardList.find(b => b.id === boardId);
   if (!board) return;
   const settings = window.parseBoardSettings ? window.parseBoardSettings(board.settings) : JSON.parse(board.settings || '{}');
-  if (!settings.webhooks) settings.webhooks = {};
-  inputs.forEach(input => {
-    settings.webhooks[input.dataset.webhook] = input.value.trim();
+  const triggers = settings.triggers && typeof settings.triggers === 'object' ? settings.triggers : {};
+  const keys = (window.Notifier && window.Notifier.EVENT_KEYS) || ['on_create', 'on_transition', 'on_done', 'on_closed'];
+  keys.forEach(key => {
+    const notifyEl = document.querySelector(`.board-trigger-notify[data-board-id="${boardId}"][data-trigger="${key}"]`);
+    const webhookEl = document.querySelector(`.board-trigger-webhook[data-board-id="${boardId}"][data-trigger="${key}"]`);
+    triggers[key] = {
+      notify: notifyEl ? !!notifyEl.checked : !!(triggers[key] && triggers[key].notify),
+      webhook: webhookEl ? webhookEl.value.trim() : ((triggers[key] && triggers[key].webhook) || ''),
+    };
   });
+  settings.triggers = triggers;
   board.settings = JSON.stringify(settings);
-  window.API.updateBoard(boardId, { settings: JSON.stringify(settings) }).catch(() => window.Toast.error('Failed to update webhooks'));
+  window.API.updateBoard(boardId, { settings: JSON.stringify(settings) }).catch(() => window.Toast.error('Failed to update triggers'));
 }
 
 // ── Transition Rules ──
@@ -2510,6 +2608,8 @@ window.saveDiscordConfig = saveDiscordConfig;
 window.testDiscordMessage = testDiscordMessage;
 window.openIntegrationModal = openIntegrationModal;
 window.closeIntegrationModal = closeIntegrationModal;
+window.testBrowserNotification = testBrowserNotification;
+window.initBrowserNotificationBindings = initBrowserNotificationBindings;
 
 window.loadTeamMembers = loadTeamMembers;
 window.updateUserRole = updateUserRole;
