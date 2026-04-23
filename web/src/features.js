@@ -17,6 +17,7 @@ function connectBoardStream(boardId) {
     currentBoardStream = new window.BoardStream(boardId, {});
     window.currentBoardStream = currentBoardStream;
     if (typeof window.wirePresenceHandlers === 'function') window.wirePresenceHandlers(currentBoardStream);
+    if (typeof window.wireNotificationHandlers === 'function') window.wireNotificationHandlers(currentBoardStream);
     currentBoardStream.connect();
   }
 }
