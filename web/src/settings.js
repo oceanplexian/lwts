@@ -1734,7 +1734,7 @@ async function loadBoardsSettings() {
                 <span class="toggle-track"></span>
               </label>
               <input class="settings-input board-trigger-webhook" data-board-id="${board.id}" data-trigger="${key}" value="${_escHtml(t.webhook || '')}" placeholder="Webhook URL (optional)" style="min-width:220px" />
-              <button class="btn" style="font-size:0.78rem;flex-shrink:0" onclick="testWebhook(this)">Test</button>
+              <button class="btn board-trigger-test" data-board-id="${board.id}" data-trigger="${key}" style="font-size:0.78rem;flex-shrink:0" onclick="testBoardTrigger(this)">Test</button>
             </div>
           </div>`;
       };
@@ -1743,7 +1743,8 @@ async function loadBoardsSettings() {
           <div class="settings-group-title">Triggers</div>
           <div class="settings-row-desc" style="padding:0 0 10px 0;color:var(--text-dimmed);font-size:0.8rem">
             For each event, enable a desktop notification and/or POST to a webhook.
-            Desktop notifications also require the global toggle in <em>Notifications</em>.
+            Desktop notifications require the global toggle in <em>Notifications</em> and fire for events made by
+            <em>other</em> sessions — your own moves don't ping yourself.
           </div>
           ${triggerRow('on_create', 'On create', 'A new card is created on this board')}
           ${triggerRow('on_transition', 'On transition', 'A card moves between columns')}
@@ -2115,8 +2116,30 @@ function _saveBoardTriggers(boardId) {
     };
   });
   settings.triggers = triggers;
-  board.settings = JSON.stringify(settings);
-  window.API.updateBoard(boardId, { settings: JSON.stringify(settings) }).catch(() => window.Toast.error('Failed to update triggers'));
+  const payload = JSON.stringify(settings);
+  board.settings = payload;
+  window.API.updateBoard(boardId, { settings: payload })
+    .then(() => { if (window.Toast) window.Toast.success('Triggers saved', { duration: 1200 }); })
+    .catch((e) => {
+      console.error('updateBoard triggers failed', e);
+      if (window.Toast) window.Toast.error('Failed to save triggers: ' + ((e && e.message) || 'unknown'));
+    });
+}
+
+function testBoardTrigger(btn) {
+  const boardId = btn.dataset.boardId;
+  const key = btn.dataset.trigger;
+  const control = btn.closest('.settings-row-control');
+  const webhookEl = control ? control.querySelector('.board-trigger-webhook') : null;
+  const url = webhookEl ? webhookEl.value.trim() : '';
+
+  if (url) {
+    // Webhook URL present — test the webhook.
+    testWebhook(btn);
+    return;
+  }
+  // No URL — test the browser notification path for this event.
+  if (window.Notifier) window.Notifier.testTriggerEvent(boardId, key);
 }
 
 // ── Transition Rules ──
@@ -2612,6 +2635,7 @@ window.openIntegrationModal = openIntegrationModal;
 window.closeIntegrationModal = closeIntegrationModal;
 window.testBrowserNotification = testBrowserNotification;
 window.initBrowserNotificationBindings = initBrowserNotificationBindings;
+window.testBoardTrigger = testBoardTrigger;
 
 window.loadTeamMembers = loadTeamMembers;
 window.updateUserRole = updateUserRole;

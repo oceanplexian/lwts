@@ -857,6 +857,9 @@ function onDrop(e) {
     window.API.moveCard(droppedId, movePayload).then(updated => {
       movedCard.version = updated.version;
       cardIndex[droppedId] = updated;
+      if (window.Notifier && typeof window.Notifier.handleCardMoved === 'function') {
+        window.Notifier.handleCardMoved(updated);
+      }
     }).catch(err => {
       if (err.status === 422 && err.data && err.data.blockers) {
         // Transition blocked — revert and show blockers
@@ -1069,6 +1072,9 @@ function submitCreateFromDetail() {
       } else {
         const boardName = boardList.find(b => b.id === targetBoardId)?.name || targetBoardId;
         window.Toast.success('Card created on ' + boardName);
+      }
+      if (window.Notifier && typeof window.Notifier.handleCardCreated === 'function') {
+        window.Notifier.handleCardCreated(serverCard);
       }
       // Post pending comments to the newly created card
       pendingCommentTexts.forEach(text => {
@@ -1352,6 +1358,9 @@ function saveDetailFields() {
         detailCard.version = updated.version;
         cardIndex[detailCard.id] = updated;
         doFieldUpdate(detailCard);
+        if (window.Notifier && typeof window.Notifier.handleCardMoved === 'function') {
+          window.Notifier.handleCardMoved(updated);
+        }
       }).catch(err => {
         if (err.status === 422 && err.data && err.data.blockers) {
           state[newCol] = state[newCol].filter(c => c.id !== detailCard.id);
@@ -2254,6 +2263,9 @@ function _finishClear(doneIds, doneCards) {
       }
     });
     save();
+    if (window.Notifier && typeof window.Notifier.handleCardsBulkMoved === 'function') {
+      window.Notifier.handleCardsBulkMoved({ cards: updated, column_id: 'cleared' });
+    }
   }).catch(err => {
     window.Toast.error('Failed to clear cards: ' + (err.message || 'unknown error'));
     loadBoardCards(currentBoardId);
