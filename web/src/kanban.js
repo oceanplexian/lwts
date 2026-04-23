@@ -2377,6 +2377,11 @@ function reinitUserDropdowns() {
 // ═══════════════════════════════════════════════════════════════
 
 let searchDebounce = null;
+// IDs the server matched (semantic / key / lexical-on-fields the DOM doesn't
+// expose). Layered on top of pure substring filtering so embedding hits and
+// exact-key hits stay visible even when the visible text doesn't contain the
+// query verbatim. Reset whenever the query changes or clears.
+let _searchExtraIds = new Set();
 
 function initGlobalSearch() {
   const input = document.getElementById('header-search');
@@ -2386,6 +2391,9 @@ function initGlobalSearch() {
     const q = input.value.trim();
     document.getElementById('header-search-clear').classList.toggle('hidden', !q);
     clearTimeout(searchDebounce);
+    // Stale server matches must not bleed into the next query.
+    _searchExtraIds = new Set();
+    window._searchExtraIds = _searchExtraIds;
     if (!q) {
       filterCardsInline('');
       if (typeof window.filterListInline === "function") window.filterListInline('');
@@ -2435,7 +2443,9 @@ function filterCardsInline(query) {
     const title = (cardEl.querySelector('.card-title') || {}).textContent || '';
     const key = (cardEl.querySelector('.card-key') || {}).textContent || '';
     const tag = (cardEl.querySelector('.card-tag') || {}).textContent || '';
-    const match = title.toLowerCase().includes(query) ||
+    const idMatch = _searchExtraIds.has(cardEl.dataset.id);
+    const match = idMatch ||
+                  title.toLowerCase().includes(query) ||
                   key.toLowerCase().includes(query) ||
                   tag.toLowerCase().includes(query);
 
@@ -2477,6 +2487,22 @@ async function doGlobalSearch(query) {
 
   try {
     const cards = await window.API.searchCards(query, currentBoardId);
+    // Server matches (including semantic + exact-key hits) also drive the
+    // inline filter so cards whose visible text doesn't substring-match the
+    // query are still revealed.
+    const input = document.getElementById('header-search');
+    const liveQuery = input ? input.value.trim() : query;
+    if (liveQuery === query) {
+      _searchExtraIds = new Set((cards || []).map(c => c.id));
+    window._searchExtraIds = _searchExtraIds;
+      const board = document.getElementById('board');
+      if (board && board.style.display !== 'none') {
+        filterCardsInline(query.toLowerCase());
+      }
+      if (typeof window.filterListInline === "function" && typeof window.currentView !== "undefined" && window.currentView === 'list') {
+        window.filterListInline(query.toLowerCase());
+      }
+    }
     if (!cards || cards.length === 0) {
       results.innerHTML = '<div class="search-empty">No cards matching \'' + esc(query) + '\'</div>';
       return;

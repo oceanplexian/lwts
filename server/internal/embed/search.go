@@ -129,6 +129,73 @@ func (s *Service) SearchSemantic(ctx context.Context, query string, opts SearchO
 // case-insensitive whole-word substring. Used by the cascade tier.
 var nonWordRe = regexp.MustCompile(`\W+`)
 
+// keyShapeRe matches a ticket-key-shaped query: project key + dash + number,
+// e.g. FNAI-16 or kanb-7. Whitespace is trimmed before matching.
+var keyShapeRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*-\d+$`)
+
+// LooksLikeKey reports whether `q` is shaped like a card key. Used by the
+// cascade and the lexical fallback to know whether to attempt an exact-key
+// lookup.
+func LooksLikeKey(q string) bool {
+	return keyShapeRe.MatchString(strings.TrimSpace(q))
+}
+
+// KeyMatch returns the ID of the card whose key matches `q` exactly
+// (case-insensitive), honoring board/assignee/column/tag/priority filters.
+// Returns an empty string when nothing matches or when q isn't key-shaped.
+func KeyMatch(ctx context.Context, ds db.Datasource, q string, opts SearchOptions) (string, error) {
+	q = strings.TrimSpace(q)
+	if !LooksLikeKey(q) {
+		return "", nil
+	}
+
+	var conds []string
+	var args []any
+	conds = append(conds, "UPPER(key) = UPPER($1)")
+	args = append(args, q)
+	argN := 2
+
+	if opts.BoardID != "" {
+		conds = append(conds, "board_id = $"+strconv.Itoa(argN))
+		args = append(args, opts.BoardID)
+		argN++
+	}
+	if len(opts.AssigneeIDs) > 0 {
+		ph := make([]string, len(opts.AssigneeIDs))
+		for i, id := range opts.AssigneeIDs {
+			ph[i] = "$" + strconv.Itoa(argN)
+			args = append(args, id)
+			argN++
+		}
+		conds = append(conds, "assignee_id IN ("+strings.Join(ph, ",")+")")
+	}
+	if opts.ColumnID != "" {
+		conds = append(conds, "column_id = $"+strconv.Itoa(argN))
+		args = append(args, opts.ColumnID)
+		argN++
+	}
+	if opts.Tag != "" {
+		conds = append(conds, "tag = $"+strconv.Itoa(argN))
+		args = append(args, opts.Tag)
+		argN++
+	}
+	if opts.Priority != "" {
+		conds = append(conds, "priority = $"+strconv.Itoa(argN))
+		args = append(args, opts.Priority)
+	}
+
+	sql := `SELECT id FROM cards WHERE ` + strings.Join(conds, " AND ") + ` LIMIT 1`
+	row := ds.QueryRow(ctx, sql, args...)
+	var id string
+	if err := row.Scan(&id); err != nil {
+		if err == db.ErrNoRows {
+			return "", nil
+		}
+		return "", fmt.Errorf("key lookup: %w", err)
+	}
+	return id, nil
+}
+
 // TitleWordBoundaryHits returns card IDs whose title contains the trimmed
 // query as a word-boundary case-insensitive match. Used by the guarded cascade
 // to detect "user typed a specific term" intent.
@@ -203,11 +270,13 @@ func (s *Service) TitleWordBoundaryHits(ctx context.Context, ds db.Datasource, q
 }
 
 // MatchKind tags how a result was surfaced. Callers use this to adjust trust:
+// a key match is the user typing an exact ticket id and trumps everything;
 // a title-boundary pin is a strong, intentional match; a semantic hit is a
 // topical neighbor and may warrant a second look.
 type MatchKind string
 
 const (
+	MatchKey           MatchKind = "key"
 	MatchTitleBoundary MatchKind = "title_boundary"
 	MatchSemantic      MatchKind = "semantic"
 )
@@ -222,7 +291,8 @@ type CascadeResult struct {
 }
 
 // SearchCascade implements the production strategy chosen during evaluation:
-//   - if the query word-boundary-matches 1..3 card titles, pin those first
+//   - if the query is a ticket key (FNAI-16), pin that exact card first
+//   - if the query word-boundary-matches 1..3 card titles, pin those next
 //   - fill the rest from semantic search
 //   - dedupe; preserves filter constraints
 //
@@ -233,19 +303,29 @@ func (s *Service) SearchCascade(ctx context.Context, query string, opts SearchOp
 		return nil, fmt.Errorf("embed: service not configured")
 	}
 
-	hits, err := s.TitleWordBoundaryHits(ctx, s.ds, query, opts, 5)
-	if err != nil {
-		return nil, err
-	}
-
 	limit := opts.Limit
 	if limit <= 0 {
 		limit = 50
 	}
 
-	// Tier 1: pin small, confident match sets.
 	pinned := []CascadeResult{}
 	seen := map[string]struct{}{}
+
+	// Tier 0: exact ticket key. If the user typed something that looks like a
+	// card key, surface that card first — they almost certainly want it.
+	if keyID, err := KeyMatch(ctx, s.ds, query, opts); err != nil {
+		return nil, err
+	} else if keyID != "" {
+		pinned = append(pinned, CascadeResult{CardID: keyID, Score: 1.0, Kind: MatchKey})
+		seen[keyID] = struct{}{}
+	}
+
+	hits, err := s.TitleWordBoundaryHits(ctx, s.ds, query, opts, 5)
+	if err != nil {
+		return nil, err
+	}
+
+	// Tier 1: pin small, confident match sets.
 	if len(hits) >= 1 && len(hits) <= 3 {
 		for _, id := range hits {
 			if _, ok := seen[id]; !ok {

@@ -182,6 +182,106 @@ func TestSearch_IncludesSnippet(t *testing.T) {
 	}
 }
 
+func TestSearch_TicketKeyPinsExactMatchFirst(t *testing.T) {
+	// Typing the literal ticket key into the search box should always return
+	// that exact card first, regardless of whatever else also LIKE-matches.
+	ds, users, boards, cards, _ := setupTest(t)
+	user := createTestUser(t, users)
+	b, _ := boards.Create(context.Background(), "Test Board", "TST", user.ID)
+	// Decoy whose title mentions "TST-3" so it also LIKE-matches the query.
+	_, _ = cards.Create(context.Background(), b.ID, repo.CardCreate{
+		ColumnID: "todo", Title: "see TST-3 for context",
+	})
+	_, _ = cards.Create(context.Background(), b.ID, repo.CardCreate{
+		ColumnID: "todo", Title: "depends on TST-3",
+	})
+	// Third card auto-keys to TST-3 — that's what we search for.
+	target, _ := cards.Create(context.Background(), b.ID, repo.CardCreate{
+		ColumnID: "todo", Title: "the actual ticket",
+	})
+	if target.Key != "TST-3" {
+		t.Fatalf("expected target key TST-3, got %q", target.Key)
+	}
+
+	h := NewSearchHandler(ds)
+	// Lowercase to confirm case-insensitive matching.
+	req := httptest.NewRequest("GET", "/api/v1/search?q=tst-3", nil)
+	req = withUser(req, user)
+	w := httptest.NewRecorder()
+	h.Search(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: %d, body: %s", w.Code, w.Body.String())
+	}
+	var results []map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &results)
+	if len(results) == 0 {
+		t.Fatal("expected at least one result")
+	}
+	if results[0]["id"] != target.ID {
+		t.Fatalf("expected pinned card %q first, got %q (title=%v)",
+			target.ID, results[0]["id"], results[0]["title"])
+	}
+	if results[0]["match_kind"] != "key" {
+		t.Errorf("expected match_kind=key, got %v", results[0]["match_kind"])
+	}
+	if score, _ := results[0]["score"].(float64); score < 0.99 {
+		t.Errorf("expected score 1.0 for key pin, got %v", score)
+	}
+}
+
+func TestSearch_PartialKeyMatchesViaLike(t *testing.T) {
+	// "TST-" alone isn't a complete key but should still surface every card
+	// whose key starts with that prefix via the LIKE clause on c.key.
+	ds, users, boards, cards, _ := setupTest(t)
+	user := createTestUser(t, users)
+	b, _ := boards.Create(context.Background(), "Test Board", "TST", user.ID)
+	_, _ = cards.Create(context.Background(), b.ID, repo.CardCreate{
+		ColumnID: "todo", Title: "alpha",
+	})
+	_, _ = cards.Create(context.Background(), b.ID, repo.CardCreate{
+		ColumnID: "todo", Title: "beta",
+	})
+
+	h := NewSearchHandler(ds)
+	req := httptest.NewRequest("GET", "/api/v1/search?q=TST-", nil)
+	req = withUser(req, user)
+	w := httptest.NewRecorder()
+	h.Search(w, req)
+
+	var results []map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &results)
+	if len(results) != 2 {
+		t.Fatalf("expected 2 cards via key prefix, got %d: %v", len(results), results)
+	}
+}
+
+func TestSearch_KeyShapeMissesFallsBackToLike(t *testing.T) {
+	// A key-shaped query that doesn't match any card key shouldn't pin
+	// anything spurious; the lexical fallback should still run cleanly.
+	ds, users, boards, cards, _ := setupTest(t)
+	user := createTestUser(t, users)
+	b, _ := boards.Create(context.Background(), "Test Board", "TST", user.ID)
+	_, _ = cards.Create(context.Background(), b.ID, repo.CardCreate{
+		ColumnID: "todo", Title: "unrelated work",
+	})
+
+	h := NewSearchHandler(ds)
+	req := httptest.NewRequest("GET", "/api/v1/search?q=ZZZ-999", nil)
+	req = withUser(req, user)
+	w := httptest.NewRecorder()
+	h.Search(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: %d", w.Code)
+	}
+	var results []map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &results)
+	if len(results) != 0 {
+		t.Fatalf("expected 0 results for non-existent key, got %d: %v", len(results), results)
+	}
+}
+
 func TestReadSearchMode_DefaultsToLexical(t *testing.T) {
 	ds, _, _, _, _ := setupTest(t)
 	req := httptest.NewRequest("GET", "/api/v1/search?q=x", nil)

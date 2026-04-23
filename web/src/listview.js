@@ -856,6 +856,10 @@ function formatRelativeTime(iso) {
 
 function filterListInline(query) {
   const rows = document.querySelectorAll('#list-view .list-row');
+  // window._searchExtraIds is populated by kanban.js after the global search
+  // returns. Done/cleared rows that match semantically (or by ticket key) but
+  // not by visible text should still be revealed.
+  const extra = window._searchExtraIds || new Set();
   rows.forEach(row => {
     if (!query) {
       if (row.classList.contains('search-hidden')) {
@@ -866,7 +870,8 @@ function filterListInline(query) {
       return;
     }
     const text = row.textContent.toLowerCase();
-    if (text.includes(query)) {
+    const idMatch = extra.has(row.dataset.id);
+    if (idMatch || text.includes(query)) {
       if (row.classList.contains('search-hidden')) {
         row.classList.remove('search-hidden');
         row.classList.add('search-reveal');

@@ -190,6 +190,22 @@ func (h *SearchHandler) runLikeSearch(w http.ResponseWriter, r *http.Request,
 	q, boardID string, assigneeIDs []string, columnID, tag, priority string, limit int,
 	includeDone bool, minScore float64,
 ) {
+	// Pin an exact ticket-key match first so a query like "FNAI-16" surfaces
+	// that card regardless of what the title/description LIKE produces.
+	pinnedKeyID := ""
+	if q != "" {
+		opts := embed.SearchOptions{
+			BoardID:     boardID,
+			AssigneeIDs: assigneeIDs,
+			ColumnID:    columnID,
+			Tag:         tag,
+			Priority:    priority,
+		}
+		if id, err := embed.KeyMatch(r.Context(), h.ds, q, opts); err == nil {
+			pinnedKeyID = id
+		}
+	}
+
 	var conditions []string
 	var args []any
 	argN := 1
@@ -200,10 +216,13 @@ func (h *SearchHandler) runLikeSearch(w http.ResponseWriter, r *http.Request,
 		argN++
 	}
 	if q != "" {
+		// Match against title, description, and key. Including key lets
+		// partial key prefixes like "KANB-" surface tickets even before the
+		// user finishes typing the number.
 		pattern := "%" + q + "%"
-		conditions = append(conditions, "(c.title LIKE $"+strconv.Itoa(argN)+" OR c.description LIKE $"+strconv.Itoa(argN+1)+")")
-		args = append(args, pattern, pattern)
-		argN += 2
+		conditions = append(conditions, "(c.title LIKE $"+strconv.Itoa(argN)+" OR c.description LIKE $"+strconv.Itoa(argN+1)+" OR c.key LIKE $"+strconv.Itoa(argN+2)+")")
+		args = append(args, pattern, pattern, pattern)
+		argN += 3
 	}
 	if len(assigneeIDs) > 0 {
 		placeholders := make([]string, len(assigneeIDs))
@@ -263,6 +282,7 @@ func (h *SearchHandler) runLikeSearch(w http.ResponseWriter, r *http.Request,
 
 	total := 0
 	out := make([]enrichedCard, 0, limit)
+	pinnedSeen := false
 	for rows.Next() {
 		var c cardWithAssignee
 		if err := rows.Scan(&c.ID, &c.BoardID, &c.ColumnID, &c.Title, &c.Description, &c.Tag, &c.Priority,
@@ -275,21 +295,59 @@ func (h *SearchHandler) runLikeSearch(w http.ResponseWriter, r *http.Request,
 		if !includeDone && isDoneColumn(c.ColumnID) {
 			continue
 		}
+		isPinnedKey := pinnedKeyID != "" && c.ID == pinnedKeyID
 		score, kind := scoreLexical(q, c.Title, c.Description)
-		if score < minScore {
+		if isPinnedKey {
+			score = 1.0
+			kind = string(embed.MatchKey)
+		}
+		if score < minScore && !isPinnedKey {
 			continue
 		}
 		total++
-		if len(out) >= limit {
-			continue
-		}
-		out = append(out, enrichedCard{
+		card := enrichedCard{
 			Card:         c.Card,
 			AssigneeName: c.AssigneeName,
 			Score:        score,
 			MatchKind:    kind,
 			Snippet:      buildSnippet(embed.MatchKind(kind), q, c.Title, c.Description),
-		})
+		}
+		if isPinnedKey {
+			// Move the pinned card to the front and never let it spill past limit.
+			out = append([]enrichedCard{card}, out...)
+			if len(out) > limit {
+				out = out[:limit]
+			}
+			pinnedSeen = true
+			continue
+		}
+		if len(out) >= limit {
+			continue
+		}
+		out = append(out, card)
+	}
+	// If the pinned key wasn't in the LIKE result set (filtered out by limit
+	// or because it didn't substring-match the query at all), hydrate it
+	// separately so the user still sees their exact match first.
+	if pinnedKeyID != "" && !pinnedSeen {
+		hydrated, err := h.hydrateCards(r, []string{pinnedKeyID})
+		if err == nil && len(hydrated) > 0 {
+			c := hydrated[0]
+			if includeDone || !isDoneColumn(c.ColumnID) {
+				total++
+				card := enrichedCard{
+					Card:         c.Card,
+					AssigneeName: c.AssigneeName,
+					Score:        1.0,
+					MatchKind:    string(embed.MatchKey),
+					Snippet:      buildSnippet(embed.MatchKey, q, c.Title, c.Description),
+				}
+				out = append([]enrichedCard{card}, out...)
+				if len(out) > limit {
+					out = out[:limit]
+				}
+			}
+		}
 	}
 	writeSearchJSON(w, "lexical", total, out)
 }
@@ -378,15 +436,15 @@ func scoreLexical(q, title, description string) (float64, string) {
 }
 
 // buildSnippet picks an appropriate excerpt to show the caller. Title-boundary
-// pins don't need a snippet — the title itself is the evidence — but we still
-// return a short one for context when the description isn't empty.
+// and key pins don't need a snippet — the title/key is the evidence — but we
+// still return a short one for context when the description isn't empty.
 func buildSnippet(kind embed.MatchKind, q, title, description string) string {
 	body := strings.TrimSpace(description)
 	if body == "" {
 		body = title
 	}
-	if kind == embed.MatchTitleBoundary {
-		// Title already shows the match; include leading description for context.
+	if kind == embed.MatchTitleBoundary || kind == embed.MatchKey {
+		// Title/key already shows the match; include leading description for context.
 		return leadingChunk(body)
 	}
 	return extractSnippet(q, body)
