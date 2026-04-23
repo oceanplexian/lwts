@@ -236,12 +236,22 @@ function testNotification() {
     return;
   }
   try {
-    new Notification('LWTS notifications enabled', {
+    const n = new Notification('LWTS notifications enabled', {
       body: 'You’ll get pings here for your chosen events.',
       icon: ICON_URL,
       tag: 'lwts-test',
+      renotify: true,
     });
-  } catch {}
+    n.onclick = () => { try { window.focus(); } catch {} n.close(); };
+    n.onerror = (ev) => {
+      console.warn('Notification error', ev);
+      if (window.Toast) window.Toast.error('OS rejected the notification — check macOS System Settings → Notifications → Chrome.');
+    };
+    if (window.Toast) window.Toast.info('Test sent — if nothing appears, check the OS notification center or allow Chrome in system notifications.');
+  } catch (err) {
+    console.error('Failed to create Notification', err);
+    if (window.Toast) window.Toast.error('Failed to show notification: ' + ((err && err.message) || 'unknown'));
+  }
 }
 
 window.Notifier = {
