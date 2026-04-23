@@ -1743,8 +1743,7 @@ async function loadBoardsSettings() {
           <div class="settings-group-title">Triggers</div>
           <div class="settings-row-desc" style="padding:0 0 10px 0;color:var(--text-dimmed);font-size:0.8rem">
             For each event, enable a desktop notification and/or POST to a webhook.
-            Desktop notifications require the global toggle in <em>Notifications</em> and fire for events made by
-            <em>other</em> sessions — your own moves don't ping yourself.
+            Desktop notifications require the global toggle in <em>Notifications</em>.
           </div>
           ${triggerRow('on_create', 'On create', 'A new card is created on this board')}
           ${triggerRow('on_transition', 'On transition', 'A card moves between columns')}
