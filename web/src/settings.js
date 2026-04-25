@@ -729,6 +729,7 @@ async function initAppearance() {
 let _settingsCache = {};
 let _settingsDebounce = {};
 let _settingsDropdowns = {};
+let _settingsTransitionGen = 0;
 
 async function loadSettings(category) {
   try {
@@ -1458,7 +1459,9 @@ async function updateDangerZoneLabels() {
 }
 
 async function openSettings(_fromHash) {
+  const transitionGen = ++_settingsTransitionGen;
   await _ensureLambdaDemoMode();
+  if (transitionGen !== _settingsTransitionGen) return;
 
   // Update danger zone labels based on workspace state
   updateDangerZoneLabels();
@@ -1480,6 +1483,7 @@ async function openSettings(_fromHash) {
   const listView = document.getElementById('list-view');
   if (listView) listView.style.display = 'none';
   setTimeout(() => {
+    if (transitionGen !== _settingsTransitionGen) return;
     board.style.display = 'none';
     board.classList.remove('fade-out');
 
@@ -1563,6 +1567,8 @@ function _buildSettingsPickerMenu() {
 }
 
 function closeSettings(_fromHash) {
+  const transitionGen = ++_settingsTransitionGen;
+
   // If settings isn't open, nothing to do
   const _sp = document.getElementById('settings-page');
   if (_sp && !_sp.classList.contains('active')) return;
@@ -1582,6 +1588,7 @@ function closeSettings(_fromHash) {
   // Fade out settings
   settings.classList.remove('visible');
   setTimeout(() => {
+    if (transitionGen !== _settingsTransitionGen) return;
     settings.classList.remove('active');
 
     // Show board or list view depending on current view
