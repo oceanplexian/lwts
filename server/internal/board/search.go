@@ -412,7 +412,7 @@ func (h *SearchHandler) hydrateCards(r *http.Request, ids []string) ([]cardWithA
 // silently hide work the user cares about.
 func isDoneColumn(id string) bool {
 	switch strings.ToLower(id) {
-	case "done", "cleared", "complete", "completed", "resolved":
+	case "done", "cleared", "complete", "completed", "resolved", "wont-do", "wontfix", "wont_do":
 		return true
 	}
 	return false

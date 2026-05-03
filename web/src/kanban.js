@@ -5,6 +5,7 @@ const COLUMNS = [
   { id: 'todo',        label: 'To Do',       color: '#579DFF', type: 'active' },
   { id: 'in-progress', label: 'In Progress', color: '#fb8c00', type: 'active' },
   { id: 'done',        label: 'Done',        color: '#4ade80', type: 'done' },
+  { id: 'wont-do',     label: "Won't Do",    color: '#94a3b8', type: 'done' },
 ];
 const _COL_PALETTE = ['#8c8c8c','#579DFF','#fb8c00','#4ade80','#f44336','#9f8fef','#6cc3e0','#f5cd47'];
 function _colColor(col, idx) { return col.color || _COL_PALETTE[idx % _COL_PALETTE.length]; }
