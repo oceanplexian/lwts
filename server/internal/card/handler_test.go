@@ -252,6 +252,62 @@ func TestCardGetWithComments(t *testing.T) {
 	}
 }
 
+func TestCardGetByKey(t *testing.T) {
+	users, boards, cards, comments := setupTest(t)
+	h := NewHandler(cards, boards, comments, nil)
+	ctx := context.Background()
+
+	user, _ := users.Create(ctx, "User", "u@t.com", "h")
+	board, _ := boards.Create(ctx, "B", "LWTS", user.ID)
+	card, _ := cards.Create(ctx, board.ID, repo.CardCreate{ColumnID: "todo", Title: "Card"})
+
+	mux := http.NewServeMux()
+	mux.Handle("GET /api/v1/cards/{id}", noopAuth(http.HandlerFunc(h.Get)))
+
+	// Hit the endpoint with the human-readable key (LWTS-1) instead of the UUID.
+	req := httptest.NewRequest("GET", "/api/v1/cards/"+card.Key, nil)
+	req = withUser(req, user)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: %d, body: %s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]json.RawMessage
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	var got repo.Card
+	_ = json.Unmarshal(resp["card"], &got)
+	if got.ID != card.ID {
+		t.Errorf("id: %s, want %s", got.ID, card.ID)
+	}
+	if got.Key != card.Key {
+		t.Errorf("key: %s, want %s", got.Key, card.Key)
+	}
+}
+
+func TestCardGetByKeyMissing(t *testing.T) {
+	users, boards, cards, comments := setupTest(t)
+	h := NewHandler(cards, boards, comments, nil)
+	ctx := context.Background()
+
+	user, _ := users.Create(ctx, "User", "u@t.com", "h")
+	_, _ = boards.Create(ctx, "B", "LWTS", user.ID)
+
+	mux := http.NewServeMux()
+	mux.Handle("GET /api/v1/cards/{id}", noopAuth(http.HandlerFunc(h.Get)))
+
+	// A well-formed key that doesn't exist should be 404, not 500.
+	req := httptest.NewRequest("GET", "/api/v1/cards/LWTS-9999", nil)
+	req = withUser(req, user)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for missing key, got %d, body: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestClearDoneMovesAllDoneCards(t *testing.T) {
 	users, boards, cards, comments := setupTest(t)
 	h := NewHandler(cards, boards, comments, nil)

@@ -5,12 +5,37 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
+	"strings"
 
 	"github.com/oceanplexian/lwts/server/internal/auth"
 	"github.com/oceanplexian/lwts/server/internal/discord"
 	"github.com/oceanplexian/lwts/server/internal/repo"
 	"github.com/oceanplexian/lwts/server/internal/sse"
 )
+
+// keyPattern matches card keys like "FNAI-245" / "KANB-96": one-or-more
+// uppercase letter/digit segment starting with a letter, dash, then digits.
+var keyPattern = regexp.MustCompile(`^[A-Z][A-Z0-9]*-[0-9]+$`)
+
+// looksLikeKey reports whether s is shaped like a card key rather than a UUID.
+func looksLikeKey(s string) bool {
+	return keyPattern.MatchString(strings.ToUpper(s))
+}
+
+// resolveID returns the UUID for a path value that may be either a UUID or a
+// card key. If the value looks like a key, it is resolved via GetByKey.
+// Returns the empty string and repo.ErrNotFound when no card matches the key.
+func resolveID(ctx context.Context, cards *repo.CardRepository, idOrKey string) (string, error) {
+	if looksLikeKey(idOrKey) {
+		card, err := cards.GetByKey(ctx, strings.ToUpper(idOrKey))
+		if err != nil {
+			return "", err
+		}
+		return card.ID, nil
+	}
+	return idOrKey, nil
+}
 
 // CardEmbedder is the minimal contract needed by this handler to enqueue
 // asynchronous embedding regeneration after card writes. The real
@@ -166,7 +191,15 @@ func (h *Handler) ListByBoard(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+	id, err := resolveID(r.Context(), h.cards, r.PathValue("id"))
+	if err == repo.ErrNotFound {
+		writeErr(w, http.StatusNotFound, "card not found")
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
 	card, err := h.cards.GetByID(r.Context(), id)
 	if err == repo.ErrNotFound {
 		writeErr(w, http.StatusNotFound, "card not found")
@@ -203,7 +236,15 @@ type updateCardReq struct {
 }
 
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+	id, err := resolveID(r.Context(), h.cards, r.PathValue("id"))
+	if err == repo.ErrNotFound {
+		writeErr(w, http.StatusNotFound, "card not found")
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
 
 	// Snapshot before update for discord diff
 	oldCard, _ := h.cards.GetByID(r.Context(), id)
@@ -301,7 +342,15 @@ type moveCardReq struct {
 }
 
 func (h *Handler) Move(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+	id, err := resolveID(r.Context(), h.cards, r.PathValue("id"))
+	if err == repo.ErrNotFound {
+		writeErr(w, http.StatusNotFound, "card not found")
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
 
 	var req moveCardReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -578,7 +627,15 @@ func (h *Handler) ClearDone(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+	id, err := resolveID(r.Context(), h.cards, r.PathValue("id"))
+	if err == repo.ErrNotFound {
+		writeErr(w, http.StatusNotFound, "card not found")
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
 
 	// Get card first for board ID (SSE broadcast)
 	card, err := h.cards.GetByID(r.Context(), id)

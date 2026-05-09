@@ -187,6 +187,24 @@ func (r *CardRepository) GetByID(ctx context.Context, id string) (Card, error) {
 	return c, err
 }
 
+// GetByKey looks up a card by its human-readable key (e.g. "FNAI-245") rather
+// than its UUID. Used by handlers that accept either form in the path.
+func (r *CardRepository) GetByKey(ctx context.Context, key string) (Card, error) {
+	row := r.ds.QueryRow(ctx,
+		`SELECT id, board_id, column_id, title, description, tag, priority, assignee_id, reporter_id,
+		        points, position, key, version, CAST(due_date AS TEXT), related_card_ids, blocked_card_ids, epic_id, created_at, updated_at
+		 FROM cards WHERE key = $1`, key)
+
+	var c Card
+	err := row.Scan(&c.ID, &c.BoardID, &c.ColumnID, &c.Title, &c.Description, &c.Tag, &c.Priority,
+		&c.AssigneeID, &c.ReporterID, &c.Points, &c.Position, &c.Key, &c.Version, &c.DueDate,
+		&c.RelatedCardIDs, &c.BlockedCardIDs, &c.EpicID, &c.CreatedAt, &c.UpdatedAt)
+	if err == db.ErrNoRows {
+		return Card{}, ErrNotFound
+	}
+	return c, err
+}
+
 func (r *CardRepository) ListByBoard(ctx context.Context, boardID string) ([]Card, error) {
 	rows, err := r.ds.Query(ctx,
 		`SELECT id, board_id, column_id, title, description, tag, priority, assignee_id, reporter_id,
