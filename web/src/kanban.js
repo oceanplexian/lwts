@@ -429,7 +429,7 @@ function _scheduleColumnHeightSync() {
           if (!row) return;
           _syncEqualHeightGroup(
             Array.from(row.children).filter(el => el.classList && el.classList.contains('epic-lane-cell')),
-            floorHeight
+            0
           );
         });
       return;
