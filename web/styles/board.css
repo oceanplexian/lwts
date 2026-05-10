@@ -592,7 +592,7 @@ body.light-theme .epic-lane {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-height: 40px;
+  min-height: var(--card-height, 160px);
   flex: 1;
 }
 
