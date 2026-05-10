@@ -984,7 +984,7 @@ let _sseRenderPending = false;
 
 function _sseRender() {
   const unfurlCount = document.querySelectorAll('#board .card.unfurl, #list-view .list-row.unfurl').length;
-  
+
   if (unfurlCount > 0) {
     if (!_sseRenderPending) {
       _sseRenderPending = true;
@@ -995,10 +995,133 @@ function _sseRender() {
     }
     return;
   }
-  
+
   window.render();
   injectDueDateChips();
   applyFilters();
+}
+
+// ───────────────────────────────────────────────────────────────
+// Surgical DOM updates for SSE events (FNAI / Issue: blank flash on
+// open/waiting/resolved transitions). Each helper returns the new
+// element on success, true for a successful no-op, or false to signal
+// "fall back to _sseRender()". Callers handle the fallback so we
+// never lose a state transition.
+//
+// We intentionally do NOT touch the list view (#list-view) — list
+// rendering still goes through render() since its row layout is
+// less amenable to in-place updates and it's only visible when the
+// user toggles to list mode (rare during live boards).
+// ───────────────────────────────────────────────────────────────
+
+function _isListView() {
+  return typeof window.currentView !== 'undefined' && window.currentView === 'list';
+}
+
+function _isEpicMode() {
+  const b = document.getElementById('board');
+  return !!(b && b.classList.contains('board-epic-mode'));
+}
+
+function _refreshColumnCount(body) {
+  const col = body && body.closest('.column');
+  if (!col) return;
+  const count = body.querySelectorAll('.card').length;
+  const countEl = col.querySelector('.column-count');
+  if (countEl) countEl.textContent = count;
+}
+
+function _refreshEmptyState(body) {
+  if (!body) return;
+  const cards = body.querySelectorAll('.card');
+  let empty = body.querySelector('.column-empty');
+  if (cards.length === 0 && !empty) {
+    empty = document.createElement('div');
+    empty.className = 'column-empty';
+    empty.textContent = 'No cards';
+    body.appendChild(empty);
+  } else if (cards.length > 0 && empty) {
+    empty.remove();
+  }
+}
+
+function _surgicalCanApply() {
+  // Standard kanban view, not list, not epic-lane mode (which uses a
+  // different DOM tree the surgical helpers don't understand).
+  return !_isListView() && !_isEpicMode() && typeof window.createCardEl === 'function';
+}
+
+function _surgicalAddCard(card, colId, position) {
+  if (!_surgicalCanApply()) return false;
+  const body = document.querySelector('.column-body[data-col="' + colId + '"]');
+  if (!body) return false;
+  // Skip duplicate (e.g. event arrived after optimistic local insert).
+  const existing = document.querySelector('.card[data-id="' + card.id + '"]');
+  if (existing) return existing;
+  const children = body.querySelectorAll('.card');
+  const insertAt = (typeof position === 'number' && position >= 0)
+    ? Math.min(position, children.length)
+    : children.length;
+  const el = window.createCardEl(card, colId, insertAt);
+  if (insertAt < children.length) {
+    body.insertBefore(el, children[insertAt]);
+  } else {
+    body.appendChild(el);
+  }
+  body.querySelectorAll('.card').forEach((c, i) => c.dataset.idx = i);
+  _refreshColumnCount(body);
+  _refreshEmptyState(body);
+  return el;
+}
+
+function _surgicalRemoveCard(cardId) {
+  const el = document.querySelector('#board .card[data-id="' + cardId + '"]');
+  if (!el) return false;
+  const body = el.closest('.column-body');
+  el.remove();
+  if (body) {
+    body.querySelectorAll('.card').forEach((c, i) => c.dataset.idx = i);
+    _refreshColumnCount(body);
+    _refreshEmptyState(body);
+  }
+  return true;
+}
+
+function _surgicalReplaceAndMove(card, toColId, position) {
+  if (!_surgicalCanApply()) return false;
+  const targetBody = document.querySelector('.column-body[data-col="' + toColId + '"]');
+  if (!targetBody) return false;
+  const old = document.querySelector('#board .card[data-id="' + card.id + '"]');
+  const sourceBody = old ? old.closest('.column-body') : null;
+  // Build fresh element so any field updates (title, tag, points, etc.)
+  // come through alongside the position change.
+  const idxHint = (typeof position === 'number' && position >= 0)
+    ? position
+    : targetBody.querySelectorAll('.card').length;
+  const fresh = window.createCardEl(card, toColId, idxHint);
+  if (old) old.remove();
+  const children = targetBody.querySelectorAll('.card');
+  if (idxHint < children.length) {
+    targetBody.insertBefore(fresh, children[idxHint]);
+  } else {
+    targetBody.appendChild(fresh);
+  }
+  if (sourceBody && sourceBody !== targetBody) {
+    sourceBody.querySelectorAll('.card').forEach((c, i) => c.dataset.idx = i);
+    _refreshColumnCount(sourceBody);
+    _refreshEmptyState(sourceBody);
+  }
+  targetBody.querySelectorAll('.card').forEach((c, i) => c.dataset.idx = i);
+  _refreshColumnCount(targetBody);
+  _refreshEmptyState(targetBody);
+  return fresh;
+}
+
+function _afterSurgicalUpdate() {
+  // Re-apply features that the full render() patch normally re-runs:
+  // due-date chips and any active filters. Both are idempotent and cheap.
+  if (typeof injectDueDateChips === 'function') injectDueDateChips();
+  if (typeof applyFilters === 'function') applyFilters();
 }
 
 function updateCardInState(data) {
@@ -1006,6 +1129,7 @@ function updateCardInState(data) {
   if (!existing) return;
 
   const card = existing.cards[existing.idx];
+  const prevEpicId = card.epic_id ?? null;
   // Merge updated fields
   Object.assign(card, {
     title: data.title ?? card.title,
@@ -1024,7 +1148,15 @@ function updateCardInState(data) {
     blocked_card_ids: data.blocked_card_ids ?? card.blocked_card_ids,
   });
   window.save();
-  _sseRender();
+  // If epic membership or the card's own epic-tag-ness changed, the lane
+  // structure shifts and we can't surgically patch — fall back to render.
+  const epicLayoutChanged = (prevEpicId !== (card.epic_id ?? null))
+    || card.tag === 'epic';
+  if (epicLayoutChanged || !_surgicalReplaceAndMove(card, existing.columnId, existing.idx)) {
+    _sseRender();
+  } else {
+    _afterSurgicalUpdate();
+  }
   // If the detail modal is open for this card, refresh all detail views
   if (window.detailCard && window.detailCard.id === data.id) {
     // Update the detailCard object with new data
@@ -1076,8 +1208,12 @@ function findCardLocation(match) {
 function addCardToState(data) {
   const localCard = window.fromAPI(data);
   const existing = findCardLocation(c => c.id === data.id);
+  let resolvedColId;
+  let resolvedPosition;
   if (existing) {
     existing.cards[existing.idx] = localCard;
+    resolvedColId = existing.columnId;
+    resolvedPosition = existing.idx;
   } else {
     const clientRequestId = data.client_request_id || '';
     const pending = clientRequestId
@@ -1085,15 +1221,26 @@ function addCardToState(data) {
       : null;
     if (pending) {
       pending.cards[pending.idx] = localCard;
+      resolvedColId = pending.columnId;
+      resolvedPosition = pending.idx;
     } else {
       const colId = data.column_id || 'backlog';
       if (!window.state[colId]) window.state[colId] = [];
       window.state[colId].push(localCard);
+      resolvedColId = colId;
+      resolvedPosition = window.state[colId].length - 1;
     }
   }
   if (window.cardIndex && data.id) window.cardIndex[data.id] = data;
   window.save();
-  _sseRender();
+  // Surgical add — lane structure changes when the new card is itself an
+  // epic, so fall back to a full render in that case.
+  const isEpic = localCard.tag === 'epic';
+  if (isEpic || !_surgicalAddCard(localCard, resolvedColId, resolvedPosition)) {
+    _sseRender();
+  } else {
+    _afterSurgicalUpdate();
+  }
   // Animate the newly added card
   const el = document.querySelector('.card[data-id="' + data.id + '"]')
     || document.querySelector('.list-row[data-id="' + data.id + '"]');
@@ -1120,6 +1267,8 @@ function moveCardInState(data) {
   const toCol = data.to_column || data.column_id || 'backlog';
   if (!window.state[toCol]) window.state[toCol] = [];
   const existing = window.state[toCol].findIndex(c => c.id === data.id);
+  let resolvedCard;
+  let resolvedPos;
   if (existing !== -1) {
     // Already present from optimistic update — just update fields
     const card = window.state[toCol][existing];
@@ -1131,9 +1280,11 @@ function moveCardInState(data) {
     card.epic_id = data.epic_id || null;
     card.points = data.points || card.points;
     card.due_date = data.due_date || null;
+    resolvedCard = card;
+    resolvedPos = existing;
   } else {
     const pos = data.position ?? window.state[toCol].length;
-    window.state[toCol].splice(pos, 0, {
+    const newCard = {
       id: data.id, key: data.key, title: data.title,
       tag: data.tag || 'blue', priority: data.priority || 'medium',
       version: data.version || 1, assignee: data.assignee_id || 'unassigned',
@@ -1141,10 +1292,21 @@ function moveCardInState(data) {
       date: data.due_date || '', due_date: data.due_date || null,
       epic_id: data.epic_id || null,
       description: data.description || '', comments: [],
-    });
+    };
+    window.state[toCol].splice(pos, 0, newCard);
+    resolvedCard = newCard;
+    resolvedPos = pos;
   }
   window.save();
-  _sseRender();
+  // Surgical move avoids the full board redraw flash that used to fire on
+  // every column transition. Epic cards / epic-mode boards still take the
+  // render path because their lane layout is structural.
+  const isEpic = resolvedCard && resolvedCard.tag === 'epic';
+  if (isEpic || !_surgicalReplaceAndMove(resolvedCard, toCol, resolvedPos)) {
+    _sseRender();
+  } else {
+    _afterSurgicalUpdate();
+  }
   // If detail modal is open for this card, refresh sidebar (status changed)
   if (window.detailCard && window.detailCard.id === data.id) {
     window.detailCard.column_id = toCol;
@@ -1162,10 +1324,17 @@ function moveCardInState(data) {
 function removeCardFromState(data) {
   const removeFromAnyState = () => {
     const existing = findCardLocation(c => c.id === data.id);
+    const wasEpic = existing && existing.cards[existing.idx] && existing.cards[existing.idx].tag === 'epic';
     if (!existing) return;
     existing.cards.splice(existing.idx, 1);
     window.save();
-    _sseRender();
+    // Removing an epic collapses a lane — full render. Otherwise surgical
+    // remove on the kanban DOM node and skip the flash.
+    if (wasEpic || !_surgicalRemoveCard(data.id)) {
+      _sseRender();
+    } else {
+      _afterSurgicalUpdate();
+    }
   };
 
   // Animate exit before removing from state
