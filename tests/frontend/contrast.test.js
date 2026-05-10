@@ -207,13 +207,22 @@ describe('blueprint chip-style controls — transparent bg, readable text in bot
     it(`${sel} — has transparent background in blueprint (light)`, () => {
       const w = buildDom({ light: true, boardTheme: 'blueprint', html });
       const bgRaw = lastDeclMatching(w, sel, 'background(?:-color)?') || 'transparent';
-      // For this assertion we want the chip's *own* alpha, not what it
-      // looks like composited over the page. Pass an alpha-0 sentinel as
-      // bgForBlend so resolveColor doesn't substitute the page bg when it
-      // hits 'transparent'.
       const bg = resolveColor(w, bgRaw, { r: 0, g: 0, b: 0, a: 0 });
       assert.equal(bg.a, 0, `${sel}: bg should be transparent, got alpha=${bg.a} (${bgRaw})`);
     });
+
+    for (const mode of [{ light: true, label: 'light' }, { light: false, label: 'dark' }]) {
+      it(`${sel} — has no visible chip border in blueprint (${mode.label})`, () => {
+        const w = buildDom({ light: mode.light, boardTheme: 'blueprint', html });
+        const borderRaw = lastDeclMatching(w, sel, 'border(?:-color)?') || 'transparent';
+        // The base rule sets `border: 1px solid <color>`; we only care
+        // about the alpha of the resolved color, so pull just the color
+        // tokens.
+        const colorPart = borderRaw.match(/(rgb[a]?\([^)]*\)|#[0-9a-f]{3,8}|var\([^)]+\)|transparent|color-mix\([^)]*\))/i);
+        const c = colorPart ? resolveColor(w, colorPart[0], { r: 0, g: 0, b: 0, a: 0 }) : { a: 0 };
+        assert.equal(c.a, 0, `${sel} (${mode.label}): border should be transparent, got alpha=${c.a} (${borderRaw})`);
+      });
+    }
 
     it(`${sel} — text vs page contrast >= 7.0 in blueprint (light)`, () => {
       const w = buildDom({ light: true, boardTheme: 'blueprint', html });

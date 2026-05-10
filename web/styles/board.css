@@ -1173,7 +1173,7 @@ body:not(.light-theme):is([data-board-theme="summer-duotone"], [data-board-theme
 body:not(.light-theme):is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .filter-btn,
 body:not(.light-theme):is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .epic-lane-key {
   background: transparent;
-  border-color: var(--border-light);
+  border-color: transparent;
   color: rgba(255,255,255,0.85);
 }
 
@@ -1181,7 +1181,7 @@ body.light-theme:is([data-board-theme="summer-duotone"], [data-board-theme="roun
 body.light-theme:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .filter-btn,
 body.light-theme:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .epic-lane-key {
   background: transparent;
-  border-color: var(--border-light);
+  border-color: transparent;
   color: rgba(0,0,0,0.85);
 }
 
