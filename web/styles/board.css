@@ -1162,22 +1162,17 @@ body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"
   background: rgba(255,255,255,0.08);
 }
 
-/* Chip-style controls (filter buttons, column count badges, epic key
-   labels) use the patterned theme's dark navy chip background. In light
-   mode the base rule blends that bg with transparent — over a near-white
-   parent it ends up as medium gray, and the global --text-high also flips
-   to dark, leaving dark-on-dark. Pin the bg to the full chip-bg color and
-   force light text so the chip reads clearly in both color schemes. */
-body.light-theme:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .column-count,
-body.light-theme:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .filter-btn,
-body.light-theme:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .epic-lane-key {
-  background: var(--board-pattern-chip-bg, rgba(32,32,36,0.95));
-  color: rgba(255,255,255,0.92);
-}
-
-body.light-theme:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .filter-btn:hover {
-  background: var(--board-pattern-card-hover-bg, rgba(24,24,28,0.98));
-  color: #fff;
+/* Chip-style controls (filter buttons, column-count badges, epic key
+   labels) should sit transparently over the board surface in these
+   patterned themes. The base rule fills them with a dark navy chip and
+   keeps --text-high, which over a near-white parent in light mode lands
+   as dark-on-dark. Drop the chip and let --text-high (which already
+   flips between modes) carry the contrast against the page itself. */
+body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .column-count,
+body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .filter-btn,
+body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .epic-lane-key {
+  background: transparent;
+  border-color: var(--border-light);
 }
 
 /* The default --surface-hover in these dark patterned themes is a very low

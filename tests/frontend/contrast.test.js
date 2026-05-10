@@ -98,7 +98,11 @@ function resolveColor(window, raw, bgForBlend = { r: 255, g: 255, b: 255, a: 1 }
 
   let m = raw.match(/^var\((--[^,)]+)(?:,\s*(.+))?\)$/);
   if (m) {
-    const v = window.getComputedStyle(window.document.body).getPropertyValue(m[1]).trim();
+    // jsdom only resolves :root vars on documentElement (not inherited to
+    // body/children), so try both.
+    const body = window.getComputedStyle(window.document.body).getPropertyValue(m[1]).trim();
+    const root = window.getComputedStyle(window.document.documentElement).getPropertyValue(m[1]).trim();
+    const v = body || root;
     return resolveColor(window, v || m[2] || 'transparent', bgForBlend);
   }
 
@@ -189,26 +193,45 @@ function readFgBg(window, sel, parentBgRgb) {
 
 // ── Tests ──────────────────────────────────────────────────────────────
 
-describe('blueprint light theme — chip-style controls have readable text', () => {
+describe('blueprint chip-style controls — transparent bg, readable text in both modes', () => {
   const html = `
     <button class="filter-btn">Assignee</button>
     <span class="column-count">7</span>
     <span class="epic-lane-key">FNAI-191</span>
   `;
-  // The page background in blueprint light is near-white. The chip
-  // backgrounds use color-mix(... transparent) so they composite onto
-  // whatever sits behind them — for these elements that's the page or the
-  // filter bar (also near-white). Composite over near-white.
-  const parentBg = { r: 245, g: 245, b: 245, a: 1 };
+  // Page bg in blueprint light is near-white; in blueprint dark it's near-black.
+  const lightParent = { r: 245, g: 245, b: 245, a: 1 };
+  const darkParent = { r: 12, g: 18, b: 26, a: 1 };
 
   for (const sel of ['.filter-btn', '.column-count', '.epic-lane-key']) {
-    it(`${sel} — text vs chip background contrast >= 7.0 (AAA, dark chip => light text)`, () => {
+    it(`${sel} — has transparent background in blueprint (light)`, () => {
       const w = buildDom({ light: true, boardTheme: 'blueprint', html });
-      const { fg, bg } = readFgBg(w, sel, parentBg);
+      const bgRaw = lastDeclMatching(w, sel, 'background(?:-color)?') || 'transparent';
+      // For this assertion we want the chip's *own* alpha, not what it
+      // looks like composited over the page. Pass an alpha-0 sentinel as
+      // bgForBlend so resolveColor doesn't substitute the page bg when it
+      // hits 'transparent'.
+      const bg = resolveColor(w, bgRaw, { r: 0, g: 0, b: 0, a: 0 });
+      assert.equal(bg.a, 0, `${sel}: bg should be transparent, got alpha=${bg.a} (${bgRaw})`);
+    });
+
+    it(`${sel} — text vs page contrast >= 7.0 in blueprint (light)`, () => {
+      const w = buildDom({ light: true, boardTheme: 'blueprint', html });
+      const { fg, bg } = readFgBg(w, sel, lightParent);
       const ratio = contrast(fg, bg);
       assert.ok(
         ratio >= 7.0,
-        `${sel}: contrast ${ratio.toFixed(2)} too low — chip bg is dark navy, text should be light to match. fg=rgb(${fg.r},${fg.g},${fg.b}) bg=rgb(${bg.r},${bg.g},${bg.b})`
+        `${sel} (light): contrast ${ratio.toFixed(2)} too low — fg=rgb(${fg.r},${fg.g},${fg.b}) bg=rgb(${bg.r},${bg.g},${bg.b})`
+      );
+    });
+
+    it(`${sel} — text vs page contrast >= 7.0 in blueprint (dark)`, () => {
+      const w = buildDom({ light: false, boardTheme: 'blueprint', html });
+      const { fg, bg } = readFgBg(w, sel, darkParent);
+      const ratio = contrast(fg, bg);
+      assert.ok(
+        ratio >= 7.0,
+        `${sel} (dark): contrast ${ratio.toFixed(2)} too low — fg=rgb(${fg.r},${fg.g},${fg.b}) bg=rgb(${bg.r},${bg.g},${bg.b})`
       );
     });
   }
