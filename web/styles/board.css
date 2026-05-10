@@ -905,7 +905,11 @@ body:not(.light-theme) .card:hover {
 }
 .search-result-item:hover,
 .search-result-item.active {
-  background: var(--surface-hover);
+  background: rgba(255,255,255,0.1);
+}
+body.light-theme .search-result-item:hover,
+body.light-theme .search-result-item.active {
+  background: rgba(0,0,0,0.12);
 }
 .search-result-key {
   font-size: 0.7rem;
@@ -1185,20 +1189,14 @@ body.light-theme:is([data-board-theme="summer-duotone"], [data-board-theme="roun
   color: rgba(0,0,0,0.85);
 }
 
-/* Sticky filter bar and column-headers strip should let the board pattern
-   show through in patterned themes — no opaque backplate. The backdrop
-   blur stays so scrolling content under them softens for legibility. */
+/* Sticky bars (kanban filter-bar, column-headers strip, list-view header)
+   should let the board pattern show through in patterned themes — no
+   opaque backplate. The backdrop blur stays so scrolling content under
+   them softens for legibility. */
 body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .filter-bar,
-body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .board-column-headers {
+body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .board-column-headers,
+body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .list-header {
   background: transparent;
-}
-
-/* The default --surface-hover in these dark patterned themes is a very low
-   alpha mix that's invisible against the dropdown background. Give the
-   keyboard-active row in the search dropdown a more visible highlight. */
-body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .search-result-item.active,
-body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .search-result-item:hover {
-  background: rgba(255,255,255,0.1);
 }
 
 .filter-badge {

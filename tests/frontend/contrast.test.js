@@ -18,6 +18,7 @@ const postcss = require('postcss');
 const ROOT = path.join(__dirname, '..', '..');
 const board = fs.readFileSync(path.join(ROOT, 'web/styles/board.css'), 'utf-8');
 const theme = fs.readFileSync(path.join(ROOT, 'web/styles/theme.css'), 'utf-8');
+const listview = fs.readFileSync(path.join(ROOT, 'web/styles/listview.css'), 'utf-8');
 
 // Pre-parse CSS so we can walk every declaration in source order — jsdom's
 // rule.style collapses duplicates of the same property, dropping the var()
@@ -41,7 +42,7 @@ const ALL_RULES = parseRules(theme, board);
 function buildDom({ light, boardTheme, html }) {
   const cls = light ? 'light-theme' : '';
   const dom = new JSDOM(
-    `<!DOCTYPE html><html><head><style>${theme}\n${board}</style></head>` +
+    `<!DOCTYPE html><html><head><style>${theme}\n${board}\n${listview}</style></head>` +
     `<body class="${cls}" data-board-theme="${boardTheme}">${html}</body></html>`,
     { pretendToBeVisual: true }
   );
@@ -245,12 +246,13 @@ describe('patterned themes — chip controls (filter-btn / column-count / epic-l
   }
 });
 
-describe('patterned themes — sticky bars (filter-bar / board-column-headers) are transparent', () => {
+describe('patterned themes — sticky bars (filter-bar / board-column-headers / list-header) are transparent', () => {
   const html = `
     <div class="filter-bar"></div>
     <div class="board-column-headers"></div>
+    <div class="list-header"></div>
   `;
-  const SELECTORS = ['.filter-bar', '.board-column-headers'];
+  const SELECTORS = ['.filter-bar', '.board-column-headers', '.list-header'];
 
   for (const theme of PATTERNED_THEMES) {
     for (const mode of COLOR_SCHEMES) {
@@ -266,33 +268,45 @@ describe('patterned themes — sticky bars (filter-bar / board-column-headers) a
   }
 });
 
-describe('blueprint dark theme — search-result active state is distinguishable', () => {
-  it('.search-result-item.active background differs from sibling rows by >= 1.2x', () => {
-    const html = `
-      <div class="header-search-results">
-        <div class="search-result-item active">
-          <span class="search-result-key">FNAI-1</span>
-          <span class="search-result-title">item</span>
-        </div>
-        <div class="search-result-item">
-          <span class="search-result-key">FNAI-2</span>
-          <span class="search-result-title">other</span>
-        </div>
-      </div>`;
-    const w = buildDom({ light: false, boardTheme: 'blueprint', html });
-    // The dropdown background is the surface we sit on.
-    const bodyCs = w.getComputedStyle(w.document.body);
-    const dropdownBg = resolveColor(w, bodyCs.getPropertyValue('--surface-dropdown'), { r: 8, g: 18, b: 29, a: 1 });
-    const dropdownOpaque = over(dropdownBg, { r: 0, g: 0, b: 0, a: 1 });
+describe('search-result-item active highlight is distinguishable in every theme', () => {
+  const html = `
+    <div class="header-search-results">
+      <div class="search-result-item active">
+        <span class="search-result-key">FNAI-1</span>
+        <span class="search-result-title">item</span>
+      </div>
+      <div class="search-result-item">
+        <span class="search-result-key">FNAI-2</span>
+        <span class="search-result-title">other</span>
+      </div>
+    </div>`;
 
-    const activeRaw = lastDeclMatching(w, '.search-result-item.active', 'background(?:-color)?') || 'transparent';
-    const inactiveRaw = lastDeclMatching(w, '.search-result-item:not(.active)', 'background(?:-color)?') || 'transparent';
-    const activeBg = over(resolveColor(w, activeRaw, dropdownOpaque), dropdownOpaque);
-    const inactiveBg = over(resolveColor(w, inactiveRaw, dropdownOpaque), dropdownOpaque);
-    const ratio = contrast(activeBg, inactiveBg);
-    assert.ok(
-      ratio >= 1.2,
-      `active vs inactive bg contrast ${ratio.toFixed(3)} too low to see the selection (active=${JSON.stringify(activeBg)} inactive=${JSON.stringify(inactiveBg)})`
-    );
-  });
+  // Default theme is just :root (no data-board-theme override) — also test
+  // it so the keyboard-active highlight stays usable on the standard look.
+  const ALL_THEMES = ['default', ...PATTERNED_THEMES];
+
+  for (const theme of ALL_THEMES) {
+    for (const mode of COLOR_SCHEMES) {
+      it(`active vs inactive row contrast >= 1.2x in ${theme} (${mode.label})`, () => {
+        const w = buildDom({ light: mode.light, boardTheme: theme, html });
+        const bodyCs = w.getComputedStyle(w.document.body);
+        const dropdownBg = resolveColor(
+          w,
+          bodyCs.getPropertyValue('--surface-dropdown'),
+          mode.parent
+        );
+        const dropdownOpaque = over(dropdownBg, mode.parent);
+
+        const activeRaw = lastDeclMatching(w, '.search-result-item.active', 'background(?:-color)?') || 'transparent';
+        const inactiveRaw = lastDeclMatching(w, '.search-result-item:not(.active)', 'background(?:-color)?') || 'transparent';
+        const activeBg = over(resolveColor(w, activeRaw, dropdownOpaque), dropdownOpaque);
+        const inactiveBg = over(resolveColor(w, inactiveRaw, dropdownOpaque), dropdownOpaque);
+        const ratio = contrast(activeBg, inactiveBg);
+        assert.ok(
+          ratio >= 1.2,
+          `${theme} ${mode.label}: active vs inactive bg contrast ${ratio.toFixed(3)} too low (active=rgb(${activeBg.r},${activeBg.g},${activeBg.b}) inactive=rgb(${inactiveBg.r},${inactiveBg.g},${inactiveBg.b}))`
+        );
+      });
+    }
+  }
 });
