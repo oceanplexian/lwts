@@ -1,0 +1,9 @@
+{
+  "name": "lwts-tests",
+  "private": true,
+  "description": "Dev/test deps used by tests/frontend (jsdom + postcss for CSS contrast tests)",
+  "devDependencies": {
+    "jsdom": "^25.0.0",
+    "postcss": "^8.5.14"
+  }
+}

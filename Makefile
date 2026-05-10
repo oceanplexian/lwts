@@ -76,7 +76,8 @@ test-sqlite:
 	DB_URL="sqlite:///tmp/lwts-test.db" go test -v -count=1 -tags=integration ./...
 
 test-frontend:
-	node --test tests/frontend/kanban.test.js
+	@[ -d node_modules ] || npm install --silent
+	node --test tests/frontend/*.test.js
 
 test-all: test-pg test-sqlite test-frontend
 
