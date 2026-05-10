@@ -903,7 +903,8 @@ body:not(.light-theme) .card:hover {
   cursor: pointer;
   border-radius: 6px;
 }
-.search-result-item:hover {
+.search-result-item:hover,
+.search-result-item.active {
   background: var(--surface-hover);
 }
 .search-result-key {

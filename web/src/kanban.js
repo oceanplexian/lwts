@@ -2430,6 +2430,28 @@ function initGlobalSearch() {
     if (e.key === 'Escape') {
       clearGlobalSearch();
       input.blur();
+      return;
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
+      const results = document.getElementById('header-search-results');
+      const items = results && !results.classList.contains('hidden')
+        ? Array.from(results.querySelectorAll('.search-result-item'))
+        : [];
+      if (items.length === 0) return;
+      e.preventDefault();
+      let idx = items.findIndex(el => el.classList.contains('active'));
+      if (e.key === 'ArrowDown') {
+        idx = idx < 0 ? 0 : (idx + 1) % items.length;
+      } else if (e.key === 'ArrowUp') {
+        idx = idx <= 0 ? items.length - 1 : idx - 1;
+      } else {
+        if (idx < 0) idx = 0;
+        items[idx].click();
+        return;
+      }
+      items.forEach(el => el.classList.remove('active'));
+      items[idx].classList.add('active');
+      items[idx].scrollIntoView({ block: 'nearest' });
     }
   });
 
@@ -2521,13 +2543,17 @@ async function doGlobalSearch(query) {
       return;
     }
     results.innerHTML = '';
-    cards.slice(0, 10).forEach(card => {
+    cards.slice(0, 10).forEach((card, i) => {
       const col = COLUMNS.find(c => c.id === card.column_id);
       const el = document.createElement('div');
-      el.className = 'search-result-item';
+      el.className = 'search-result-item' + (i === 0 ? ' active' : '');
       el.innerHTML = '<span class="search-result-key">' + esc(card.key || '') + '</span>' +
         '<span class="search-result-title">' + esc(card.title) + '</span>' +
         '<span class="search-result-col">' + esc(col ? col.label : card.column_id) + '</span>';
+      el.addEventListener('mouseenter', () => {
+        results.querySelectorAll('.search-result-item.active').forEach(a => a.classList.remove('active'));
+        el.classList.add('active');
+      });
       el.addEventListener('click', () => {
         hideSearchResults();
         clearGlobalSearch();

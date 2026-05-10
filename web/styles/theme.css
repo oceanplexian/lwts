@@ -525,7 +525,8 @@ body.light-theme .fn-dropdown-option.selected .fn-dropdown-check { stroke: var(-
 body.light-theme .header-board-option:hover { background: rgba(43,125,233,0.08); }
 body.light-theme .header-board-option.active { background: rgba(43,125,233,0.1); color: #2B7DE9; }
 body.light-theme .filter-checkbox-item:hover { background: rgba(43,125,233,0.08); }
-body.light-theme .search-result-item:hover { background: rgba(43,125,233,0.08); }
+body.light-theme .search-result-item:hover,
+body.light-theme .search-result-item.active { background: rgba(43,125,233,0.08); }
 
 /* ── Density: Compact (0.85× ratio) ── */
 body.density-compact {
