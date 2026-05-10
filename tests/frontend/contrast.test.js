@@ -193,56 +193,76 @@ function readFgBg(window, sel, parentBgRgb) {
 
 // ── Tests ──────────────────────────────────────────────────────────────
 
-describe('blueprint chip-style controls — transparent bg, readable text in both modes', () => {
+// All eight patterned board themes share the same chip / sticky-bar
+// overrides — assert each one ends up transparent in both color schemes.
+const PATTERNED_THEMES = [
+  'summer-duotone', 'round-geometric', 'squares', 'space-doodles',
+  'deep-cosmos', 'space', 'aurora', 'blueprint',
+];
+
+const COLOR_SCHEMES = [
+  { light: true,  label: 'light', parent: { r: 245, g: 245, b: 245, a: 1 } },
+  { light: false, label: 'dark',  parent: { r: 12,  g: 18,  b: 26,  a: 1 } },
+];
+
+describe('patterned themes — chip controls (filter-btn / column-count / epic-lane-key)', () => {
   const html = `
     <button class="filter-btn">Assignee</button>
     <span class="column-count">7</span>
     <span class="epic-lane-key">FNAI-191</span>
   `;
-  // Page bg in blueprint light is near-white; in blueprint dark it's near-black.
-  const lightParent = { r: 245, g: 245, b: 245, a: 1 };
-  const darkParent = { r: 12, g: 18, b: 26, a: 1 };
+  const SELECTORS = ['.filter-btn', '.column-count', '.epic-lane-key'];
 
-  for (const sel of ['.filter-btn', '.column-count', '.epic-lane-key']) {
-    it(`${sel} — has transparent background in blueprint (light)`, () => {
-      const w = buildDom({ light: true, boardTheme: 'blueprint', html });
-      const bgRaw = lastDeclMatching(w, sel, 'background(?:-color)?') || 'transparent';
-      const bg = resolveColor(w, bgRaw, { r: 0, g: 0, b: 0, a: 0 });
-      assert.equal(bg.a, 0, `${sel}: bg should be transparent, got alpha=${bg.a} (${bgRaw})`);
-    });
+  for (const theme of PATTERNED_THEMES) {
+    for (const mode of COLOR_SCHEMES) {
+      for (const sel of SELECTORS) {
+        it(`${sel} — transparent bg in ${theme} (${mode.label})`, () => {
+          const w = buildDom({ light: mode.light, boardTheme: theme, html });
+          const bgRaw = lastDeclMatching(w, sel, 'background(?:-color)?') || 'transparent';
+          const bg = resolveColor(w, bgRaw, { r: 0, g: 0, b: 0, a: 0 });
+          assert.equal(bg.a, 0, `${sel} (${theme} ${mode.label}): bg should be transparent, got alpha=${bg.a} (${bgRaw})`);
+        });
 
-    for (const mode of [{ light: true, label: 'light' }, { light: false, label: 'dark' }]) {
-      it(`${sel} — has no visible chip border in blueprint (${mode.label})`, () => {
-        const w = buildDom({ light: mode.light, boardTheme: 'blueprint', html });
-        const borderRaw = lastDeclMatching(w, sel, 'border(?:-color)?') || 'transparent';
-        // The base rule sets `border: 1px solid <color>`; we only care
-        // about the alpha of the resolved color, so pull just the color
-        // tokens.
-        const colorPart = borderRaw.match(/(rgb[a]?\([^)]*\)|#[0-9a-f]{3,8}|var\([^)]+\)|transparent|color-mix\([^)]*\))/i);
-        const c = colorPart ? resolveColor(w, colorPart[0], { r: 0, g: 0, b: 0, a: 0 }) : { a: 0 };
-        assert.equal(c.a, 0, `${sel} (${mode.label}): border should be transparent, got alpha=${c.a} (${borderRaw})`);
-      });
+        it(`${sel} — transparent border in ${theme} (${mode.label})`, () => {
+          const w = buildDom({ light: mode.light, boardTheme: theme, html });
+          const borderRaw = lastDeclMatching(w, sel, 'border(?:-color)?') || 'transparent';
+          const colorPart = borderRaw.match(/(rgb[a]?\([^)]*\)|#[0-9a-f]{3,8}|var\([^)]+\)|transparent|color-mix\([^)]*\))/i);
+          const c = colorPart ? resolveColor(w, colorPart[0], { r: 0, g: 0, b: 0, a: 0 }) : { a: 0 };
+          assert.equal(c.a, 0, `${sel} (${theme} ${mode.label}): border should be transparent, got alpha=${c.a} (${borderRaw})`);
+        });
+
+        it(`${sel} — text vs page contrast >= 7.0 in ${theme} (${mode.label})`, () => {
+          const w = buildDom({ light: mode.light, boardTheme: theme, html });
+          const { fg, bg } = readFgBg(w, sel, mode.parent);
+          const ratio = contrast(fg, bg);
+          assert.ok(
+            ratio >= 7.0,
+            `${sel} (${theme} ${mode.label}): contrast ${ratio.toFixed(2)} too low — fg=rgb(${fg.r},${fg.g},${fg.b}) bg=rgb(${bg.r},${bg.g},${bg.b})`
+          );
+        });
+      }
     }
+  }
+});
 
-    it(`${sel} — text vs page contrast >= 7.0 in blueprint (light)`, () => {
-      const w = buildDom({ light: true, boardTheme: 'blueprint', html });
-      const { fg, bg } = readFgBg(w, sel, lightParent);
-      const ratio = contrast(fg, bg);
-      assert.ok(
-        ratio >= 7.0,
-        `${sel} (light): contrast ${ratio.toFixed(2)} too low — fg=rgb(${fg.r},${fg.g},${fg.b}) bg=rgb(${bg.r},${bg.g},${bg.b})`
-      );
-    });
+describe('patterned themes — sticky bars (filter-bar / board-column-headers) are transparent', () => {
+  const html = `
+    <div class="filter-bar"></div>
+    <div class="board-column-headers"></div>
+  `;
+  const SELECTORS = ['.filter-bar', '.board-column-headers'];
 
-    it(`${sel} — text vs page contrast >= 7.0 in blueprint (dark)`, () => {
-      const w = buildDom({ light: false, boardTheme: 'blueprint', html });
-      const { fg, bg } = readFgBg(w, sel, darkParent);
-      const ratio = contrast(fg, bg);
-      assert.ok(
-        ratio >= 7.0,
-        `${sel} (dark): contrast ${ratio.toFixed(2)} too low — fg=rgb(${fg.r},${fg.g},${fg.b}) bg=rgb(${bg.r},${bg.g},${bg.b})`
-      );
-    });
+  for (const theme of PATTERNED_THEMES) {
+    for (const mode of COLOR_SCHEMES) {
+      for (const sel of SELECTORS) {
+        it(`${sel} — transparent bg in ${theme} (${mode.label})`, () => {
+          const w = buildDom({ light: mode.light, boardTheme: theme, html });
+          const bgRaw = lastDeclMatching(w, sel, 'background(?:-color)?') || 'transparent';
+          const bg = resolveColor(w, bgRaw, { r: 0, g: 0, b: 0, a: 0 });
+          assert.equal(bg.a, 0, `${sel} (${theme} ${mode.label}): bg should be transparent, got alpha=${bg.a} (${bgRaw})`);
+        });
+      }
+    }
   }
 });
 

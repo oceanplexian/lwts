@@ -1185,6 +1185,14 @@ body.light-theme:is([data-board-theme="summer-duotone"], [data-board-theme="roun
   color: rgba(0,0,0,0.85);
 }
 
+/* Sticky filter bar and column-headers strip should let the board pattern
+   show through in patterned themes — no opaque backplate. The backdrop
+   blur stays so scrolling content under them softens for legibility. */
+body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .filter-bar,
+body:is([data-board-theme="summer-duotone"], [data-board-theme="round-geometric"], [data-board-theme="squares"], [data-board-theme="space-doodles"], [data-board-theme="deep-cosmos"], [data-board-theme="space"], [data-board-theme="aurora"], [data-board-theme="blueprint"]) .board-column-headers {
+  background: transparent;
+}
+
 /* The default --surface-hover in these dark patterned themes is a very low
    alpha mix that's invisible against the dropdown background. Give the
    keyboard-active row in the search dropdown a more visible highlight. */
