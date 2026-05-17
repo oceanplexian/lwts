@@ -29,3 +29,18 @@ func EmitCommentEvent(hub *Hub, boardID, eventType string, comment any, senderID
 		SenderID:  senderID,
 	}
 }
+
+// EmitRaw broadcasts a pre-serialized JSON payload. Used by transport-layer
+// helpers (board/card/comment handlers) so they don't bypass the hub's
+// persistence pipeline.
+func EmitRaw(hub *Hub, boardID, eventType string, data []byte, senderID string) {
+	if hub == nil {
+		return
+	}
+	hub.Broadcast <- &BoardEvent{
+		BoardID:   boardID,
+		EventType: eventType,
+		Data:      data,
+		SenderID:  senderID,
+	}
+}

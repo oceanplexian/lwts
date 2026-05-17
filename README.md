@@ -145,7 +145,9 @@ POST   /api/v1/boards               # Create board
 GET    /api/v1/boards/:id           # Get board
 PATCH  /api/v1/boards/:id           # Update board
 DELETE /api/v1/boards/:id           # Delete board
-GET    /api/v1/boards/:id/stream    # SSE event stream
+GET    /api/v1/boards/:id/stream    # SSE event stream (legacy, JWT only — used by the web UI)
+GET    /api/v1/boards/:id/events    # SSE event stream with API-key auth + Last-Event-ID replay
+GET    /api/v1/boards/:id/ws        # WebSocket event stream (same auth + replay as /events)
 GET    /api/v1/boards/:id/presence  # Active users
 ```
 
@@ -209,11 +211,38 @@ curl -X POST https://localhost:8080/api/v1/boards/BOARD_ID/cards \
 
 ### Example: Listen to real-time events
 
+Legacy SSE stream (JWT only, no replay — used by the web UI):
+
 ```bash
 curl -N https://localhost:8080/api/v1/boards/BOARD_ID/stream?token=$TOKEN
 ```
 
-Events: `card_created`, `card_moved`, `card_updated`, `card_deleted`, `comment_added`
+API-friendly SSE stream — accepts JWT or `lwts_sk_` API key, persists events,
+and supports resume via `Last-Event-ID`:
+
+```bash
+curl -N -H "Authorization: Bearer $LWTS_API_KEY" \
+     -H "Last-Event-ID: 42" \
+     https://localhost:8080/api/v1/boards/BOARD_ID/events
+```
+
+WebSocket variant (JSON envelope per message):
+
+```bash
+websocat "wss://localhost:8080/api/v1/boards/BOARD_ID/ws?token=$LWTS_API_KEY&last_event_id=42"
+```
+
+Each persisted event has a monotonic `id`; client should remember the highest
+`id` it processed and pass it back on reconnect to receive only missed events.
+
+Events: `card_created`, `card_moved`, `card_updated`, `card_deleted`,
+`cards_bulk_moved`, `comment_added`, `comment_deleted`. The `card_moved`
+payload includes `from_column_id` and `to_column_id` so consumers can react
+to specific transitions (e.g. backlog → todo) without polling.
+
+Retention: persisted events default to 7 days. Override with the
+`BOARD_EVENTS_RETENTION` env var (Go duration, e.g. `336h` for 14 days; `0`
+disables cleanup).
 
 ## Development
 

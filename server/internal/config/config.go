@@ -34,6 +34,11 @@ type Config struct {
 	EmbeddingAPIKey string
 	EmbeddingModel  string
 	EmbeddingDim    int
+
+	// BoardEventsRetention controls how long persisted board events are kept
+	// for Last-Event-ID replay. Default 7 days. Set BOARD_EVENTS_RETENTION
+	// (Go duration) to override. Zero disables retention cleanup.
+	BoardEventsRetention time.Duration
 }
 
 func Load() (*Config, error) {
@@ -108,6 +113,15 @@ func Load() (*Config, error) {
 	c.JWTSecret = os.Getenv("JWT_SECRET")
 	if c.JWTSecret == "" {
 		return nil, fmt.Errorf("JWT_SECRET is required")
+	}
+
+	c.BoardEventsRetention = 7 * 24 * time.Hour
+	if v := os.Getenv("BOARD_EVENTS_RETENTION"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid BOARD_EVENTS_RETENTION: %w", err)
+		}
+		c.BoardEventsRetention = d
 	}
 
 	c.EmbeddingAPIURL = os.Getenv("EMBEDDING_API_URL")

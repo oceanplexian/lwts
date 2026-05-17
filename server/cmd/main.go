@@ -182,9 +182,18 @@ func main() {
 		logger.Info("embedding endpoint configured", "url", cfg.EmbeddingAPIURL, "model", embedSvc.Model())
 	}
 
-	// SSE hub
+	// SSE hub + event store (persisted log for Last-Event-ID replay).
+	// In lambda demo mode we use SQLite — persistence works there too.
 	sseHub := sse.NewHub()
+	eventStore := sse.NewDBEventStore(ds)
+	sseHub.SetStore(eventStore)
 	go sseHub.Run()
+
+	// Retention sweep for the persisted event log. Skip when retention is 0
+	// or in lambda-demo mode (ephemeral SQLite).
+	if cfg.BoardEventsRetention > 0 && !cfg.LambdaDemo {
+		go runBoardEventsRetention(ctx, eventStore, cfg.BoardEventsRetention, logger)
+	}
 
 	// Repositories
 	userRepo := repo.NewUserRepository(ds)
@@ -285,8 +294,14 @@ func main() {
 	authHandler.SetRegistrationChecker(stg)
 	authHandler.SetSeedFunc(auth.SeedFunc(seedFunc))
 
-	// SSE routes
+	// SSE / WebSocket routes.
+	//   /stream    legacy SSE for the web UI (JWT-only, no replay). Untouched.
+	//   /events    new SSE that accepts JWT or lwts_sk_ API key + Last-Event-ID replay.
+	//   /ws        WebSocket variant of /events (same auth + replay, JSON envelope).
+	//   /presence  list of connected users on a board.
 	mux.HandleFunc("GET /api/v1/boards/{id}/stream", sse.StreamHandler(sseHub, cfg.JWTSecret))
+	mux.HandleFunc("GET /api/v1/boards/{id}/events", sse.EventsHandler(sseHub, eventStore, cfg.JWTSecret, ds, userAdapter))
+	mux.HandleFunc("GET /api/v1/boards/{id}/ws", sse.WebSocketHandler(sseHub, eventStore, cfg.JWTSecret, ds, userAdapter))
 	mux.HandleFunc("GET /api/v1/boards/{id}/presence", sse.PresenceHandler(sseHub, cfg.JWTSecret))
 
 	// Static files
@@ -373,6 +388,42 @@ func main() {
 		discordN.Stop()
 	}
 	logger.Info("server stopped")
+}
+
+// runBoardEventsRetention deletes board_events older than `retention` on a
+// loop. Runs once at startup and then every retention/24 (min 1h, max 24h).
+func runBoardEventsRetention(ctx context.Context, store *sse.DBEventStore, retention time.Duration, logger *slog.Logger) {
+	interval := retention / 24
+	if interval < time.Hour {
+		interval = time.Hour
+	}
+	if interval > 24*time.Hour {
+		interval = 24 * time.Hour
+	}
+
+	sweep := func() {
+		cutoff := time.Now().Add(-retention)
+		n, err := store.PurgeOlderThan(ctx, cutoff)
+		if err != nil {
+			logger.Warn("board_events retention sweep failed", "error", err)
+			return
+		}
+		if n > 0 {
+			logger.Info("board_events retention sweep", "deleted", n, "older_than", cutoff)
+		}
+	}
+
+	sweep()
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			sweep()
+		}
+	}
 }
 
 func getDS(ctx context.Context) db.Datasource {

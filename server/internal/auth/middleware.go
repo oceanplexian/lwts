@@ -52,6 +52,23 @@ func RequireAuth(secret string, users UserStore, ds db.Datasource) func(http.Han
 	}
 }
 
+// ResolveToken validates either a JWT access token or an lwts_sk_ API key and
+// returns the associated user. Empty tokens return an error. Useful for
+// long-poll/SSE/WebSocket endpoints that accept either auth flavor.
+func ResolveToken(ctx context.Context, ds db.Datasource, users UserStore, secret, token string) (*repo.User, error) {
+	if token == "" {
+		return nil, http.ErrNoCookie
+	}
+	if strings.HasPrefix(token, "lwts_sk_") {
+		return authenticateAPIKey(ctx, ds, users, token)
+	}
+	claims, err := ParseAccessToken(secret, token)
+	if err != nil {
+		return nil, err
+	}
+	return users.GetUserByID(ctx, claims.Subject)
+}
+
 // authenticateAPIKey validates an lwts_sk_ key against the api_keys table.
 func authenticateAPIKey(ctx context.Context, ds db.Datasource, users UserStore, key string) (*repo.User, error) {
 	hash := sha256.Sum256([]byte(key))

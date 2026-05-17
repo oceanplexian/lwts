@@ -144,8 +144,8 @@ func TestSQLiteMigrateAll(t *testing.T) {
 	// Verify schema_migrations
 	var count int
 	_ = ds.QueryRow(ctx, "SELECT COUNT(*) FROM schema_migrations").Scan(&count)
-	if count != 17 {
-		t.Fatalf("expected 17 migrations, got %d", count)
+	if count != 18 {
+		t.Fatalf("expected 18 migrations, got %d", count)
 	}
 }
 
@@ -162,8 +162,8 @@ func TestSQLiteMigrateIdempotent(t *testing.T) {
 
 	var count int
 	_ = ds.QueryRow(ctx, "SELECT COUNT(*) FROM schema_migrations").Scan(&count)
-	if count != 17 {
-		t.Fatalf("expected 17 migrations after idempotent run, got %d", count)
+	if count != 18 {
+		t.Fatalf("expected 18 migrations after idempotent run, got %d", count)
 	}
 }
 

@@ -175,16 +175,12 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func broadcast(hub *sse.Hub, boardID, eventType string, payload any, _ string) {
+func broadcast(hub *sse.Hub, boardID, eventType string, payload any, senderID string) {
 	if hub == nil {
 		return
 	}
 	data, _ := json.Marshal(payload)
-	hub.Broadcast <- &sse.BoardEvent{
-		BoardID:   boardID,
-		EventType: eventType,
-		Data:      data,
-	}
+	sse.EmitRaw(hub, boardID, eventType, data, senderID)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

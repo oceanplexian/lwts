@@ -411,7 +411,12 @@ func (h *Handler) Move(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := auth.UserFromContext(r.Context())
-	broadcast(h.hub, card.BoardID, "card_moved", card, user.ID)
+	moveEvent := struct {
+		repo.Card
+		FromColumnID string `json:"from_column_id"`
+		ToColumnID   string `json:"to_column_id"`
+	}{Card: card, FromColumnID: current.ColumnID, ToColumnID: card.ColumnID}
+	broadcast(h.hub, card.BoardID, "card_moved", moveEvent, user.ID)
 
 	// Discord: detect move to a "done" type column
 	if h.discord != nil && current.ColumnID != req.ColumnID {
@@ -662,16 +667,12 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func broadcast(hub *sse.Hub, boardID, eventType string, payload any, _ string) {
+func broadcast(hub *sse.Hub, boardID, eventType string, payload any, senderID string) {
 	if hub == nil {
 		return
 	}
 	data, _ := json.Marshal(payload)
-	hub.Broadcast <- &sse.BoardEvent{
-		BoardID:   boardID,
-		EventType: eventType,
-		Data:      data,
-	}
+	sse.EmitRaw(hub, boardID, eventType, data, senderID)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

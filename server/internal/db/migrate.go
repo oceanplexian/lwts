@@ -294,5 +294,8 @@ func adaptForSQLite(sql string) string {
 	// DATE → TEXT
 	r = regexp.MustCompile(`(?i)\bDATE\b`).ReplaceAllString(r, "TEXT")
 
+	// BIGSERIAL PRIMARY KEY → INTEGER PRIMARY KEY AUTOINCREMENT
+	r = regexp.MustCompile(`(?i)\bBIGSERIAL\s+PRIMARY\s+KEY\b`).ReplaceAllString(r, "INTEGER PRIMARY KEY AUTOINCREMENT")
+
 	return r
 }

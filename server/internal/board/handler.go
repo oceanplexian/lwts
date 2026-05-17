@@ -14,11 +14,7 @@ func broadcast(hub *sse.Hub, boardID, eventType string, payload any) {
 		return
 	}
 	data, _ := json.Marshal(payload)
-	hub.Broadcast <- &sse.BoardEvent{
-		BoardID:   boardID,
-		EventType: eventType,
-		Data:      data,
-	}
+	sse.EmitRaw(hub, boardID, eventType, data, "")
 }
 
 type Handler struct {
