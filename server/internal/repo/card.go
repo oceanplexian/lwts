@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/oceanplexian/lwts/server/internal/db"
-	"github.com/google/uuid"
 )
 
 // retryBackoff sleeps a small random duration to spread concurrent retries.
@@ -88,16 +88,17 @@ func (r *CardRepository) nextKey(ctx context.Context, tx db.Tx, boardID string) 
 }
 
 type CardCreate struct {
-	ColumnID    string
-	Title       string
-	Description string
-	Tag         string
-	Priority    string
-	AssigneeID  *string
-	ReporterID  *string
-	Points      *int
-	DueDate     *string
-	EpicID      *string
+	ColumnID     string
+	Title        string
+	Description  string
+	Tag          string
+	Priority     string
+	AssigneeID   *string
+	ReporterID   *string
+	Points       *int
+	DueDate      *string
+	EpicID       *string
+	CustomFields map[string]string
 }
 
 func (r *CardRepository) Create(ctx context.Context, boardID string, c CardCreate) (Card, error) {
@@ -126,6 +127,10 @@ func (r *CardRepository) Create(ctx context.Context, boardID string, c CardCreat
 func (r *CardRepository) createOnce(ctx context.Context, boardID string, c CardCreate, tag, priority string) (Card, error) {
 	id := uuid.New().String()
 	now := time.Now().UTC()
+	customFieldsJSON, err := MarshalCustomFieldsJSON(c.CustomFields)
+	if err != nil {
+		return Card{}, err
+	}
 
 	tx, err := r.ds.Begin(ctx)
 	if err != nil {
@@ -148,10 +153,10 @@ func (r *CardRepository) createOnce(ctx context.Context, boardID string, c CardC
 	position := maxPos + 1
 
 	_, err = tx.Exec(ctx,
-		`INSERT INTO cards (id, board_id, column_id, title, description, tag, priority, assignee_id, reporter_id, points, position, key, version, due_date, related_card_ids, blocked_card_ids, epic_id, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
+		`INSERT INTO cards (id, board_id, column_id, title, description, tag, priority, assignee_id, reporter_id, points, position, key, version, due_date, related_card_ids, blocked_card_ids, epic_id, custom_fields, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
 		id, boardID, c.ColumnID, c.Title, c.Description, tag, priority,
-		c.AssigneeID, c.ReporterID, c.Points, position, key, 1, c.DueDate, "[]", "[]", c.EpicID, now, now,
+		c.AssigneeID, c.ReporterID, c.Points, position, key, 1, c.DueDate, "[]", "[]", c.EpicID, customFieldsJSON, now, now,
 	)
 	if err != nil {
 		return Card{}, err
@@ -167,20 +172,37 @@ func (r *CardRepository) createOnce(ctx context.Context, boardID string, c CardC
 		AssigneeID: c.AssigneeID, ReporterID: c.ReporterID, Points: c.Points,
 		Position: position, Key: key, Version: 1, DueDate: c.DueDate,
 		RelatedCardIDs: "[]", BlockedCardIDs: "[]", EpicID: c.EpicID,
-		CreatedAt: now, UpdatedAt: now,
+		CustomFields: ParseCustomFieldsJSON(customFieldsJSON),
+		CreatedAt:    now, UpdatedAt: now,
 	}, nil
+}
+
+const cardSelectColumns = `id, board_id, column_id, title, description, tag, priority, assignee_id, reporter_id,
+		        points, position, key, version, CAST(due_date AS TEXT), related_card_ids, blocked_card_ids, epic_id, custom_fields, created_at, updated_at`
+
+type cardScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanCard(scanner cardScanner) (Card, error) {
+	var c Card
+	var customFieldsJSON string
+	err := scanner.Scan(&c.ID, &c.BoardID, &c.ColumnID, &c.Title, &c.Description, &c.Tag, &c.Priority,
+		&c.AssigneeID, &c.ReporterID, &c.Points, &c.Position, &c.Key, &c.Version, &c.DueDate,
+		&c.RelatedCardIDs, &c.BlockedCardIDs, &c.EpicID, &customFieldsJSON, &c.CreatedAt, &c.UpdatedAt)
+	if err != nil {
+		return Card{}, err
+	}
+	c.CustomFields = ParseCustomFieldsJSON(customFieldsJSON)
+	return c, nil
 }
 
 func (r *CardRepository) GetByID(ctx context.Context, id string) (Card, error) {
 	row := r.ds.QueryRow(ctx,
-		`SELECT id, board_id, column_id, title, description, tag, priority, assignee_id, reporter_id,
-		        points, position, key, version, CAST(due_date AS TEXT), related_card_ids, blocked_card_ids, epic_id, created_at, updated_at
+		`SELECT `+cardSelectColumns+`
 		 FROM cards WHERE id = $1`, id)
 
-	var c Card
-	err := row.Scan(&c.ID, &c.BoardID, &c.ColumnID, &c.Title, &c.Description, &c.Tag, &c.Priority,
-		&c.AssigneeID, &c.ReporterID, &c.Points, &c.Position, &c.Key, &c.Version, &c.DueDate,
-		&c.RelatedCardIDs, &c.BlockedCardIDs, &c.EpicID, &c.CreatedAt, &c.UpdatedAt)
+	c, err := scanCard(row)
 	if err == db.ErrNoRows {
 		return Card{}, ErrNotFound
 	}
@@ -191,14 +213,10 @@ func (r *CardRepository) GetByID(ctx context.Context, id string) (Card, error) {
 // than its UUID. Used by handlers that accept either form in the path.
 func (r *CardRepository) GetByKey(ctx context.Context, key string) (Card, error) {
 	row := r.ds.QueryRow(ctx,
-		`SELECT id, board_id, column_id, title, description, tag, priority, assignee_id, reporter_id,
-		        points, position, key, version, CAST(due_date AS TEXT), related_card_ids, blocked_card_ids, epic_id, created_at, updated_at
+		`SELECT `+cardSelectColumns+`
 		 FROM cards WHERE key = $1`, key)
 
-	var c Card
-	err := row.Scan(&c.ID, &c.BoardID, &c.ColumnID, &c.Title, &c.Description, &c.Tag, &c.Priority,
-		&c.AssigneeID, &c.ReporterID, &c.Points, &c.Position, &c.Key, &c.Version, &c.DueDate,
-		&c.RelatedCardIDs, &c.BlockedCardIDs, &c.EpicID, &c.CreatedAt, &c.UpdatedAt)
+	c, err := scanCard(row)
 	if err == db.ErrNoRows {
 		return Card{}, ErrNotFound
 	}
@@ -207,8 +225,7 @@ func (r *CardRepository) GetByKey(ctx context.Context, key string) (Card, error)
 
 func (r *CardRepository) ListByBoard(ctx context.Context, boardID string) ([]Card, error) {
 	rows, err := r.ds.Query(ctx,
-		`SELECT id, board_id, column_id, title, description, tag, priority, assignee_id, reporter_id,
-		        points, position, key, version, CAST(due_date AS TEXT), related_card_ids, blocked_card_ids, epic_id, created_at, updated_at
+		`SELECT `+cardSelectColumns+`
 		 FROM cards WHERE board_id = $1
 		 ORDER BY column_id, position`, boardID)
 	if err != nil {
@@ -218,10 +235,8 @@ func (r *CardRepository) ListByBoard(ctx context.Context, boardID string) ([]Car
 
 	var cards []Card
 	for rows.Next() {
-		var c Card
-		if err := rows.Scan(&c.ID, &c.BoardID, &c.ColumnID, &c.Title, &c.Description, &c.Tag, &c.Priority,
-			&c.AssigneeID, &c.ReporterID, &c.Points, &c.Position, &c.Key, &c.Version, &c.DueDate,
-			&c.RelatedCardIDs, &c.BlockedCardIDs, &c.EpicID, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		c, err := scanCard(rows)
+		if err != nil {
 			return nil, err
 		}
 		cards = append(cards, c)
@@ -241,6 +256,7 @@ type CardUpdate struct {
 	RelatedCardIDs *string
 	BlockedCardIDs *string
 	EpicID         **string
+	CustomFields   *map[string]string
 }
 
 func (r *CardRepository) Update(ctx context.Context, id string, version int, fields CardUpdate) (Card, error) {
@@ -301,6 +317,15 @@ func (r *CardRepository) Update(ctx context.Context, id string, version int, fie
 	if fields.EpicID != nil {
 		sets = append(sets, "epic_id = $"+strconv.Itoa(argN))
 		args = append(args, *fields.EpicID)
+		argN++
+	}
+	if fields.CustomFields != nil {
+		customFieldsJSON, err := MarshalCustomFieldsJSON(*fields.CustomFields)
+		if err != nil {
+			return Card{}, err
+		}
+		sets = append(sets, "custom_fields = $"+strconv.Itoa(argN))
+		args = append(args, customFieldsJSON)
 		argN++
 	}
 
@@ -634,8 +659,7 @@ func (r *CardRepository) ListByIDs(ctx context.Context, ids []string) ([]Card, e
 		args[i] = id
 	}
 	rows, err := r.ds.Query(ctx,
-		`SELECT id, board_id, column_id, title, description, tag, priority, assignee_id, reporter_id,
-		        points, position, key, version, CAST(due_date AS TEXT), related_card_ids, blocked_card_ids, epic_id, created_at, updated_at
+		`SELECT `+cardSelectColumns+`
 		 FROM cards WHERE id IN (`+strings.Join(placeholders, ",")+`)`, args...)
 	if err != nil {
 		return nil, err
@@ -644,10 +668,8 @@ func (r *CardRepository) ListByIDs(ctx context.Context, ids []string) ([]Card, e
 
 	var cards []Card
 	for rows.Next() {
-		var c Card
-		if err := rows.Scan(&c.ID, &c.BoardID, &c.ColumnID, &c.Title, &c.Description, &c.Tag, &c.Priority,
-			&c.AssigneeID, &c.ReporterID, &c.Points, &c.Position, &c.Key, &c.Version, &c.DueDate,
-			&c.RelatedCardIDs, &c.BlockedCardIDs, &c.EpicID, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		c, err := scanCard(rows)
+		if err != nil {
 			return nil, err
 		}
 		cards = append(cards, c)

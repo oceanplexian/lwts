@@ -91,16 +91,17 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMW func(http.Handler) h
 }
 
 type createCardReq struct {
-	ColumnID        string  `json:"column_id"`
-	ClientRequestID string  `json:"client_request_id"`
-	Title           string  `json:"title"`
-	Description     string  `json:"description"`
-	Tag             string  `json:"tag"`
-	Priority        string  `json:"priority"`
-	AssigneeID      *string `json:"assignee_id"`
-	Points          *int    `json:"points"`
-	DueDate         *string `json:"due_date"`
-	EpicID          *string `json:"epic_id"`
+	ColumnID        string         `json:"column_id"`
+	ClientRequestID string         `json:"client_request_id"`
+	Title           string         `json:"title"`
+	Description     string         `json:"description"`
+	Tag             string         `json:"tag"`
+	Priority        string         `json:"priority"`
+	AssigneeID      *string        `json:"assignee_id"`
+	Points          *int           `json:"points"`
+	DueDate         *string        `json:"due_date"`
+	EpicID          *string        `json:"epic_id"`
+	CustomFields    map[string]any `json:"custom_fields"`
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
@@ -116,29 +117,54 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		writeValidation(w, map[string]string{"title": "required"})
 		return
 	}
+
+	board, err := h.boards.GetByID(r.Context(), boardID)
+	if err == repo.ErrNotFound {
+		writeErr(w, http.StatusNotFound, "board not found")
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
 	if req.ColumnID == "" {
 		// Default to the board's first column (type "start")
-		if board, err := h.boards.GetByID(r.Context(), boardID); err == nil {
-			if cols, err := repo.ParseColumns(board.Columns); err == nil && len(cols) > 0 {
-				req.ColumnID = cols[0].ID
-			}
+		if cols, err := repo.ParseColumns(board.Columns); err == nil && len(cols) > 0 {
+			req.ColumnID = cols[0].ID
 		}
 		if req.ColumnID == "" {
 			req.ColumnID = "backlog"
 		}
 	}
 
+	customFieldDefs, err := repo.CustomFieldDefinitionsFromSettings(board.Settings)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "invalid board custom field configuration")
+		return
+	}
+	customFields, err := repo.ApplyCustomFieldPatch(customFieldDefs, nil, req.CustomFields, true)
+	if err != nil {
+		if fields, ok := repo.IsFieldValidationError(err); ok {
+			writeValidation(w, fields)
+			return
+		}
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	card, err := h.cards.Create(r.Context(), boardID, repo.CardCreate{
-		ColumnID:    req.ColumnID,
-		Title:       req.Title,
-		Description: req.Description,
-		Tag:         req.Tag,
-		Priority:    req.Priority,
-		AssigneeID:  req.AssigneeID,
-		ReporterID:  &user.ID,
-		Points:      req.Points,
-		DueDate:     req.DueDate,
-		EpicID:      req.EpicID,
+		ColumnID:     req.ColumnID,
+		Title:        req.Title,
+		Description:  req.Description,
+		Tag:          req.Tag,
+		Priority:     req.Priority,
+		AssigneeID:   req.AssigneeID,
+		ReporterID:   &user.ID,
+		Points:       req.Points,
+		DueDate:      req.DueDate,
+		EpicID:       req.EpicID,
+		CustomFields: customFields,
 	})
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal server error")
@@ -222,17 +248,18 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateCardReq struct {
-	Title          *string  `json:"title"`
-	Description    *string  `json:"description"`
-	Tag            *string  `json:"tag"`
-	Priority       *string  `json:"priority"`
-	AssigneeID     **string `json:"assignee_id"`
-	Points         **int    `json:"points"`
-	DueDate        **string `json:"due_date"`
-	RelatedCardIDs *string  `json:"related_card_ids"`
-	BlockedCardIDs *string  `json:"blocked_card_ids"`
-	EpicID         *string  `json:"epic_id"` // present = set (empty string = clear)
-	Version        int      `json:"version"`
+	Title          *string         `json:"title"`
+	Description    *string         `json:"description"`
+	Tag            *string         `json:"tag"`
+	Priority       *string         `json:"priority"`
+	AssigneeID     **string        `json:"assignee_id"`
+	Points         **int           `json:"points"`
+	DueDate        **string        `json:"due_date"`
+	RelatedCardIDs *string         `json:"related_card_ids"`
+	BlockedCardIDs *string         `json:"blocked_card_ids"`
+	EpicID         *string         `json:"epic_id"` // present = set (empty string = clear)
+	CustomFields   *map[string]any `json:"custom_fields"`
+	Version        int             `json:"version"`
 }
 
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
@@ -246,8 +273,16 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Snapshot before update for discord diff
-	oldCard, _ := h.cards.GetByID(r.Context(), id)
+	// Snapshot before update for discord diff and custom-field merge.
+	oldCard, err := h.cards.GetByID(r.Context(), id)
+	if err == repo.ErrNotFound {
+		writeErr(w, http.StatusNotFound, "card not found")
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
 
 	var req updateCardReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -272,6 +307,28 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 			epicVal = req.EpicID
 		}
 		upd.EpicID = &epicVal
+	}
+	if req.CustomFields != nil {
+		board, err := h.boards.GetByID(r.Context(), oldCard.BoardID)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "internal server error")
+			return
+		}
+		customFieldDefs, err := repo.CustomFieldDefinitionsFromSettings(board.Settings)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "invalid board custom field configuration")
+			return
+		}
+		customFields, err := repo.ApplyCustomFieldPatch(customFieldDefs, oldCard.CustomFields, *req.CustomFields, true)
+		if err != nil {
+			if fields, ok := repo.IsFieldValidationError(err); ok {
+				writeValidation(w, fields)
+				return
+			}
+			writeErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		upd.CustomFields = &customFields
 	}
 	card, err := h.cards.Update(r.Context(), id, req.Version, upd)
 	if err == repo.ErrNotFound {

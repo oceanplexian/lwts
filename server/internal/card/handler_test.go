@@ -70,6 +70,94 @@ func TestCardCreate(t *testing.T) {
 	if card.Title != "Fix bug" {
 		t.Errorf("title: %s", card.Title)
 	}
+	if card.CustomFields == nil || len(card.CustomFields) != 0 {
+		t.Errorf("custom_fields = %#v, want empty object", card.CustomFields)
+	}
+}
+
+func setBoardCustomFields(t *testing.T, boards *repo.BoardRepository, board repo.Board, defs []repo.CustomFieldDefinition) repo.Board {
+	t.Helper()
+	settingsBytes, _ := json.Marshal(map[string]any{"custom_fields": defs})
+	settings, _, err := repo.NormalizeBoardSettings(string(settingsBytes))
+	if err != nil {
+		t.Fatalf("normalize settings: %v", err)
+	}
+	updated, err := boards.Update(context.Background(), board.ID, repo.BoardUpdate{Settings: &settings})
+	if err != nil {
+		t.Fatalf("update board settings: %v", err)
+	}
+	return updated
+}
+
+func TestCardCreateWithCustomFields(t *testing.T) {
+	users, boards, cards, comments := setupTest(t)
+	h := NewHandler(cards, boards, comments, nil)
+	ctx := context.Background()
+
+	user, _ := users.Create(ctx, "User", "u@t.com", "h")
+	board, _ := boards.Create(ctx, "B", "LWTS", user.ID)
+	setBoardCustomFields(t, boards, board, []repo.CustomFieldDefinition{
+		{ID: "customer", Name: "Customer", Type: repo.CustomFieldTypeText, Required: true},
+		{ID: "severity", Name: "Severity", Type: repo.CustomFieldTypeSelect, Options: []repo.CustomFieldOption{
+			{ID: "sev1", Label: "SEV 1"},
+			{ID: "sev2", Label: "SEV 2"},
+		}},
+	})
+
+	body, _ := json.Marshal(createCardReq{
+		Title:        "Fix bug",
+		ColumnID:     "todo",
+		CustomFields: map[string]any{"customer": "Acme", "severity": "sev1"},
+	})
+
+	mux := http.NewServeMux()
+	mux.Handle("POST /api/v1/boards/{boardId}/cards", noopAuth(http.HandlerFunc(h.Create)))
+
+	req := httptest.NewRequest("POST", "/api/v1/boards/"+board.ID+"/cards", bytes.NewReader(body))
+	req = withUser(req, user)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status: %d, body: %s", w.Code, w.Body.String())
+	}
+	var card repo.Card
+	_ = json.Unmarshal(w.Body.Bytes(), &card)
+	if card.CustomFields["customer"] != "Acme" || card.CustomFields["severity"] != "sev1" {
+		t.Fatalf("custom fields = %#v", card.CustomFields)
+	}
+}
+
+func TestCardCreateRejectsInvalidCustomFields(t *testing.T) {
+	users, boards, cards, comments := setupTest(t)
+	h := NewHandler(cards, boards, comments, nil)
+	ctx := context.Background()
+
+	user, _ := users.Create(ctx, "User", "u@t.com", "h")
+	board, _ := boards.Create(ctx, "B", "LWTS", user.ID)
+	setBoardCustomFields(t, boards, board, []repo.CustomFieldDefinition{
+		{ID: "customer", Name: "Customer", Type: repo.CustomFieldTypeText, Required: true},
+		{ID: "severity", Name: "Severity", Type: repo.CustomFieldTypeSelect, Options: []repo.CustomFieldOption{{ID: "sev1", Label: "SEV 1"}}},
+	})
+
+	cases := []createCardReq{
+		{Title: "Missing required", ColumnID: "todo", CustomFields: map[string]any{"severity": "sev1"}},
+		{Title: "Bad option", ColumnID: "todo", CustomFields: map[string]any{"customer": "Acme", "severity": "sev2"}},
+		{Title: "Unknown", ColumnID: "todo", CustomFields: map[string]any{"customer": "Acme", "unknown": "x"}},
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle("POST /api/v1/boards/{boardId}/cards", noopAuth(http.HandlerFunc(h.Create)))
+	for _, tc := range cases {
+		body, _ := json.Marshal(tc)
+		req := httptest.NewRequest("POST", "/api/v1/boards/"+board.ID+"/cards", bytes.NewReader(body))
+		req = withUser(req, user)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("%s: expected 400, got %d, body: %s", tc.Title, w.Code, w.Body.String())
+		}
+	}
 }
 
 func TestCardCreateMissingTitle(t *testing.T) {
@@ -152,6 +240,51 @@ func TestCardUpdateSuccess(t *testing.T) {
 	}
 	if updated.Version != 2 {
 		t.Errorf("version: %d", updated.Version)
+	}
+}
+
+func TestCardUpdateCustomFields(t *testing.T) {
+	users, boards, cards, comments := setupTest(t)
+	h := NewHandler(cards, boards, comments, nil)
+	ctx := context.Background()
+
+	user, _ := users.Create(ctx, "User", "u@t.com", "h")
+	board, _ := boards.Create(ctx, "B", "LWTS", user.ID)
+	setBoardCustomFields(t, boards, board, []repo.CustomFieldDefinition{
+		{ID: "customer", Name: "Customer", Type: repo.CustomFieldTypeText},
+		{ID: "severity", Name: "Severity", Type: repo.CustomFieldTypeSelect, Options: []repo.CustomFieldOption{
+			{ID: "sev1", Label: "SEV 1"},
+			{ID: "sev2", Label: "SEV 2"},
+		}},
+	})
+	card, _ := cards.Create(ctx, board.ID, repo.CardCreate{
+		ColumnID:     "todo",
+		Title:        "Card",
+		CustomFields: map[string]string{"customer": "Acme", "severity": "sev1"},
+	})
+
+	body, _ := json.Marshal(updateCardReq{
+		CustomFields: &map[string]any{"customer": "", "severity": "sev2"},
+		Version:      card.Version,
+	})
+
+	mux := http.NewServeMux()
+	mux.Handle("PUT /api/v1/cards/{id}", noopAuth(http.HandlerFunc(h.Update)))
+	req := httptest.NewRequest("PUT", "/api/v1/cards/"+card.ID, bytes.NewReader(body))
+	req = withUser(req, user)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: %d, body: %s", w.Code, w.Body.String())
+	}
+	var updated repo.Card
+	_ = json.Unmarshal(w.Body.Bytes(), &updated)
+	if _, ok := updated.CustomFields["customer"]; ok {
+		t.Fatalf("customer should be cleared: %#v", updated.CustomFields)
+	}
+	if updated.CustomFields["severity"] != "sev2" {
+		t.Fatalf("severity = %#v", updated.CustomFields)
 	}
 }
 

@@ -2,10 +2,20 @@ package db
 
 import (
 	"context"
+	"io/fs"
 	"testing"
 
 	"github.com/oceanplexian/lwts/server/migrations"
 )
+
+func expectedMigrationCount(t *testing.T) int {
+	t.Helper()
+	files, err := fs.Glob(migrations.FS, "*.up.sql")
+	if err != nil {
+		t.Fatalf("glob migrations: %v", err)
+	}
+	return len(files)
+}
 
 func newTestSQLite(t *testing.T) *SQLiteDatasource {
 	t.Helper()
@@ -144,8 +154,8 @@ func TestSQLiteMigrateAll(t *testing.T) {
 	// Verify schema_migrations
 	var count int
 	_ = ds.QueryRow(ctx, "SELECT COUNT(*) FROM schema_migrations").Scan(&count)
-	if count != 18 {
-		t.Fatalf("expected 18 migrations, got %d", count)
+	if want := expectedMigrationCount(t); count != want {
+		t.Fatalf("expected %d migrations, got %d", want, count)
 	}
 }
 
@@ -162,8 +172,8 @@ func TestSQLiteMigrateIdempotent(t *testing.T) {
 
 	var count int
 	_ = ds.QueryRow(ctx, "SELECT COUNT(*) FROM schema_migrations").Scan(&count)
-	if count != 18 {
-		t.Fatalf("expected 18 migrations after idempotent run, got %d", count)
+	if want := expectedMigrationCount(t); count != want {
+		t.Fatalf("expected %d migrations after idempotent run, got %d", want, count)
 	}
 }
 

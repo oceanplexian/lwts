@@ -6,6 +6,7 @@ package embed
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/oceanplexian/lwts/server/internal/db"
@@ -18,6 +19,9 @@ func pgDS(t *testing.T) db.Datasource {
 	url := os.Getenv("DB_URL")
 	if url == "" {
 		t.Skip("DB_URL not set; skipping integration test")
+	}
+	if !strings.HasPrefix(url, "postgres://") && !strings.HasPrefix(url, "postgresql://") {
+		t.Skipf("DB_URL is not postgres, skipping postgres integration test: %s", url)
 	}
 	ds, err := db.NewPostgresDatasource(context.Background(), url)
 	if err != nil {

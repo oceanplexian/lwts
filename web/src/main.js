@@ -19,6 +19,11 @@ import './a11y.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   const LP = window.LoginPage;
+  const authRoot = document.getElementById('app-auth');
+  const boardRoot = document.getElementById('app-board');
+  if (!LP || typeof LP.init !== 'function' || !window.Auth || !authRoot || !boardRoot) {
+    return;
+  }
   LP.init();
 
   // Auth theme toggle
@@ -47,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
               const boardDiv = document.getElementById('board');
               if (boardDiv) boardDiv.style.display = 'none';
             }
-            document.getElementById('app-board').style.display = '';
+            boardRoot.style.display = '';
             if (window.initBoard && !window._boardInitialized) {
               window._boardInitialized = true;
               window.initBoard();
@@ -68,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
   showAuthFlow();
 
   function showAuthFlow() {
-    document.getElementById('app-auth').style.display = '';
+    authRoot.style.display = '';
 
     Promise.allSettled([
       fetch('/api/v1/registration-status').then(r => r.json()),

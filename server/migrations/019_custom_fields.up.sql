@@ -1,0 +1,1 @@
+ALTER TABLE cards ADD COLUMN custom_fields JSONB NOT NULL DEFAULT '{}';

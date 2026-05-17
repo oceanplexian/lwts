@@ -153,7 +153,47 @@ function fromAPI(card) {
     board_id: card.board_id,
     column_id: card.column_id,
     epic_id: card.epic_id || null,
+    custom_fields: (card.custom_fields && typeof card.custom_fields === 'object') ? Object.assign({}, card.custom_fields) : {},
   };
+}
+
+function getBoardById(boardId) {
+  return (boardList || []).find(b => b.id === boardId) || null;
+}
+
+function getBoardCustomFields(boardId) {
+  const board = getBoardById(boardId || currentBoardId);
+  if (!board) return [];
+  const settings = window.parseBoardSettings ? window.parseBoardSettings(board.settings) : {};
+  return Array.isArray(settings.custom_fields) ? settings.custom_fields : [];
+}
+
+function getCustomFieldOption(def, value) {
+  if (!def || !Array.isArray(def.options)) return null;
+  return def.options.find(opt => opt.id === value) || null;
+}
+
+function customFieldDisplayValue(def, value) {
+  if (!value) return 'None';
+  if (def && def.type === 'select') {
+    return (getCustomFieldOption(def, value) || {}).label || value;
+  }
+  return value;
+}
+
+function renderCardCustomFieldChips(card) {
+  const defs = getBoardCustomFields(card.board_id || currentBoardId);
+  const values = card.custom_fields || {};
+  return defs
+    .filter(def => values[def.id])
+    .slice(0, 2)
+    .map(def => {
+      const opt = getCustomFieldOption(def, values[def.id]);
+      const value = customFieldDisplayValue(def, values[def.id]);
+      const dot = opt && opt.color ? `<span class="card-custom-dot" style="background:${esc(opt.color)}"></span>` : '';
+      return `<span class="card-custom-chip" title="${esc(def.name + ': ' + value)}">${dot}${esc(value)}</span>`;
+    })
+    .join('');
 }
 
 // ── Welcome Modal ──
@@ -382,6 +422,7 @@ let detailCard = null;
 let detailCol = null;
 let ddDetailColumn = null, ddDetailTag = null, ddDetailPriority = null;
 let ddDetailReporter = null, ddDetailAssignee = null, ddDetailProject = null, ddDetailEpic = null;
+let detailCustomDropdowns = {};
 let detailEditor = null;
 let commentEditor = null;
 
@@ -660,6 +701,7 @@ function createCardEl(card, colId, idx) {
     <div class="card-title">${esc(card.title)}</div>
     <div class="card-tags">
       <span class="card-tag tag-${esc(card.tag)}">${esc(tagLabel)}</span>
+      ${renderCardCustomFieldChips(card)}
     </div>
     <div class="card-footer">
       <div class="card-footer-left">
@@ -891,11 +933,13 @@ function clearDropTarget() {
 // ═══════════════════════════════════════════════════════════════
 
 let _isCreateMode = false;
+let _pendingCustomFields = {};
 
 function openCreateModal() {
   _isCreateMode = true;
   _pendingDescription = '';
   _pendingComments = [];
+  _pendingCustomFields = {};
   detailCard = null;
   detailCol = null;
 
@@ -944,6 +988,7 @@ function openCreateModal() {
   if (typeof window.initDueDateField === 'function') window.initDueDateField();
   if (typeof window.refreshDueDateText === 'function') window.refreshDueDateText();
 
+  renderDetailCustomFields((ddDetailProject ? ddDetailProject.getValue() : null) || currentBoardId, _pendingCustomFields);
   refreshSidebarTexts();
   closeAllSidebarFields();
 
@@ -1024,6 +1069,7 @@ function submitCreateFromDetail() {
     attachments: [],
     comments: _pendingComments.slice(),
     version: 0,
+    custom_fields: Object.assign({}, _pendingCustomFields),
   };
 
   const pendingCommentTexts = _pendingComments.map(c => c.body || c.text);
@@ -1040,6 +1086,7 @@ function submitCreateFromDetail() {
 
   _pendingDescription = '';
   _pendingComments = [];
+  const customFieldsPayload = Object.assign({}, _pendingCustomFields);
   window._pendingDueDate = null;
   closeCreateMode();
 
@@ -1055,6 +1102,7 @@ function submitCreateFromDetail() {
       reporter_id: card.reporter,
       points: card.points || null,
       due_date: card.due_date || null,
+      custom_fields: customFieldsPayload,
     }).then(serverCard => {
       if (isCurrentBoard) {
         const colCards = state[col];
@@ -1091,6 +1139,7 @@ function submitCreateFromDetail() {
       }
     });
   }
+  _pendingCustomFields = {};
 }
 
 
@@ -1126,6 +1175,13 @@ function initDetailDropdowns() {
   const projectOpts = boardList.map(b => ({ value: b.id, label: b.name }));
   ddDetailProject = new window.FnDropdown(document.getElementById('detail-project'), {
     value: currentBoardId || (boardList[0] && boardList[0].id) || '', options: projectOpts,
+    onChange: (v) => {
+      if (_isCreateMode && !detailCard) {
+        renderDetailCustomFields(v, _pendingCustomFields);
+        refreshSidebarTexts();
+        closeAllSidebarFields();
+      }
+    },
   });
 
   // Epic dropdown — populated from epic cards on the board
@@ -1212,6 +1268,8 @@ function openDetail(cardId, _fromHash) {
   // Points
   document.getElementById('detail-points').value = foundCard.points || 0;
 
+  renderDetailCustomFields(foundCard.board_id || currentBoardId, foundCard.custom_fields || {});
+
   // Refresh sidebar text values & hide all dropdowns
   refreshSidebarTexts();
   closeAllSidebarFields();
@@ -1271,6 +1329,7 @@ function saveDetailFields() {
     detailCard.description = detailEditor.getMarkdown();
   }
   detailCard.points = parseInt(document.getElementById('detail-points').value) || 0;
+  detailCard.custom_fields = detailCard.custom_fields || {};
 
   // Column move
   const newCol = ddDetailColumn.getValue();
@@ -1336,9 +1395,11 @@ function saveDetailFields() {
           assignee_id: assignee === 'unassigned' ? null : assignee,
           epic_id: card.epic_id || null,
           points: card.points || null,
+          custom_fields: Object.assign({}, card.custom_fields || {}),
           version: card.version || 0,
         }).then(updated => {
           card.version = updated.version;
+          card.custom_fields = (updated.custom_fields && typeof updated.custom_fields === 'object') ? Object.assign({}, updated.custom_fields) : {};
           cardIndex[card.id] = updated;
         }).catch(err => {
           if (err.status === 409) {
@@ -1458,9 +1519,139 @@ function refreshSidebarTexts() {
   const pts = document.getElementById('detail-points').value;
   document.getElementById('detail-points-text').textContent = pts || '0';
 
+  refreshCustomFieldTexts();
+
   // GitHub links
   refreshGithubLinks();
 }
+
+function renderDetailCustomFields(boardId, values) {
+  document.querySelectorAll('.detail-custom-field-row').forEach(row => row.remove());
+  Object.values(detailCustomDropdowns).forEach(dd => { if (dd && dd.close) dd.close(); });
+  detailCustomDropdowns = {};
+
+  const anchor = document.getElementById('detail-github-row');
+  if (!anchor || !anchor.parentNode) return;
+
+  const defs = getBoardCustomFields(boardId);
+  const currentValues = values || {};
+  defs.forEach(def => {
+    const row = document.createElement('tr');
+    row.className = 'detail-field-row detail-custom-field-row';
+    row.dataset.fieldId = def.id;
+
+    const label = document.createElement('td');
+    label.className = 'detail-field-label';
+    label.textContent = def.name + (def.required ? ' *' : '');
+
+    const cell = document.createElement('td');
+    cell.className = 'detail-field-cell';
+    const text = document.createElement('span');
+    text.className = 'detail-field-text detail-custom-field-text';
+    text.id = 'detail-custom-field-text-' + def.id;
+    text.addEventListener('click', () => toggleCustomFieldEditor(def.id));
+    cell.appendChild(text);
+
+    const editor = document.createElement('div');
+    editor.className = 'detail-field-dd detail-custom-field-dd hidden';
+    editor.id = 'detail-custom-field-dd-' + def.id;
+
+    if (def.type === 'select') {
+      const dropdownEl = document.createElement('div');
+      dropdownEl.id = 'detail-custom-field-' + def.id;
+      editor.appendChild(dropdownEl);
+      cell.appendChild(editor);
+      row.appendChild(label);
+      row.appendChild(cell);
+      anchor.parentNode.insertBefore(row, anchor);
+
+      const opts = [];
+      if (!def.required) opts.push({ value: '', label: 'None' });
+      (def.options || []).forEach(opt => opts.push({ value: opt.id, label: opt.label, dot: opt.color || '' }));
+      detailCustomDropdowns[def.id] = new window.FnDropdown(dropdownEl, {
+        value: currentValues[def.id] || '',
+        options: opts,
+        onChange: (v) => customFieldChanged(def.id, v || ''),
+      });
+    } else {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'detail-custom-text-input';
+      input.value = currentValues[def.id] || '';
+      input.maxLength = 2048;
+      input.addEventListener('input', () => customFieldTextInput(def.id, input.value));
+      input.addEventListener('blur', () => closeCustomFieldEditor(def.id));
+      editor.appendChild(input);
+      cell.appendChild(editor);
+      row.appendChild(label);
+      row.appendChild(cell);
+      anchor.parentNode.insertBefore(row, anchor);
+    }
+  });
+
+  refreshCustomFieldTexts();
+}
+
+function refreshCustomFieldTexts() {
+  const boardId = detailCard ? (detailCard.board_id || currentBoardId) : ((ddDetailProject && ddDetailProject.getValue()) || currentBoardId);
+  const defs = getBoardCustomFields(boardId);
+  const values = detailCard ? (detailCard.custom_fields || {}) : (_pendingCustomFields || {});
+  defs.forEach(def => {
+    const el = document.getElementById('detail-custom-field-text-' + def.id);
+    if (!el) return;
+    const value = values[def.id] || '';
+    const opt = getCustomFieldOption(def, value);
+    const dot = opt && opt.color ? `<span class="detail-field-dot" style="background:${esc(opt.color)}"></span>` : '';
+    el.innerHTML = dot + esc(customFieldDisplayValue(def, value));
+  });
+}
+
+function toggleCustomFieldEditor(fieldId) {
+  const ddEl = document.getElementById('detail-custom-field-dd-' + fieldId);
+  if (!ddEl) return;
+  const isOpen = !ddEl.classList.contains('hidden');
+  closeAllSidebarFields();
+  if (!isOpen) {
+    ddEl.classList.remove('hidden');
+    const dd = detailCustomDropdowns[fieldId];
+    if (dd) {
+      setTimeout(() => dd.open(), 30);
+    } else {
+      const input = ddEl.querySelector('input');
+      if (input) setTimeout(() => input.focus(), 30);
+    }
+  }
+}
+
+function closeCustomFieldEditor(fieldId) {
+  const ddEl = document.getElementById('detail-custom-field-dd-' + fieldId);
+  if (ddEl) ddEl.classList.add('hidden');
+  const dd = detailCustomDropdowns[fieldId];
+  if (dd) dd.close();
+}
+
+function closeAllCustomFieldEditors() {
+  document.querySelectorAll('.detail-custom-field-dd').forEach(el => el.classList.add('hidden'));
+  Object.values(detailCustomDropdowns).forEach(dd => { if (dd && dd.close) dd.close(); });
+}
+
+function customFieldChanged(fieldId, value) {
+  const target = detailCard ? (detailCard.custom_fields = detailCard.custom_fields || {}) : _pendingCustomFields;
+  target[fieldId] = value || '';
+  refreshCustomFieldTexts();
+  closeCustomFieldEditor(fieldId);
+  if (detailCard) saveDetailFields();
+}
+
+function customFieldTextInput(fieldId, value) {
+  const target = detailCard ? (detailCard.custom_fields = detailCard.custom_fields || {}) : _pendingCustomFields;
+  target[fieldId] = value;
+  refreshCustomFieldTexts();
+  if (!detailCard) return;
+  clearTimeout(customFieldTextInput._timer);
+  customFieldTextInput._timer = setTimeout(() => saveDetailFields(), 500);
+}
+customFieldTextInput._timer = null;
 
 // ── GitHub link detection & sidebar rendering ──
 
@@ -1564,6 +1755,7 @@ function closeSidebarField(field) {
 
 function closeAllSidebarFields() {
   SIDEBAR_FIELDS.forEach(f => closeSidebarField(f));
+  closeAllCustomFieldEditors();
   if (typeof closeDueDatePicker === 'function') closeDueDatePicker();
 }
 
@@ -2285,7 +2477,8 @@ function isInputFocused() {
 }
 
 function anyModalOpen() {
-  return document.getElementById('detail-modal').classList.contains('active');
+  const modal = document.getElementById('detail-modal');
+  return !!(modal && modal.classList.contains('active'));
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2294,8 +2487,10 @@ function anyModalOpen() {
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
-    if (document.getElementById('lightbox').classList.contains('active')) { closeLightbox(); return; }
-    if (document.getElementById('detail-modal').classList.contains('active')) { closeDetail(); return; }
+    const lightbox = document.getElementById('lightbox');
+    const detailModal = document.getElementById('detail-modal');
+    if (lightbox && lightbox.classList.contains('active')) { closeLightbox(); return; }
+    if (detailModal && detailModal.classList.contains('active')) { closeDetail(); return; }
   }
   if (e.key === 'n' && !e.ctrlKey && !e.metaKey && !anyModalOpen() && !isInputFocused()) {
     e.preventDefault();
@@ -2327,32 +2522,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Detail: auto-resize title + sync to header
   var titleEl = document.getElementById('detail-title');
-  titleEl.addEventListener('input', function() {
-    autoResizeTextarea(this);
-    document.getElementById('detail-header-title').textContent = this.value;
-  });
-  titleEl.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') { e.preventDefault(); this.blur(); }
-  });
-  titleEl.addEventListener('blur', function() {
-    if (detailCard && this.value.trim()) {
-      this.classList.remove('saved');
-      void this.offsetWidth;
-      this.classList.add('saved');
-      this.addEventListener('animationend', function() { this.classList.remove('saved'); }, { once: true });
-    }
-  });
+  if (titleEl) {
+    titleEl.addEventListener('input', function() {
+      autoResizeTextarea(this);
+      const headerTitle = document.getElementById('detail-header-title');
+      if (headerTitle) headerTitle.textContent = this.value;
+    });
+    titleEl.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); this.blur(); }
+    });
+    titleEl.addEventListener('blur', function() {
+      if (detailCard && this.value.trim()) {
+        this.classList.remove('saved');
+        void this.offsetWidth;
+        this.classList.add('saved');
+        this.addEventListener('animationend', function() { this.classList.remove('saved'); }, { once: true });
+      }
+    });
+  }
 
-  initDetailDropdowns();
+  if (window.FnDropdown && document.getElementById('detail-column')) {
+    initDetailDropdowns();
+  }
 
   // WYSIWYG editor
-  detailEditor = new window.FnEditor(document.getElementById('detail-description'), {
-    placeholder: 'Add a description...',
-    onImageUpload: (url) => addAttachment(url),
-  });
+  const descriptionEl = document.getElementById('detail-description');
+  if (window.FnEditor && descriptionEl) {
+    detailEditor = new window.FnEditor(descriptionEl, {
+      placeholder: 'Add a description...',
+      onImageUpload: (url) => addAttachment(url),
+    });
+  }
 
   // Initialize toast system
-  window.Toast.init();
+  if (window.Toast && window.Toast.init) window.Toast.init();
 
   // Initialize global search
   initGlobalSearch();
@@ -2360,7 +2563,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Appearance and settings are loaded in initBoard() after auth
 
   // Clean up old localStorage data
-  localStorage.removeItem('lwts-kanban');
+  if (localStorage && typeof localStorage.removeItem === 'function') {
+    localStorage.removeItem('lwts-kanban');
+  }
 });
 
 // Board data init — called after auth succeeds (SPA flow)
@@ -2764,6 +2969,9 @@ Object.defineProperty(window, 'lastConcreteBoardId', { get() { return lastConcre
 Object.defineProperty(window, 'boardList', { get() { return boardList; }, set(v) { boardList = v; }, configurable: true });
 Object.defineProperty(window, 'cardIndex', { get() { return cardIndex; }, set(v) { cardIndex = v; }, configurable: true });
 window.fromAPI = fromAPI;
+window.getBoardCustomFields = getBoardCustomFields;
+window.customFieldDisplayValue = customFieldDisplayValue;
+window.renderCardCustomFieldChips = renderCardCustomFieldChips;
 window.showWelcome = showWelcome;
 window.closeWelcome = closeWelcome;
 window.loadFromAPI = loadFromAPI;
@@ -2790,6 +2998,12 @@ window.closeDetail = closeDetail;
 window.saveDetailFields = saveDetailFields;
 window.detailFieldChanged = detailFieldChanged;
 window.refreshSidebarTexts = refreshSidebarTexts;
+window.renderDetailCustomFields = renderDetailCustomFields;
+window.refreshCustomFieldTexts = refreshCustomFieldTexts;
+window.toggleCustomFieldEditor = toggleCustomFieldEditor;
+window.closeCustomFieldEditor = closeCustomFieldEditor;
+window.customFieldChanged = customFieldChanged;
+window.customFieldTextInput = customFieldTextInput;
 window.toggleSidebarField = toggleSidebarField;
 window.closeSidebarField = closeSidebarField;
 window.closeAllSidebarFields = closeAllSidebarFields;

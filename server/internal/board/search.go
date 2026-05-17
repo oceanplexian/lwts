@@ -3,6 +3,7 @@ package board
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -65,14 +66,25 @@ func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 	tag := r.URL.Query().Get("tag")
 	priority := r.URL.Query().Get("priority")
 	limitStr := r.URL.Query().Get("limit")
+	customFilters, customFilterErr := parseCustomFieldFilters(r)
+	if customFilterErr != "" {
+		writeErr(w, http.StatusBadRequest, customFilterErr)
+		return
+	}
 	// Agent-friendly opt-in filters. Defaults preserve pre-feature behavior
 	// (include done, no score floor) so the web UI search box is unchanged.
 	includeDone := r.URL.Query().Get("include_done") != "false" // default true
 	minScoreStr := r.URL.Query().Get("min_score")
 
-	if q == "" && assigneeID == "" && assigneeName == "" && columnID == "" && tag == "" && priority == "" && boardID == "" {
-		writeErr(w, http.StatusBadRequest, "at least one filter required (q, assignee_id, assignee, column_id, tag, priority, board_id)")
+	if q == "" && assigneeID == "" && assigneeName == "" && columnID == "" && tag == "" && priority == "" && boardID == "" && len(customFilters) == 0 {
+		writeErr(w, http.StatusBadRequest, "at least one filter required (q, assignee_id, assignee, column_id, tag, priority, board_id, custom_field.<id>)")
 		return
+	}
+	if boardID != "" && len(customFilters) > 0 {
+		if msg := h.validateCustomFieldFilters(r, boardID, customFilters); msg != "" {
+			writeErr(w, http.StatusBadRequest, msg)
+			return
+		}
 	}
 
 	// Resolve assignee name → IDs
@@ -123,18 +135,18 @@ func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 			Priority:    priority,
 			Limit:       limit,
 		}
-		if h.runSemanticSearch(w, r, q, opts, includeDone, minScore) {
+		if h.runSemanticSearch(w, r, q, opts, includeDone, minScore, customFilters) {
 			return
 		}
 		// fall through to LIKE on any failure
 	}
 
-	h.runLikeSearch(w, r, q, boardID, assigneeIDs, columnID, tag, priority, limit, includeDone, minScore)
+	h.runLikeSearch(w, r, q, boardID, assigneeIDs, columnID, tag, priority, limit, includeDone, minScore, customFilters)
 }
 
 // runSemanticSearch returns true if it produced a response. Returns false on
 // any transient failure so the caller can fall back to LIKE.
-func (h *SearchHandler) runSemanticSearch(w http.ResponseWriter, r *http.Request, q string, opts embed.SearchOptions, includeDone bool, minScore float64) bool {
+func (h *SearchHandler) runSemanticSearch(w http.ResponseWriter, r *http.Request, q string, opts embed.SearchOptions, includeDone bool, minScore float64, customFilters map[string]string) bool {
 	results, err := h.embed.SearchCascade(r.Context(), q, opts)
 	if err != nil {
 		return false
@@ -167,6 +179,9 @@ func (h *SearchHandler) runSemanticSearch(w http.ResponseWriter, r *http.Request
 		if res.Score < minScore {
 			continue
 		}
+		if !matchesCustomFieldFilters(c.CustomFields, customFilters) {
+			continue
+		}
 		total++
 		if len(out) >= opts.Limit {
 			continue
@@ -188,7 +203,7 @@ func (h *SearchHandler) runSemanticSearch(w http.ResponseWriter, r *http.Request
 // fields so agents calling through the CLI get a consistent shape.
 func (h *SearchHandler) runLikeSearch(w http.ResponseWriter, r *http.Request,
 	q, boardID string, assigneeIDs []string, columnID, tag, priority string, limit int,
-	includeDone bool, minScore float64,
+	includeDone bool, minScore float64, customFilters map[string]string,
 ) {
 	// Pin an exact ticket-key match first so a query like "FNAI-16" surfaces
 	// that card regardless of what the title/description LIKE produces.
@@ -220,9 +235,9 @@ func (h *SearchHandler) runLikeSearch(w http.ResponseWriter, r *http.Request,
 		// partial key prefixes like "KANB-" surface tickets even before the
 		// user finishes typing the number.
 		pattern := "%" + q + "%"
-		conditions = append(conditions, "(c.title LIKE $"+strconv.Itoa(argN)+" OR c.description LIKE $"+strconv.Itoa(argN+1)+" OR c.key LIKE $"+strconv.Itoa(argN+2)+")")
-		args = append(args, pattern, pattern, pattern)
-		argN += 3
+		conditions = append(conditions, "(c.title LIKE $"+strconv.Itoa(argN)+" OR c.description LIKE $"+strconv.Itoa(argN+1)+" OR c.key LIKE $"+strconv.Itoa(argN+2)+" OR CAST(c.custom_fields AS TEXT) LIKE $"+strconv.Itoa(argN+3)+")")
+		args = append(args, pattern, pattern, pattern, pattern)
+		argN += 4
 	}
 	if len(assigneeIDs) > 0 {
 		placeholders := make([]string, len(assigneeIDs))
@@ -246,6 +261,16 @@ func (h *SearchHandler) runLikeSearch(w http.ResponseWriter, r *http.Request,
 	if priority != "" {
 		conditions = append(conditions, "c.priority = $"+strconv.Itoa(argN))
 		args = append(args, priority)
+		argN++
+	}
+	for _, id := range sortedCustomFieldIDs(customFilters) {
+		if h.ds.DBType() == "postgres" {
+			conditions = append(conditions, "c.custom_fields ->> $"+strconv.Itoa(argN)+" = $"+strconv.Itoa(argN+1))
+		} else {
+			conditions = append(conditions, "json_extract(c.custom_fields, '$.' || $"+strconv.Itoa(argN)+") = $"+strconv.Itoa(argN+1))
+		}
+		args = append(args, id, customFilters[id])
+		argN += 2
 	}
 
 	where := ""
@@ -266,7 +291,7 @@ func (h *SearchHandler) runLikeSearch(w http.ResponseWriter, r *http.Request,
 
 	query := `SELECT c.id, c.board_id, c.column_id, c.title, c.description, c.tag, c.priority,
 		c.assignee_id, c.reporter_id, c.points, c.position, c.key, c.version,
-		CAST(c.due_date AS TEXT), c.related_card_ids, c.blocked_card_ids, c.created_at, c.updated_at,
+		CAST(c.due_date AS TEXT), c.related_card_ids, c.blocked_card_ids, c.epic_id, c.custom_fields, c.created_at, c.updated_at,
 		COALESCE(u.name, '') as assignee_name
 		FROM cards c
 		LEFT JOIN users u ON c.assignee_id = u.id` +
@@ -285,14 +310,19 @@ func (h *SearchHandler) runLikeSearch(w http.ResponseWriter, r *http.Request,
 	pinnedSeen := false
 	for rows.Next() {
 		var c cardWithAssignee
+		var customFieldsJSON string
 		if err := rows.Scan(&c.ID, &c.BoardID, &c.ColumnID, &c.Title, &c.Description, &c.Tag, &c.Priority,
 			&c.AssigneeID, &c.ReporterID, &c.Points, &c.Position, &c.Key, &c.Version,
-			&c.DueDate, &c.RelatedCardIDs, &c.BlockedCardIDs, &c.CreatedAt, &c.UpdatedAt,
+			&c.DueDate, &c.RelatedCardIDs, &c.BlockedCardIDs, &c.EpicID, &customFieldsJSON, &c.CreatedAt, &c.UpdatedAt,
 			&c.AssigneeName); err != nil {
 			writeErr(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
+		c.CustomFields = repo.ParseCustomFieldsJSON(customFieldsJSON)
 		if !includeDone && isDoneColumn(c.ColumnID) {
+			continue
+		}
+		if !matchesCustomFieldFilters(c.CustomFields, customFilters) {
 			continue
 		}
 		isPinnedKey := pinnedKeyID != "" && c.ID == pinnedKeyID
@@ -373,7 +403,7 @@ func (h *SearchHandler) hydrateCards(r *http.Request, ids []string) ([]cardWithA
 	}
 	q := `SELECT c.id, c.board_id, c.column_id, c.title, c.description, c.tag, c.priority,
 		c.assignee_id, c.reporter_id, c.points, c.position, c.key, c.version,
-		CAST(c.due_date AS TEXT), c.related_card_ids, c.blocked_card_ids, c.created_at, c.updated_at,
+		CAST(c.due_date AS TEXT), c.related_card_ids, c.blocked_card_ids, c.epic_id, c.custom_fields, c.created_at, c.updated_at,
 		COALESCE(u.name, '') as assignee_name
 		FROM cards c LEFT JOIN users u ON c.assignee_id = u.id
 		WHERE c.id IN (` + strings.Join(placeholders, ",") + `)`
@@ -387,12 +417,14 @@ func (h *SearchHandler) hydrateCards(r *http.Request, ids []string) ([]cardWithA
 	byID := make(map[string]cardWithAssignee, len(ids))
 	for rows.Next() {
 		var c cardWithAssignee
+		var customFieldsJSON string
 		if err := rows.Scan(&c.ID, &c.BoardID, &c.ColumnID, &c.Title, &c.Description, &c.Tag, &c.Priority,
 			&c.AssigneeID, &c.ReporterID, &c.Points, &c.Position, &c.Key, &c.Version,
-			&c.DueDate, &c.RelatedCardIDs, &c.BlockedCardIDs, &c.CreatedAt, &c.UpdatedAt,
+			&c.DueDate, &c.RelatedCardIDs, &c.BlockedCardIDs, &c.EpicID, &customFieldsJSON, &c.CreatedAt, &c.UpdatedAt,
 			&c.AssigneeName); err != nil {
 			return nil, err
 		}
+		c.CustomFields = repo.ParseCustomFieldsJSON(customFieldsJSON)
 		byID[c.ID] = c
 	}
 	if err := rows.Err(); err != nil {
@@ -405,6 +437,70 @@ func (h *SearchHandler) hydrateCards(r *http.Request, ids []string) ([]cardWithA
 		}
 	}
 	return out, nil
+}
+
+func parseCustomFieldFilters(r *http.Request) (map[string]string, string) {
+	filters := map[string]string{}
+	for key, values := range r.URL.Query() {
+		const prefix = "custom_field."
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		id := strings.TrimSpace(strings.TrimPrefix(key, prefix))
+		if !repo.IsCustomFieldID(id) {
+			return nil, "invalid custom field filter id: " + id
+		}
+		value := ""
+		if len(values) > 0 {
+			value = strings.TrimSpace(values[0])
+		}
+		if value == "" {
+			return nil, "custom field filter value is required for " + id
+		}
+		filters[id] = value
+	}
+	return filters, ""
+}
+
+func (h *SearchHandler) validateCustomFieldFilters(r *http.Request, boardID string, filters map[string]string) string {
+	var settings string
+	if err := h.ds.QueryRow(r.Context(), "SELECT settings FROM boards WHERE id = $1", boardID).Scan(&settings); err != nil {
+		return ""
+	}
+	defs, err := repo.CustomFieldDefinitionsFromSettings(settings)
+	if err != nil {
+		return "invalid board custom field configuration"
+	}
+	if err := repo.ValidateCustomFieldValues(defs, filters, false); err != nil {
+		if fields, ok := repo.IsFieldValidationError(err); ok {
+			keys := make([]string, 0, len(fields))
+			for key := range fields {
+				keys = append(keys, key)
+			}
+			sort.Strings(keys)
+			return keys[0] + ": " + fields[keys[0]]
+		}
+		return err.Error()
+	}
+	return ""
+}
+
+func sortedCustomFieldIDs(filters map[string]string) []string {
+	ids := make([]string, 0, len(filters))
+	for id := range filters {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids
+}
+
+func matchesCustomFieldFilters(values map[string]string, filters map[string]string) bool {
+	for id, want := range filters {
+		if values[id] != want {
+			return false
+		}
+	}
+	return true
 }
 
 // isDoneColumn matches the conventional terminal columns. Workspaces can add

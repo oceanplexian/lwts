@@ -1636,6 +1636,7 @@ function toggleBoardEnabled(checkbox) {
 // ── Boards Settings (dynamic from API) ──
 
 let _boardSettingsDebounce = {};
+const CUSTOM_FIELD_OPTION_COLORS = ['#579DFF', '#4ade80', '#fb8c00', '#f44336', '#9f8fef', '#6cc3e0', '#f5cd47', '#e040fb'];
 
 async function loadBoardsSettings() {
   const container = document.getElementById('settings-boards-list');
@@ -1722,6 +1723,8 @@ async function loadBoardsSettings() {
           </div>
           <button class="btn settings-column-add-btn" data-board-id="${board.id}" style="margin-top:10px;font-size:0.82rem;padding:4px 14px">+ Add column</button>
         </div>`;
+
+      configHTML += _renderCustomFieldsConfig(board.id, settings.custom_fields || []);
 
       // Triggers group (browser notification + webhook per event)
       const triggers = window.Notifier
@@ -1850,6 +1853,207 @@ function _bindBoardSettingsInputs() {
       _saveBoardTriggers(el.dataset.boardId);
     });
   });
+
+  _bindCustomFieldInputs(document);
+}
+
+function _bindCustomFieldInputs(root) {
+  const scope = root || document;
+  scope.querySelectorAll('.board-custom-field-name, .board-custom-field-options').forEach(el => {
+    el.addEventListener('input', () => {
+      const boardId = el.dataset.boardId;
+      clearTimeout(_boardSettingsDebounce['cf-' + boardId]);
+      _boardSettingsDebounce['cf-' + boardId] = setTimeout(() => {
+        _saveBoardCustomFields(boardId, { silent: true });
+      }, 600);
+    });
+  });
+
+  scope.querySelectorAll('.board-custom-field-type, .board-custom-field-required').forEach(el => {
+    el.addEventListener('change', () => {
+      const boardId = el.dataset.boardId;
+      _saveBoardCustomFields(boardId, { silent: true, rerender: true });
+    });
+  });
+
+  scope.querySelectorAll('.settings-custom-field-add-btn').forEach(btn => {
+    btn.addEventListener('click', () => _addCustomField(btn.dataset.boardId));
+  });
+
+  scope.querySelectorAll('.settings-custom-field-remove-btn').forEach(btn => {
+    btn.addEventListener('click', () => _removeCustomField(btn.dataset.boardId, btn.dataset.fieldId));
+  });
+}
+
+function _renderCustomFieldsConfig(boardId, customFields) {
+  const fields = Array.isArray(customFields) ? customFields : [];
+  let html = `
+    <div class="settings-group">
+      <div class="settings-group-title">Custom fields</div>
+      <div class="settings-custom-fields-list" data-board-id="${boardId}">`;
+  if (fields.length === 0) {
+    html += '<div class="settings-custom-field-empty">No custom fields configured</div>';
+  }
+  fields.forEach((field, idx) => {
+    const type = field.type === 'select' ? 'select' : 'text';
+    const optionsValue = (field.options || []).map(opt => opt.label || opt.id).join(', ');
+    html += `
+      <div class="settings-custom-field-row" data-field-index="${idx}" data-field-id="${_escHtml(field.id)}">
+        <div class="settings-custom-field-main">
+          <input class="settings-input board-custom-field-name" data-board-id="${boardId}" data-field-id="${_escHtml(field.id)}" value="${_escHtml(field.name)}" placeholder="Field name" />
+          <select class="settings-input board-custom-field-type" data-board-id="${boardId}" data-field-id="${_escHtml(field.id)}">
+            <option value="text" ${type === 'text' ? 'selected' : ''}>Text</option>
+            <option value="select" ${type === 'select' ? 'selected' : ''}>Choice</option>
+          </select>
+          <label class="settings-toggle settings-custom-field-required" title="Required">
+            <input type="checkbox" class="board-custom-field-required" data-board-id="${boardId}" data-field-id="${_escHtml(field.id)}" ${field.required ? 'checked' : ''}>
+            <span class="toggle-track"></span>
+          </label>
+          <button class="settings-custom-field-remove-btn" data-board-id="${boardId}" data-field-id="${_escHtml(field.id)}" title="Remove field">&times;</button>
+        </div>
+        <input class="settings-input board-custom-field-options ${type === 'select' ? '' : 'hidden'}" data-board-id="${boardId}" data-field-id="${_escHtml(field.id)}" value="${_escHtml(optionsValue)}" placeholder="Choices separated by commas" />
+      </div>`;
+  });
+  html += `
+      </div>
+      <button class="btn settings-custom-field-add-btn" data-board-id="${boardId}" style="margin-top:10px;font-size:0.82rem;padding:4px 14px">+ Add field</button>
+    </div>`;
+  return html;
+}
+
+function _slugifyCustomFieldId(label) {
+  let slug = (label || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  if (!slug) slug = 'field';
+  if (/^[0-9]/.test(slug)) slug = 'field-' + slug;
+  return slug.slice(0, 64).replace(/-$/g, '');
+}
+
+function _uniqueCustomFieldId(slug, fields) {
+  const ids = new Set((fields || []).map(f => f.id));
+  if (!ids.has(slug)) return slug;
+  let n = 2;
+  while (ids.has(slug + '-' + n)) n++;
+  return slug + '-' + n;
+}
+
+function _customFieldsForBoard(board) {
+  const settings = window.parseBoardSettings ? window.parseBoardSettings(board.settings) : JSON.parse(board.settings || '{}');
+  return Array.isArray(settings.custom_fields) ? settings.custom_fields : [];
+}
+
+function _collectCustomFieldsFromDOM(boardId) {
+  const board = window.boardList.find(b => b.id === boardId);
+  if (!board) return [];
+  const existing = _customFieldsForBoard(board);
+  const rows = document.querySelectorAll(`.settings-custom-fields-list[data-board-id="${boardId}"] .settings-custom-field-row`);
+  const fields = [];
+  rows.forEach((row, idx) => {
+    const id = row.dataset.fieldId;
+    const prev = existing.find(f => f.id === id) || {};
+    const nameEl = row.querySelector('.board-custom-field-name');
+    const typeEl = row.querySelector('.board-custom-field-type');
+    const reqEl = row.querySelector('.board-custom-field-required');
+    const optEl = row.querySelector('.board-custom-field-options');
+    const type = typeEl && typeEl.value === 'select' ? 'select' : 'text';
+    const field = {
+      id,
+      name: (nameEl && nameEl.value.trim()) || prev.name || 'Custom field',
+      type,
+      required: !!(reqEl && reqEl.checked),
+    };
+    if (type === 'select') {
+      const labels = (optEl && optEl.value ? optEl.value : '')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+      const seen = new Set();
+      field.options = labels.map((label, optIdx) => {
+        const prevOpt = (prev.options || [])[optIdx] || (prev.options || []).find(o => o.label.toLowerCase() === label.toLowerCase()) || {};
+        let optId = prevOpt.id || _slugifyCustomFieldId(label);
+        while (seen.has(optId)) optId = optId + '-' + (seen.size + 1);
+        seen.add(optId);
+        return {
+          id: optId,
+          label,
+          color: prevOpt.color || CUSTOM_FIELD_OPTION_COLORS[optIdx % CUSTOM_FIELD_OPTION_COLORS.length],
+        };
+      });
+      if (field.options.length === 0) {
+        field.options = [{ id: 'option', label: 'Option', color: CUSTOM_FIELD_OPTION_COLORS[idx % CUSTOM_FIELD_OPTION_COLORS.length] }];
+      }
+    }
+    fields.push(field);
+  });
+  return fields;
+}
+
+function _saveBoardCustomFields(boardId, opts) {
+  const board = window.boardList.find(b => b.id === boardId);
+  if (!board) return;
+  const settings = window.parseBoardSettings ? window.parseBoardSettings(board.settings) : JSON.parse(board.settings || '{}');
+  const fields = _collectCustomFieldsFromDOM(boardId);
+  settings.custom_fields = fields;
+  const payload = JSON.stringify(settings);
+  const previous = board.settings;
+  board.settings = payload;
+
+  window.API.updateBoard(boardId, { settings: payload }).then((updated) => {
+    board.settings = updated.settings || payload;
+    if (boardId === window.currentBoardId && typeof window.render === 'function') window.render();
+    if (opts && opts.rerender) _rerenderCustomFieldList(boardId);
+    if (!(opts && opts.silent) && window.Toast) window.Toast.success('Custom fields saved', { duration: 1200 });
+  }).catch((err) => {
+    board.settings = previous;
+    const data = err && err.data;
+    if (data && data.error === 'custom_field_value_conflict') {
+      window.Toast.error('Existing cards conflict with that field change (' + data.count + ' card' + (data.count === 1 ? '' : 's') + ')');
+    } else if (data && data.fields) {
+      const first = Object.keys(data.fields)[0];
+      window.Toast.error(data.fields[first]);
+    } else {
+      window.Toast.error((data && data.error) || 'Failed to save custom fields');
+    }
+    loadBoardsSettings();
+  });
+}
+
+function _rerenderCustomFieldList(boardId) {
+  const list = document.querySelector(`.settings-custom-fields-list[data-board-id="${boardId}"]`);
+  const board = window.boardList.find(b => b.id === boardId);
+  if (!list || !board) return;
+  const fields = _customFieldsForBoard(board);
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = _renderCustomFieldsConfig(boardId, fields);
+  const nextList = wrapper.querySelector('.settings-custom-fields-list');
+  list.innerHTML = nextList ? nextList.innerHTML : '';
+  _bindCustomFieldInputs(list.closest('.settings-group') || list);
+}
+
+function _addCustomField(boardId) {
+  const board = window.boardList.find(b => b.id === boardId);
+  if (!board) return;
+  const settings = window.parseBoardSettings ? window.parseBoardSettings(board.settings) : JSON.parse(board.settings || '{}');
+  const fields = Array.isArray(settings.custom_fields) ? settings.custom_fields.slice() : [];
+  const id = _uniqueCustomFieldId('custom-field', fields);
+  fields.push({ id, name: 'Custom field', type: 'text' });
+  settings.custom_fields = fields;
+  board.settings = JSON.stringify(settings);
+  _rerenderCustomFieldList(boardId);
+  _saveBoardCustomFields(boardId, { silent: true });
+  setTimeout(() => {
+    const input = document.querySelector(`.board-custom-field-name[data-board-id="${boardId}"][data-field-id="${id}"]`);
+    if (input) { input.focus(); input.select(); }
+  }, 50);
+}
+
+function _removeCustomField(boardId, fieldId) {
+  const board = window.boardList.find(b => b.id === boardId);
+  if (!board) return;
+  const settings = window.parseBoardSettings ? window.parseBoardSettings(board.settings) : JSON.parse(board.settings || '{}');
+  settings.custom_fields = (settings.custom_fields || []).filter(f => f.id !== fieldId);
+  board.settings = JSON.stringify(settings);
+  _rerenderCustomFieldList(boardId);
+  _saveBoardCustomFields(boardId, { silent: true });
 }
 
 function _saveBoardColumns(boardId, opts) {

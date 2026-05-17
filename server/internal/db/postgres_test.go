@@ -5,10 +5,15 @@ package db
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/oceanplexian/lwts/server/migrations"
 )
+
+func isPostgresURL(url string) bool {
+	return strings.HasPrefix(url, "postgres://") || strings.HasPrefix(url, "postgresql://")
+}
 
 func pgURL() string {
 	if u := os.Getenv("DB_URL"); u != "" {
@@ -20,7 +25,11 @@ func pgURL() string {
 func newTestPG(t *testing.T) *PostgresDatasource {
 	t.Helper()
 	ctx := context.Background()
-	ds, err := NewPostgresDatasource(ctx, pgURL())
+	url := pgURL()
+	if !isPostgresURL(url) {
+		t.Skipf("DB_URL is not postgres, skipping postgres integration test: %s", url)
+	}
+	ds, err := NewPostgresDatasource(ctx, url)
 	if err != nil {
 		t.Fatalf("connect pg: %v", err)
 	}

@@ -266,6 +266,24 @@ describe('parseGithubUrls', () => {
   });
 });
 
+describe('fromAPI custom fields', () => {
+  it('copies custom_fields objects onto local cards', () => {
+    const card = K.fromAPI({
+      id: 'c1',
+      title: 'Card',
+      board_id: 'b1',
+      column_id: 'todo',
+      custom_fields: { customer: 'Acme', severity: 'sev1' },
+    });
+    assert.deepEqual(card.custom_fields, { customer: 'Acme', severity: 'sev1' });
+  });
+
+  it('defaults missing custom_fields to an object', () => {
+    const card = K.fromAPI({ id: 'c1', title: 'Card' });
+    assert.deepEqual(card.custom_fields, {});
+  });
+});
+
 // ── CSS property assertions for .detail-points-input ────────────────
 describe('.detail-points-input CSS', () => {
   const css = fs.readFileSync(

@@ -899,6 +899,28 @@ body.light-theme .lwts-modal a[href]:hover {
   box-shadow: 0 16px 64px rgba(0,0,0,0.5);
 }
 
+.detail-custom-field-text {
+  max-width: 100%;
+}
+
+.detail-custom-text-input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--surface-01);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.84rem;
+  outline: none;
+}
+
+.detail-custom-text-input:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px var(--accent-blue-bg);
+}
+
 /* ── Mobile ── */
 @media (max-width: 768px) {
   .lwts-modal-overlay.detail-view .lwts-modal {

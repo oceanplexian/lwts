@@ -143,7 +143,7 @@ POST   /api/v1/auth/refresh         # Refresh JWT
 GET    /api/v1/boards               # List boards
 POST   /api/v1/boards               # Create board
 GET    /api/v1/boards/:id           # Get board
-PATCH  /api/v1/boards/:id           # Update board
+PUT    /api/v1/boards/:id           # Update board
 DELETE /api/v1/boards/:id           # Delete board
 GET    /api/v1/boards/:id/stream    # SSE event stream (legacy, JWT only — used by the web UI)
 GET    /api/v1/boards/:id/events    # SSE event stream with API-key auth + Last-Event-ID replay
@@ -156,10 +156,72 @@ GET    /api/v1/boards/:id/presence  # Active users
 ```
 GET    /api/v1/boards/:id/cards     # List cards
 POST   /api/v1/boards/:id/cards     # Create card
-GET    /api/v1/boards/:id/cards/:id # Get card
-PATCH  /api/v1/boards/:id/cards/:id # Update card (move, edit, reorder)
-DELETE /api/v1/boards/:id/cards/:id # Delete card
+GET    /api/v1/cards/:id            # Get card
+PUT    /api/v1/cards/:id            # Update card
+POST   /api/v1/cards/:id/move       # Move or reorder card
+DELETE /api/v1/cards/:id            # Delete card
 ```
+
+### Custom Fields
+
+Boards can define extra card fields in `settings.custom_fields`. Each board owns
+its own schema, and existing cards must stay valid before a schema update is
+accepted.
+
+```json
+{
+  "settings": {
+    "custom_fields": [
+      {
+        "id": "customer",
+        "name": "Customer",
+        "type": "text",
+        "required": true
+      },
+      {
+        "id": "severity",
+        "name": "Severity",
+        "type": "select",
+        "options": [
+          { "id": "sev1", "label": "SEV 1", "color": "#ef4444" },
+          { "id": "sev2", "label": "SEV 2", "color": "#f59e0b" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Field IDs must be unique, start with a lowercase letter, and use only lowercase
+letters, numbers, `_`, and `-`. Built-in fields such as `status`, `type`,
+`priority`, and `project` are reserved. Invalid schemas return `400` with a
+`fields` object. Schema changes that would invalidate existing cards return
+`409` with `custom_field_value_conflict` and sample conflicts.
+
+Cards accept a `custom_fields` object on create and update:
+
+```json
+{
+  "title": "Patch production rollout",
+  "custom_fields": {
+    "customer": "Acme",
+    "severity": "sev1"
+  }
+}
+```
+
+Omitted fields are unchanged on update. Sending `null` or an empty string clears
+an optional field. Unknown fields, missing required fields, text values over the
+limit, and select values outside the configured options return `400`.
+
+Search supports exact custom-field filters:
+
+```bash
+GET /api/v1/search?board_id=BOARD_ID&custom_field.severity=sev1
+```
+
+When `board_id` is present, custom-field search filters are validated against
+that board's configured fields and select options.
 
 ### Comments
 

@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/oceanplexian/lwts/server/internal/auth"
 	"github.com/oceanplexian/lwts/server/internal/db"
 	"github.com/oceanplexian/lwts/server/internal/repo"
 	"github.com/oceanplexian/lwts/server/migrations"
-	"github.com/google/uuid"
 )
 
 // ── Users ────────────────────────────────────────────────────────────────────
@@ -722,7 +722,7 @@ func runRestore() {
 
 	// Insert boards
 	for _, b := range data.Boards {
-		_, err := ds.Exec(ctx,
+		_, err = ds.Exec(ctx,
 			`INSERT INTO boards (id, name, project_key, owner_id, columns, settings, created_at, updated_at)
 			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 			b.ID, b.Name, b.ProjectKey, b.OwnerID, b.Columns, b.Settings, b.CreatedAt, b.UpdatedAt)
@@ -734,13 +734,18 @@ func runRestore() {
 
 	// Insert cards
 	for _, c := range data.Cards {
-		_, err := ds.Exec(ctx,
+		customFieldsJSON, err := repo.MarshalCustomFieldsJSON(c.CustomFields)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "marshal custom fields for %s: %v\n", c.Key, err)
+			os.Exit(1)
+		}
+		_, err = ds.Exec(ctx,
 			`INSERT INTO cards (id, board_id, column_id, title, description, tag, priority, assignee_id, reporter_id,
-			 points, position, key, version, due_date, related_card_ids, blocked_card_ids, created_at, updated_at)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+			 points, position, key, version, due_date, related_card_ids, blocked_card_ids, epic_id, custom_fields, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
 			c.ID, c.BoardID, c.ColumnID, c.Title, c.Description, c.Tag, c.Priority,
 			c.AssigneeID, c.ReporterID, c.Points, c.Position, c.Key, c.Version,
-			c.DueDate, c.RelatedCardIDs, c.BlockedCardIDs, c.CreatedAt, c.UpdatedAt)
+			c.DueDate, c.RelatedCardIDs, c.BlockedCardIDs, c.EpicID, customFieldsJSON, c.CreatedAt, c.UpdatedAt)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "insert card %s: %v\n", c.Key, err)
 			os.Exit(1)

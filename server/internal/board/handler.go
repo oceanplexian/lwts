@@ -213,6 +213,39 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		req.Columns = &s
 	}
 
+	if req.Settings != nil {
+		settingsJSON, customFields, err := repo.NormalizeBoardSettings(*req.Settings)
+		if err != nil {
+			if fields, ok := repo.IsFieldValidationError(err); ok {
+				writeValidation(w, fields)
+				return
+			}
+			writeErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		cards, err := h.cards.ListByBoard(r.Context(), id)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "failed to validate custom field settings")
+			return
+		}
+		if conflicts := repo.CustomFieldConflicts(customFields, cards); len(conflicts) > 0 {
+			limit := len(conflicts)
+			if limit > 10 {
+				limit = 10
+			}
+			writeJSON(w, http.StatusConflict, map[string]any{
+				"error":     "custom_field_value_conflict",
+				"message":   "Existing cards do not satisfy the proposed custom field configuration",
+				"count":     len(conflicts),
+				"conflicts": conflicts[:limit],
+			})
+			return
+		}
+
+		req.Settings = &settingsJSON
+	}
+
 	updated, err := h.boards.Update(r.Context(), id, repo.BoardUpdate{
 		Name:       req.Name,
 		ProjectKey: req.ProjectKey,

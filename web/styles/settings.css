@@ -1447,3 +1447,66 @@ body.light-theme .board-theme-preview-card {
 .integration-status-error {
   color: var(--accent-red);
 }
+
+.settings-custom-fields-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-custom-field-empty {
+  color: var(--text-dimmed);
+  font-size: 0.82rem;
+  padding: 4px 0;
+}
+
+.settings-custom-field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border-faint);
+  border-radius: 8px;
+  background: var(--surface-01);
+}
+
+.settings-custom-field-main {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) 112px 42px 30px;
+  gap: 8px;
+  align-items: center;
+}
+
+.settings-custom-field-main .settings-input,
+.settings-custom-field-row > .settings-input {
+  height: 32px;
+  font-size: 0.84rem;
+}
+
+.settings-custom-field-required {
+  justify-self: center;
+}
+
+.settings-custom-field-remove-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-faint);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dimmed);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.settings-custom-field-remove-btn:hover {
+  color: var(--accent-red);
+  border-color: rgba(248,113,113,0.35);
+  background: rgba(248,113,113,0.08);
+}
+
+@media (max-width: 640px) {
+  .settings-custom-field-main {
+    grid-template-columns: minmax(0, 1fr) 96px 42px 30px;
+  }
+}

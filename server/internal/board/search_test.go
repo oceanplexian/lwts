@@ -282,6 +282,90 @@ func TestSearch_KeyShapeMissesFallsBackToLike(t *testing.T) {
 	}
 }
 
+func TestSearch_CustomFieldFilter(t *testing.T) {
+	ds, users, boards, cards, _ := setupTest(t)
+	user := createTestUser(t, users)
+	b, _ := boards.Create(context.Background(), "Test Board", "TST", user.ID)
+	settings, _, err := repo.NormalizeBoardSettings(`{"custom_fields":[{"id":"customer","name":"Customer","type":"text"},{"id":"severity","name":"Severity","type":"select","options":[{"id":"sev1","label":"SEV 1"},{"id":"sev2","label":"SEV 2"}]}]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = boards.Update(context.Background(), b.ID, repo.BoardUpdate{Settings: &settings})
+	_, _ = cards.Create(context.Background(), b.ID, repo.CardCreate{
+		ColumnID:     "todo",
+		Title:        "Acme outage",
+		CustomFields: map[string]string{"customer": "Acme", "severity": "sev1"},
+	})
+	_, _ = cards.Create(context.Background(), b.ID, repo.CardCreate{
+		ColumnID:     "todo",
+		Title:        "Other work",
+		CustomFields: map[string]string{"customer": "Other", "severity": "sev2"},
+	})
+
+	h := NewSearchHandler(ds)
+	req := httptest.NewRequest("GET", "/api/v1/search?board_id="+b.ID+"&custom_field.severity=sev1", nil)
+	req = withUser(req, user)
+	w := httptest.NewRecorder()
+	h.Search(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: %d, body: %s", w.Code, w.Body.String())
+	}
+	var results []map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &results)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d: %v", len(results), results)
+	}
+	if results[0]["title"] != "Acme outage" {
+		t.Fatalf("wrong card: %v", results[0]["title"])
+	}
+	fields, _ := results[0]["custom_fields"].(map[string]any)
+	if fields["severity"] != "sev1" {
+		t.Fatalf("custom_fields = %#v", fields)
+	}
+}
+
+func TestSearch_QueryMatchesCustomFieldValue(t *testing.T) {
+	ds, users, boards, cards, _ := setupTest(t)
+	user := createTestUser(t, users)
+	b, _ := boards.Create(context.Background(), "Test Board", "TST", user.ID)
+	_, _ = cards.Create(context.Background(), b.ID, repo.CardCreate{
+		ColumnID:     "todo",
+		Title:        "Unrelated title",
+		CustomFields: map[string]string{"customer": "Globex"},
+	})
+
+	h := NewSearchHandler(ds)
+	req := httptest.NewRequest("GET", "/api/v1/search?q=Globex", nil)
+	req = withUser(req, user)
+	w := httptest.NewRecorder()
+	h.Search(w, req)
+
+	var results []map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &results)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result from custom field value, got %d: %v", len(results), results)
+	}
+}
+
+func TestSearch_CustomFieldFilterValidatesAgainstBoardConfig(t *testing.T) {
+	ds, users, boards, _, _ := setupTest(t)
+	user := createTestUser(t, users)
+	b, _ := boards.Create(context.Background(), "Test Board", "TST", user.ID)
+	settings, _, _ := repo.NormalizeBoardSettings(`{"custom_fields":[{"id":"severity","name":"Severity","type":"select","options":[{"id":"sev1","label":"SEV 1"}]}]}`)
+	_, _ = boards.Update(context.Background(), b.ID, repo.BoardUpdate{Settings: &settings})
+
+	h := NewSearchHandler(ds)
+	req := httptest.NewRequest("GET", "/api/v1/search?board_id="+b.ID+"&custom_field.severity=sev2", nil)
+	req = withUser(req, user)
+	w := httptest.NewRecorder()
+	h.Search(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d, body: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestReadSearchMode_DefaultsToLexical(t *testing.T) {
 	ds, _, _, _, _ := setupTest(t)
 	req := httptest.NewRequest("GET", "/api/v1/search?q=x", nil)

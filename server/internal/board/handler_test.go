@@ -210,3 +210,95 @@ func TestBoardDeleteForbidden(t *testing.T) {
 		t.Fatalf("expected 403, got %d", w.Code)
 	}
 }
+
+func TestBoardUpdateValidatesAndSavesCustomFieldSettings(t *testing.T) {
+	_, users, boards, cards, comments := setupTest(t)
+	h := NewHandler(boards, cards, comments, nil)
+	user := createTestUser(t, users)
+	ctx := context.Background()
+	b, _ := boards.Create(ctx, "B", "B", user.ID)
+
+	settings := `{"custom_fields":[{"id":"customer","name":"Customer","type":"text","required":true},{"id":"severity","name":"Severity","type":"choice","options":[{"label":"SEV 1"},{"id":"sev2","label":"SEV 2"}]}]}`
+	body, _ := json.Marshal(updateBoardReq{Settings: &settings})
+
+	mux := http.NewServeMux()
+	mux.Handle("PUT /api/v1/boards/{id}", noopAuth(http.HandlerFunc(h.Update)))
+	req := httptest.NewRequest("PUT", "/api/v1/boards/"+b.ID, bytes.NewReader(body))
+	req = withUser(req, user)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: %d, body: %s", w.Code, w.Body.String())
+	}
+	var updated repo.Board
+	_ = json.Unmarshal(w.Body.Bytes(), &updated)
+	defs, err := repo.CustomFieldDefinitionsFromSettings(updated.Settings)
+	if err != nil {
+		t.Fatalf("settings invalid: %v", err)
+	}
+	if len(defs) != 2 || defs[1].Type != repo.CustomFieldTypeSelect || defs[1].Options[0].ID != "sev-1" {
+		t.Fatalf("defs = %#v", defs)
+	}
+}
+
+func TestBoardUpdateRejectsInvalidCustomFieldSettings(t *testing.T) {
+	_, users, boards, cards, comments := setupTest(t)
+	h := NewHandler(boards, cards, comments, nil)
+	user := createTestUser(t, users)
+	ctx := context.Background()
+	b, _ := boards.Create(ctx, "B", "B", user.ID)
+
+	settings := `{"custom_fields":[{"id":"priority","name":"Priority","type":"text"}]}`
+	body, _ := json.Marshal(updateBoardReq{Settings: &settings})
+
+	mux := http.NewServeMux()
+	mux.Handle("PUT /api/v1/boards/{id}", noopAuth(http.HandlerFunc(h.Update)))
+	req := httptest.NewRequest("PUT", "/api/v1/boards/"+b.ID, bytes.NewReader(body))
+	req = withUser(req, user)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d, body: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestBoardUpdateRejectsCustomFieldConfigThatInvalidatesCards(t *testing.T) {
+	_, users, boards, cards, comments := setupTest(t)
+	h := NewHandler(boards, cards, comments, nil)
+	user := createTestUser(t, users)
+	ctx := context.Background()
+	b, _ := boards.Create(ctx, "B", "B", user.ID)
+
+	settings := `{"custom_fields":[{"id":"severity","name":"Severity","type":"select","options":[{"id":"sev1","label":"SEV 1"},{"id":"sev2","label":"SEV 2"}]}]}`
+	normalized, _, err := repo.NormalizeBoardSettings(settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = boards.Update(ctx, b.ID, repo.BoardUpdate{Settings: &normalized})
+	_, _ = cards.Create(ctx, b.ID, repo.CardCreate{
+		ColumnID:     "todo",
+		Title:        "Incident",
+		CustomFields: map[string]string{"severity": "sev1"},
+	})
+
+	nextSettings := `{"custom_fields":[{"id":"severity","name":"Severity","type":"select","options":[{"id":"sev2","label":"SEV 2"}]}]}`
+	body, _ := json.Marshal(updateBoardReq{Settings: &nextSettings})
+
+	mux := http.NewServeMux()
+	mux.Handle("PUT /api/v1/boards/{id}", noopAuth(http.HandlerFunc(h.Update)))
+	req := httptest.NewRequest("PUT", "/api/v1/boards/"+b.ID, bytes.NewReader(body))
+	req = withUser(req, user)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d, body: %s", w.Code, w.Body.String())
+	}
+	var resp map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["error"] != "custom_field_value_conflict" {
+		t.Fatalf("error = %#v", resp)
+	}
+}
