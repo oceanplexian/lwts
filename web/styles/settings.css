@@ -1496,7 +1496,7 @@ body.light-theme .board-theme-preview-card {
   border-radius: 8px;
 }
 
-.settings-custom-field-type-dropdown .fn-dropdown-menu {
+.settings-custom-field-type-dropdown.fn-dropdown.compact .fn-dropdown-menu {
   min-width: 100%;
 }
 
@@ -1594,6 +1594,7 @@ body.light-theme .board-theme-preview-card {
 .settings-custom-field-option-add .settings-input,
 .settings-custom-field-option-row .settings-input {
   height: 30px;
+  width: 100%;
   min-width: 0;
   font-size: 0.82rem;
 }
