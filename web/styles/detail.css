@@ -923,7 +923,8 @@ body.light-theme .lwts-modal a[href]:hover {
   outline: none;
 }
 
-.detail-custom-text-input:focus {
+.detail-custom-text-input:focus,
+.detail-custom-text-dd:not(.hidden) .detail-custom-text-input {
   border-color: var(--dropdown-focus-border, rgba(130,177,255,0.5));
   box-shadow: 0 0 0 2px var(--dropdown-focus-ring, rgba(130,177,255,0.15));
 }

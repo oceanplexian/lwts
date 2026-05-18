@@ -347,8 +347,9 @@ describe('.detail-custom-text-input CSS', () => {
   });
 
   it('uses theme dropdown focus tokens instead of a fixed accent color', () => {
-    const focusMatch = css.match(/\.detail-custom-text-input:focus\s*\{([^}]+)\}/);
-    assert.ok(focusMatch, '.detail-custom-text-input:focus rule should exist');
+    const focusMatch = css.match(/\.detail-custom-text-input:focus,[^{]+\{([^}]+)\}/);
+    assert.ok(focusMatch, '.detail-custom-text-input focus/open rule should exist');
+    assert.ok(/\.detail-custom-text-dd:not\(\.hidden\)\s+\.detail-custom-text-input/.test(css), 'open text editor should use themed focus style');
     assert.ok(/--dropdown-focus-border/.test(focusMatch[1]), 'focus border should use theme dropdown token');
     assert.ok(/--dropdown-focus-ring/.test(focusMatch[1]), 'focus ring should use theme dropdown token');
     assert.ok(!/--accent-blue/.test(focusMatch[1]), 'focus style should not hard-code the blue accent');
