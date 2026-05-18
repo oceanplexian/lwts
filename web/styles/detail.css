@@ -903,8 +903,15 @@ body.light-theme .lwts-modal a[href]:hover {
   max-width: 100%;
 }
 
+.detail-custom-text-dd {
+  top: 10px;
+}
+
 .detail-custom-text-input {
+  display: block;
+  box-sizing: border-box;
   width: 100%;
+  max-width: 100%;
   height: 34px;
   padding: 0 10px;
   border: 1px solid var(--border-light);

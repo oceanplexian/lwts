@@ -1574,6 +1574,7 @@ function renderDetailCustomFields(boardId, values) {
         onChange: (v) => customFieldChanged(def.id, v || ''),
       });
     } else {
+      editor.classList.add('detail-custom-text-dd');
       const input = document.createElement('input');
       input.type = 'text';
       input.className = 'detail-custom-text-input';

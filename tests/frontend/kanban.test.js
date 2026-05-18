@@ -317,3 +317,32 @@ describe('.detail-points-input CSS', () => {
     assert.ok(css.includes('-moz-appearance: textfield'), 'should hide Firefox spin buttons');
   });
 });
+
+describe('.detail-custom-text-input CSS', () => {
+  const css = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'web', 'styles', 'detail.css'),
+    'utf-8'
+  );
+  const js = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'web', 'src', 'kanban.js'),
+    'utf-8'
+  );
+  const blockMatch = css.match(/\.detail-custom-text-input\s*\{([^}]+)\}/);
+  assert.ok(blockMatch, '.detail-custom-text-input rule should exist in detail.css');
+  const block = blockMatch[1];
+  const editorBlockMatch = css.match(/\.detail-custom-text-dd\s*\{([^}]+)\}/);
+  assert.ok(editorBlockMatch, '.detail-custom-text-dd rule should exist in detail.css');
+
+  it('uses the text editor alignment class when rendering text custom fields', () => {
+    assert.ok(js.includes('detail-custom-text-dd'), 'text custom field editor should get alignment class');
+  });
+
+  it('aligns the custom text editor with the visible field value', () => {
+    assert.ok(/top\s*:\s*10px/.test(editorBlockMatch[1]), 'text editor should match detail field value offset');
+  });
+
+  it('keeps custom text inputs inside the sidebar cell', () => {
+    assert.ok(/box-sizing\s*:\s*border-box/.test(block), 'should have box-sizing: border-box');
+    assert.ok(/max-width\s*:\s*100%/.test(block), 'should cap width at the cell');
+  });
+});
