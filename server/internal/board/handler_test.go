@@ -302,3 +302,67 @@ func TestBoardUpdateRejectsCustomFieldConfigThatInvalidatesCards(t *testing.T) {
 		t.Fatalf("error = %#v", resp)
 	}
 }
+
+func TestBoardUpdateAllowsRequiredCustomFieldWithExistingCards(t *testing.T) {
+	_, users, boards, cards, comments := setupTest(t)
+	h := NewHandler(boards, cards, comments, nil)
+	user := createTestUser(t, users)
+	ctx := context.Background()
+	b, _ := boards.Create(ctx, "B", "B", user.ID)
+	_, _ = cards.Create(ctx, b.ID, repo.CardCreate{ColumnID: "todo", Title: "Existing"})
+
+	nextSettings := `{"custom_fields":[{"id":"customer","name":"Customer","type":"text","required":true}]}`
+	body, _ := json.Marshal(updateBoardReq{Settings: &nextSettings})
+
+	mux := http.NewServeMux()
+	mux.Handle("PUT /api/v1/boards/{id}", noopAuth(http.HandlerFunc(h.Update)))
+	req := httptest.NewRequest("PUT", "/api/v1/boards/"+b.ID, bytes.NewReader(body))
+	req = withUser(req, user)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d, body: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestBoardUpdateCanForceCustomFieldConfigAndReconcileCards(t *testing.T) {
+	_, users, boards, cards, comments := setupTest(t)
+	h := NewHandler(boards, cards, comments, nil)
+	user := createTestUser(t, users)
+	ctx := context.Background()
+	b, _ := boards.Create(ctx, "B", "B", user.ID)
+
+	settings := `{"custom_fields":[{"id":"severity","name":"Severity","type":"select","options":[{"id":"sev1","label":"SEV 1"},{"id":"sev2","label":"SEV 2"}]}]}`
+	normalized, _, err := repo.NormalizeBoardSettings(settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = boards.Update(ctx, b.ID, repo.BoardUpdate{Settings: &normalized})
+	card, _ := cards.Create(ctx, b.ID, repo.CardCreate{
+		ColumnID:     "todo",
+		Title:        "Incident",
+		CustomFields: map[string]string{"severity": "sev1"},
+	})
+
+	nextSettings := `{"custom_fields":[{"id":"severity","name":"Severity","type":"select","options":[{"id":"sev2","label":"SEV 2"}]}]}`
+	body, _ := json.Marshal(updateBoardReq{Settings: &nextSettings, ForceCustomFieldConflicts: true})
+
+	mux := http.NewServeMux()
+	mux.Handle("PUT /api/v1/boards/{id}", noopAuth(http.HandlerFunc(h.Update)))
+	req := httptest.NewRequest("PUT", "/api/v1/boards/"+b.ID, bytes.NewReader(body))
+	req = withUser(req, user)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d, body: %s", w.Code, w.Body.String())
+	}
+	updated, err := cards.GetByID(ctx, card.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := updated.CustomFields["severity"]; ok {
+		t.Fatalf("severity should be reconciled away: %#v", updated.CustomFields)
+	}
+}

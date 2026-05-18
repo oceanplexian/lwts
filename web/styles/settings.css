@@ -1472,15 +1472,32 @@ body.light-theme .board-theme-preview-card {
 
 .settings-custom-field-main {
   display: grid;
-  grid-template-columns: minmax(140px, 1fr) 112px 42px 30px;
+  grid-template-columns: minmax(0, 1fr) minmax(104px, 128px) 44px 32px;
   gap: 8px;
   align-items: center;
+  min-width: 0;
+}
+
+.settings-custom-field-main .settings-input,
+.settings-custom-field-row > .settings-input,
+.settings-custom-field-type-dropdown {
+  width: 100%;
+  min-width: 0;
 }
 
 .settings-custom-field-main .settings-input,
 .settings-custom-field-row > .settings-input {
   height: 32px;
   font-size: 0.84rem;
+}
+
+.settings-custom-field-type-dropdown .fn-dropdown-trigger {
+  height: 32px;
+  border-radius: 8px;
+}
+
+.settings-custom-field-type-dropdown .fn-dropdown-search {
+  display: none;
 }
 
 .settings-custom-field-required {
@@ -1507,6 +1524,7 @@ body.light-theme .board-theme-preview-card {
 
 @media (max-width: 640px) {
   .settings-custom-field-main {
-    grid-template-columns: minmax(0, 1fr) 96px 42px 30px;
+    grid-template-columns: minmax(0, 1fr) 92px 40px 30px;
+    gap: 6px;
   }
 }

@@ -106,3 +106,37 @@ func TestCustomFieldPatchCanClearOptionalValues(t *testing.T) {
 		t.Fatalf("customer should be cleared: %#v", values)
 	}
 }
+
+func TestCustomFieldConflictsIgnoreMissingRequiredOnExistingCards(t *testing.T) {
+	defs := []CustomFieldDefinition{{ID: "customer", Name: "Customer", Type: CustomFieldTypeText, Required: true}}
+	cards := []Card{{ID: "card-1", Key: "T-1", CustomFields: map[string]string{}}}
+
+	if conflicts := CustomFieldConflicts(defs, cards); len(conflicts) != 0 {
+		t.Fatalf("conflicts = %#v, want none", conflicts)
+	}
+}
+
+func TestReconcileCustomFieldValuesDropsInvalidExistingValues(t *testing.T) {
+	defs := []CustomFieldDefinition{
+		{ID: "customer", Name: "Customer", Type: CustomFieldTypeText},
+		{ID: "severity", Name: "Severity", Type: CustomFieldTypeSelect, Options: []CustomFieldOption{{ID: "sev2", Label: "SEV 2"}}},
+	}
+
+	values, changed := ReconcileCustomFieldValues(defs, map[string]string{
+		"customer": "Acme",
+		"severity": "sev1",
+		"removed":  "legacy",
+	})
+	if !changed {
+		t.Fatal("changed = false, want true")
+	}
+	if values["customer"] != "Acme" {
+		t.Fatalf("customer = %#v", values["customer"])
+	}
+	if _, ok := values["severity"]; ok {
+		t.Fatalf("severity should be dropped: %#v", values)
+	}
+	if _, ok := values["removed"]; ok {
+		t.Fatalf("removed should be dropped: %#v", values)
+	}
+}

@@ -303,7 +303,7 @@ func CustomFieldDefinitionMap(defs []CustomFieldDefinition) map[string]CustomFie
 func CustomFieldConflicts(defs []CustomFieldDefinition, cards []Card) []CustomFieldValueConflict {
 	conflicts := []CustomFieldValueConflict{}
 	for _, c := range cards {
-		if err := ValidateCustomFieldValues(defs, c.CustomFields, true); err != nil {
+		if err := ValidateCustomFieldValues(defs, c.CustomFields, false); err != nil {
 			if fields, ok := IsFieldValidationError(err); ok {
 				conflicts = append(conflicts, CustomFieldValueConflict{
 					CardID: c.ID,
@@ -314,6 +314,45 @@ func CustomFieldConflicts(defs []CustomFieldDefinition, cards []Card) []CustomFi
 		}
 	}
 	return conflicts
+}
+
+func ReconcileCustomFieldValues(defs []CustomFieldDefinition, values map[string]string) (map[string]string, bool) {
+	defByID := CustomFieldDefinitionMap(defs)
+	out := make(map[string]string, len(values))
+	changed := false
+
+	for id, value := range values {
+		if strings.TrimSpace(value) == "" {
+			changed = true
+			continue
+		}
+		def, ok := defByID[id]
+		if !ok {
+			changed = true
+			continue
+		}
+		if len(value) > MaxCustomFieldValueLength {
+			changed = true
+			continue
+		}
+		switch def.Type {
+		case CustomFieldTypeText:
+			out[id] = value
+		case CustomFieldTypeSelect:
+			if customFieldOptionExists(def, value) {
+				out[id] = value
+			} else {
+				changed = true
+			}
+		default:
+			changed = true
+		}
+	}
+
+	if len(out) != len(values) {
+		changed = true
+	}
+	return out, changed
 }
 
 func normalizeCustomFieldType(t string) string {

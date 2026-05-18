@@ -102,11 +102,12 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateBoardReq struct {
-	Name       *string `json:"name"`
-	ProjectKey *string `json:"project_key"`
-	Columns    *string `json:"columns"`
-	Settings   *string `json:"settings"`
-	MigrateTo  string  `json:"migrate_to,omitempty"` // target column for cards in removed columns
+	Name                      *string `json:"name"`
+	ProjectKey                *string `json:"project_key"`
+	Columns                   *string `json:"columns"`
+	Settings                  *string `json:"settings"`
+	ForceCustomFieldConflicts bool    `json:"force_custom_field_conflicts,omitempty"`
+	MigrateTo                 string  `json:"migrate_to,omitempty"` // target column for cards in removed columns
 }
 
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
@@ -230,17 +231,30 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if conflicts := repo.CustomFieldConflicts(customFields, cards); len(conflicts) > 0 {
-			limit := len(conflicts)
-			if limit > 10 {
-				limit = 10
+			if req.ForceCustomFieldConflicts {
+				for _, card := range cards {
+					reconciled, changed := repo.ReconcileCustomFieldValues(customFields, card.CustomFields)
+					if !changed {
+						continue
+					}
+					if _, err := h.cards.Update(r.Context(), card.ID, card.Version, repo.CardUpdate{CustomFields: &reconciled}); err != nil {
+						writeErr(w, http.StatusInternalServerError, "failed to reconcile custom field values")
+						return
+					}
+				}
+			} else {
+				limit := len(conflicts)
+				if limit > 10 {
+					limit = 10
+				}
+				writeJSON(w, http.StatusConflict, map[string]any{
+					"error":     "custom_field_value_conflict",
+					"message":   "Existing cards do not satisfy the proposed custom field configuration",
+					"count":     len(conflicts),
+					"conflicts": conflicts[:limit],
+				})
+				return
 			}
-			writeJSON(w, http.StatusConflict, map[string]any{
-				"error":     "custom_field_value_conflict",
-				"message":   "Existing cards do not satisfy the proposed custom field configuration",
-				"count":     len(conflicts),
-				"conflicts": conflicts[:limit],
-			})
-			return
 		}
 
 		req.Settings = &settingsJSON

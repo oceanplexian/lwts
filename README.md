@@ -165,8 +165,9 @@ DELETE /api/v1/cards/:id            # Delete card
 ### Custom Fields
 
 Boards can define extra card fields in `settings.custom_fields`. Each board owns
-its own schema, and existing cards must stay valid before a schema update is
-accepted.
+its own schema. Existing stored custom-field values must stay valid before a
+schema update is accepted; missing values on older cards do not block adding a
+new required field.
 
 ```json
 {
@@ -195,8 +196,11 @@ accepted.
 Field IDs must be unique, start with a lowercase letter, and use only lowercase
 letters, numbers, `_`, and `-`. Built-in fields such as `status`, `type`,
 `priority`, and `project` are reserved. Invalid schemas return `400` with a
-`fields` object. Schema changes that would invalidate existing cards return
-`409` with `custom_field_value_conflict` and sample conflicts.
+`fields` object. Schema changes that would invalidate stored values, such as
+removing a field that has values or deleting an in-use select option, return
+`409` with `custom_field_value_conflict` and sample conflicts. Resend the same
+board update with `"force_custom_field_conflicts": true` to apply the schema and
+clear invalid stored values.
 
 Cards accept a `custom_fields` object on create and update:
 

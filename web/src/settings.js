@@ -1869,7 +1869,26 @@ function _bindCustomFieldInputs(root) {
     });
   });
 
-  scope.querySelectorAll('.board-custom-field-type, .board-custom-field-required').forEach(el => {
+  scope.querySelectorAll('.settings-custom-field-type-dropdown').forEach(el => {
+    if (el._customFieldTypeDropdown || !window.FnDropdown) return;
+    const boardId = el.dataset.boardId;
+    const fieldId = el.dataset.fieldId;
+    const hidden = scope.querySelector(`.board-custom-field-type[data-board-id="${boardId}"][data-field-id="${fieldId}"]`);
+    el._customFieldTypeDropdown = new window.FnDropdown(el, {
+      compact: true,
+      value: hidden ? hidden.value : 'text',
+      options: [
+        { value: 'text', label: 'Text' },
+        { value: 'select', label: 'Choice' },
+      ],
+      onChange: (value) => {
+        if (hidden) hidden.value = value;
+        _saveBoardCustomFields(boardId, { silent: true, rerender: true });
+      },
+    });
+  });
+
+  scope.querySelectorAll('.board-custom-field-required').forEach(el => {
     el.addEventListener('change', () => {
       const boardId = el.dataset.boardId;
       _saveBoardCustomFields(boardId, { silent: true, rerender: true });
@@ -1901,10 +1920,8 @@ function _renderCustomFieldsConfig(boardId, customFields) {
       <div class="settings-custom-field-row" data-field-index="${idx}" data-field-id="${_escHtml(field.id)}">
         <div class="settings-custom-field-main">
           <input class="settings-input board-custom-field-name" data-board-id="${boardId}" data-field-id="${_escHtml(field.id)}" value="${_escHtml(field.name)}" placeholder="Field name" />
-          <select class="settings-input board-custom-field-type" data-board-id="${boardId}" data-field-id="${_escHtml(field.id)}">
-            <option value="text" ${type === 'text' ? 'selected' : ''}>Text</option>
-            <option value="select" ${type === 'select' ? 'selected' : ''}>Choice</option>
-          </select>
+          <input type="hidden" class="board-custom-field-type" data-board-id="${boardId}" data-field-id="${_escHtml(field.id)}" value="${type}" />
+          <div class="settings-custom-field-type-dropdown" data-board-id="${boardId}" data-field-id="${_escHtml(field.id)}"></div>
           <label class="settings-toggle settings-custom-field-required" title="Required">
             <input type="checkbox" class="board-custom-field-required" data-board-id="${boardId}" data-field-id="${_escHtml(field.id)}" ${field.required ? 'checked' : ''}>
             <span class="toggle-track"></span>
@@ -1987,26 +2004,44 @@ function _collectCustomFieldsFromDOM(boardId) {
   return fields;
 }
 
-function _saveBoardCustomFields(boardId, opts) {
+async function _saveBoardCustomFields(boardId, opts) {
   const board = window.boardList.find(b => b.id === boardId);
   if (!board) return;
   const settings = window.parseBoardSettings ? window.parseBoardSettings(board.settings) : JSON.parse(board.settings || '{}');
   const fields = _collectCustomFieldsFromDOM(boardId);
   settings.custom_fields = fields;
   const payload = JSON.stringify(settings);
-  const previous = board.settings;
+  const previous = opts && opts.previousSettings !== undefined ? opts.previousSettings : board.settings;
   board.settings = payload;
 
-  window.API.updateBoard(boardId, { settings: payload }).then((updated) => {
+  const body = { settings: payload };
+  if (opts && opts.force) body.force_custom_field_conflicts = true;
+
+  try {
+    const updated = await window.API.updateBoard(boardId, body);
     board.settings = updated.settings || payload;
     if (boardId === window.currentBoardId && typeof window.render === 'function') window.render();
     if (opts && opts.rerender) _rerenderCustomFieldList(boardId);
     if (!(opts && opts.silent) && window.Toast) window.Toast.success('Custom fields saved', { duration: 1200 });
-  }).catch((err) => {
+  } catch (err) {
     board.settings = previous;
     const data = err && err.data;
-    if (data && data.error === 'custom_field_value_conflict') {
-      window.Toast.error('Existing cards conflict with that field change (' + data.count + ' card' + (data.count === 1 ? '' : 's') + ')');
+    if (data && data.error === 'custom_field_value_conflict' && !(opts && opts.force)) {
+      const count = data.count || 0;
+      const ok = await fnConfirm(
+        'This change would clear invalid custom field values from ' + count + ' existing card' + (count === 1 ? '' : 's') + '. Continue?',
+        'Apply custom field change',
+        'Apply change'
+      );
+      if (ok) {
+        await _saveBoardCustomFields(boardId, Object.assign({}, opts || {}, {
+          force: true,
+          previousSettings: previous,
+          silent: false,
+        }));
+        return;
+      }
+      window.Toast.info('Custom field change canceled');
     } else if (data && data.fields) {
       const first = Object.keys(data.fields)[0];
       window.Toast.error(data.fields[first]);
@@ -2014,7 +2049,7 @@ function _saveBoardCustomFields(boardId, opts) {
       window.Toast.error((data && data.error) || 'Failed to save custom fields');
     }
     loadBoardsSettings();
-  });
+  }
 }
 
 function _rerenderCustomFieldList(boardId) {
@@ -2037,9 +2072,10 @@ function _addCustomField(boardId) {
   const id = _uniqueCustomFieldId('custom-field', fields);
   fields.push({ id, name: 'Custom field', type: 'text' });
   settings.custom_fields = fields;
+  const previous = board.settings;
   board.settings = JSON.stringify(settings);
   _rerenderCustomFieldList(boardId);
-  _saveBoardCustomFields(boardId, { silent: true });
+  _saveBoardCustomFields(boardId, { silent: true, previousSettings: previous });
   setTimeout(() => {
     const input = document.querySelector(`.board-custom-field-name[data-board-id="${boardId}"][data-field-id="${id}"]`);
     if (input) { input.focus(); input.select(); }
@@ -2051,9 +2087,10 @@ function _removeCustomField(boardId, fieldId) {
   if (!board) return;
   const settings = window.parseBoardSettings ? window.parseBoardSettings(board.settings) : JSON.parse(board.settings || '{}');
   settings.custom_fields = (settings.custom_fields || []).filter(f => f.id !== fieldId);
+  const previous = board.settings;
   board.settings = JSON.stringify(settings);
   _rerenderCustomFieldList(boardId);
-  _saveBoardCustomFields(boardId, { silent: true });
+  _saveBoardCustomFields(boardId, { silent: true, previousSettings: previous });
 }
 
 function _saveBoardColumns(boardId, opts) {
