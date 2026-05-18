@@ -1608,8 +1608,27 @@ body.light-theme .board-theme-preview-card {
 
 @media (max-width: 640px) {
   .settings-custom-field-main {
-    grid-template-columns: minmax(0, 1fr) 92px 40px 30px;
+    grid-template-columns: minmax(0, 1fr) 44px 32px;
+    grid-template-areas:
+      "name name name"
+      "type required remove";
     gap: 6px;
+  }
+
+  .settings-custom-field-main .board-custom-field-name {
+    grid-area: name;
+  }
+
+  .settings-custom-field-type-dropdown {
+    grid-area: type;
+  }
+
+  .settings-custom-field-required {
+    grid-area: required;
+  }
+
+  .settings-custom-field-remove-btn {
+    grid-area: remove;
   }
 
   .settings-custom-field-option-add {
