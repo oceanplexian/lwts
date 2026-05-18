@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,6 +16,11 @@ import (
 )
 
 func setupTest(t *testing.T) (*repo.UserRepository, *repo.BoardRepository, *repo.CardRepository, *repo.CommentRepository) {
+	_, users, boards, cards, comments := setupTestWithDS(t)
+	return users, boards, cards, comments
+}
+
+func setupTestWithDS(t *testing.T) (db.Datasource, *repo.UserRepository, *repo.BoardRepository, *repo.CardRepository, *repo.CommentRepository) {
 	t.Helper()
 	ds, err := db.NewSQLiteDatasource("sqlite://:memory:")
 	if err != nil {
@@ -26,7 +32,8 @@ func setupTest(t *testing.T) (*repo.UserRepository, *repo.BoardRepository, *repo
 		t.Fatal(err)
 	}
 
-	return repo.NewUserRepository(ds),
+	return ds,
+		repo.NewUserRepository(ds),
 		repo.NewBoardRepository(ds),
 		repo.NewCardRepository(ds),
 		repo.NewCommentRepository(ds)
@@ -513,6 +520,79 @@ func TestClearDoneEmptyBoard(t *testing.T) {
 	_ = json.Unmarshal(w.Body.Bytes(), &moved)
 	if len(moved) != 0 {
 		t.Errorf("expected 0 moved on empty board, got %d", len(moved))
+	}
+}
+
+func TestClearDoneHandlesLargeDoneCardSet(t *testing.T) {
+	ds, users, boards, cards, comments := setupTestWithDS(t)
+	h := NewHandler(cards, boards, comments, nil)
+	ctx := context.Background()
+
+	user, _ := users.Create(ctx, "User", "u@t.com", "h")
+	board, _ := boards.Create(ctx, "B", "LWTS", user.ID)
+
+	_, err := ds.Exec(ctx, `INSERT INTO cards (id, board_id, column_id, title, key, position) VALUES ($1, $2, 'cleared', 'Already cleared', 'LWTS-0', 0)`, "cleared-0", board.ID)
+	if err != nil {
+		t.Fatalf("seed cleared card: %v", err)
+	}
+	_, err = ds.Exec(ctx, `INSERT INTO cards (id, board_id, column_id, title, key, position) VALUES ($1, $2, 'todo', 'Keep me', 'LWTS-keep', 0)`, "keep-0", board.ID)
+	if err != nil {
+		t.Fatalf("seed todo card: %v", err)
+	}
+	for i := 0; i < 1005; i++ {
+		id := fmt.Sprintf("done-%04d", i)
+		key := fmt.Sprintf("LWTS-%04d", i+1)
+		if _, err := ds.Exec(ctx, `INSERT INTO cards (id, board_id, column_id, title, key, position) VALUES ($1, $2, 'done', $3, $4, $5)`, id, board.ID, "Done card", key, i); err != nil {
+			t.Fatalf("seed done card %d: %v", i, err)
+		}
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle("POST /api/v1/boards/{boardId}/clear-done", noopAuth(http.HandlerFunc(h.ClearDone)))
+
+	req := httptest.NewRequest("POST", "/api/v1/boards/"+board.ID+"/clear-done", nil)
+	req = withUser(req, user)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: %d, body: %s", w.Code, w.Body.String())
+	}
+
+	var moved []repo.Card
+	if err := json.Unmarshal(w.Body.Bytes(), &moved); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(moved) != 1005 {
+		t.Fatalf("expected 1005 moved, got %d", len(moved))
+	}
+
+	seenPositions := make(map[int]bool, len(moved))
+	for _, c := range moved {
+		if c.ColumnID != "cleared" {
+			t.Fatalf("card %s column = %q, want cleared", c.ID, c.ColumnID)
+		}
+		if c.Position < 1 || c.Position > 1005 {
+			t.Fatalf("card %s position = %d, want 1..1005", c.ID, c.Position)
+		}
+		seenPositions[c.Position] = true
+	}
+	if len(seenPositions) != 1005 {
+		t.Fatalf("expected 1005 unique moved positions, got %d", len(seenPositions))
+	}
+
+	keep, err := cards.GetByID(ctx, "keep-0")
+	if err != nil {
+		t.Fatalf("get keep card: %v", err)
+	}
+	if keep.ColumnID != "todo" {
+		t.Fatalf("keep card column = %q, want todo", keep.ColumnID)
+	}
+	all, _ := cards.ListByBoard(ctx, board.ID)
+	for _, c := range all {
+		if c.ColumnID == "done" {
+			t.Fatalf("card %s still in done after clear", c.ID)
+		}
 	}
 }
 

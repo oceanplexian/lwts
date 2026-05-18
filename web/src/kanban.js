@@ -2380,6 +2380,10 @@ function formatCommentTime(iso) {
   return `${months[dt.getMonth()]} ${dt.getDate()} at ${h12}:${m} ${ampm}`;
 }
 
+const CLEAR_DONE_ANIMATION_LIMIT = 40;
+const CLEAR_DONE_STAGGER_MS = 24;
+const CLEAR_DONE_MAX_WAIT_MS = 900;
+
 function autoResizeTextarea(el) {
   el.style.height = 'auto';
   el.style.height = el.scrollHeight + 'px';
@@ -2402,20 +2406,19 @@ function clearCompleted() {
     : Array.from(document.querySelectorAll('.column-body[data-col="' + CSS.escape(id) + '"] .card')));
 
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (cardEls.length === 0 || reducedMotion) {
+  if (cardEls.length === 0 || reducedMotion || cardEls.length > CLEAR_DONE_ANIMATION_LIMIT) {
     _finishClear(doneIds, doneCards);
     return;
   }
 
   // Stagger the .clearing class across cards.
-  const STAGGER = 60;
   cardEls.forEach((el, i) => {
-    el.style.animationDelay = (i * STAGGER) + 'ms';
+    el.style.animationDelay = (i * CLEAR_DONE_STAGGER_MS) + 'ms';
     el.classList.add('clearing');
   });
 
   const lastEl = cardEls[cardEls.length - 1];
-  const totalDuration = (cardEls.length - 1) * STAGGER + 300;
+  const totalDuration = Math.min((cardEls.length - 1) * CLEAR_DONE_STAGGER_MS + 300, CLEAR_DONE_MAX_WAIT_MS);
 
   let finished = false;
   function onDone() {

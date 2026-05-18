@@ -660,15 +660,9 @@ func (h *Handler) ClearDone(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	movedIDs, err := h.cards.ClearDone(r.Context(), boardID, doneIDs)
+	cards, err := h.cards.ClearDone(r.Context(), boardID, doneIDs)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "clear done failed")
-		return
-	}
-
-	cards, err := h.cards.ListByIDs(r.Context(), movedIDs)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if cards == nil {

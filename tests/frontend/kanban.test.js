@@ -284,6 +284,19 @@ describe('fromAPI custom fields', () => {
   });
 });
 
+describe('clearCompleted bulk behavior', () => {
+  it('bypasses per-card animation for high card counts', () => {
+    assert.ok(src.includes('const CLEAR_DONE_ANIMATION_LIMIT = 40'), 'should cap animated clear-done card count');
+    assert.ok(src.includes('cardEls.length > CLEAR_DONE_ANIMATION_LIMIT'), 'large clears should go directly to the API path');
+  });
+
+  it('keeps small clear-done animations bounded', () => {
+    assert.ok(src.includes('const CLEAR_DONE_STAGGER_MS = 24'), 'small clear animations should use a short stagger');
+    assert.ok(src.includes('const CLEAR_DONE_MAX_WAIT_MS = 900'), 'animation fallback should have a hard max wait');
+    assert.ok(!src.includes('const STAGGER = 60'), 'should not reintroduce the old long per-card delay');
+  });
+});
+
 // ── CSS property assertions for .detail-points-input ────────────────
 describe('.detail-points-input CSS', () => {
   const css = fs.readFileSync(

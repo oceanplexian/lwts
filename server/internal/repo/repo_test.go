@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/oceanplexian/lwts/server/internal/db"
@@ -309,6 +310,61 @@ func TestCardMove(t *testing.T) {
 	}
 	if moved.Version != 2 {
 		t.Errorf("version = %d, want 2", moved.Version)
+	}
+}
+
+func TestCardClearDoneBulkMovesLargeSet(t *testing.T) {
+	ds := setupTestDB(t)
+	users := NewUserRepository(ds)
+	boards := NewBoardRepository(ds)
+	cards := NewCardRepository(ds)
+	ctx := context.Background()
+
+	owner, _ := users.Create(ctx, "Owner", "owner@test.com", "hash")
+	board, _ := boards.Create(ctx, "Board", "LWTS", owner.ID)
+
+	if _, err := ds.Exec(ctx, `INSERT INTO cards (id, board_id, column_id, title, key, position) VALUES ($1, $2, 'cleared', 'Already cleared', 'LWTS-0', 0)`, "cleared-0", board.ID); err != nil {
+		t.Fatalf("seed cleared card: %v", err)
+	}
+	if _, err := ds.Exec(ctx, `INSERT INTO cards (id, board_id, column_id, title, key, position) VALUES ($1, $2, 'todo', 'Keep me', 'LWTS-keep', 0)`, "keep-0", board.ID); err != nil {
+		t.Fatalf("seed todo card: %v", err)
+	}
+	for i := 0; i < 1005; i++ {
+		id := fmt.Sprintf("done-%04d", i)
+		key := fmt.Sprintf("LWTS-%04d", i+1)
+		if _, err := ds.Exec(ctx, `INSERT INTO cards (id, board_id, column_id, title, key, position) VALUES ($1, $2, 'done', $3, $4, $5)`, id, board.ID, "Done card", key, i); err != nil {
+			t.Fatalf("seed done card %d: %v", i, err)
+		}
+	}
+
+	moved, err := cards.ClearDone(ctx, board.ID, []string{"done"})
+	if err != nil {
+		t.Fatalf("clear done: %v", err)
+	}
+	if len(moved) != 1005 {
+		t.Fatalf("moved = %d, want 1005", len(moved))
+	}
+
+	seenPositions := make(map[int]bool, len(moved))
+	for _, c := range moved {
+		if c.ColumnID != "cleared" {
+			t.Fatalf("card %s column = %q, want cleared", c.ID, c.ColumnID)
+		}
+		if c.Position < 1 || c.Position > 1005 {
+			t.Fatalf("card %s position = %d, want 1..1005", c.ID, c.Position)
+		}
+		seenPositions[c.Position] = true
+	}
+	if len(seenPositions) != 1005 {
+		t.Fatalf("unique positions = %d, want 1005", len(seenPositions))
+	}
+
+	keep, err := cards.GetByID(ctx, "keep-0")
+	if err != nil {
+		t.Fatalf("get keep card: %v", err)
+	}
+	if keep.ColumnID != "todo" {
+		t.Fatalf("keep card column = %q, want todo", keep.ColumnID)
 	}
 }
 
