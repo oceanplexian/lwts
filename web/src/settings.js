@@ -1859,7 +1859,7 @@ function _bindBoardSettingsInputs() {
 
 function _bindCustomFieldInputs(root) {
   const scope = root || document;
-  scope.querySelectorAll('.board-custom-field-name, .board-custom-field-options').forEach(el => {
+  scope.querySelectorAll('.board-custom-field-name, .board-custom-field-option-label').forEach(el => {
     el.addEventListener('input', () => {
       const boardId = el.dataset.boardId;
       clearTimeout(_boardSettingsDebounce['cf-' + boardId]);
@@ -1895,6 +1895,29 @@ function _bindCustomFieldInputs(root) {
     });
   });
 
+  scope.querySelectorAll('.settings-custom-field-option-add-btn').forEach(btn => {
+    btn.addEventListener('click', () => _addCustomFieldOption(btn.dataset.boardId, btn.dataset.fieldId));
+  });
+
+  scope.querySelectorAll('.settings-custom-field-option-new').forEach(input => {
+    input.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      _addCustomFieldOption(input.dataset.boardId, input.dataset.fieldId);
+    });
+  });
+
+  scope.querySelectorAll('.settings-custom-field-option-remove-btn').forEach(btn => {
+    btn.addEventListener('click', () => _removeCustomFieldOption(btn.dataset.boardId, btn.dataset.fieldId, btn.dataset.optionId));
+  });
+
+  scope.querySelectorAll('.settings-custom-field-option-color-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      _showCustomFieldOptionColorPicker(btn, btn.dataset.boardId, btn.dataset.fieldId, btn.dataset.optionId);
+    });
+  });
+
   scope.querySelectorAll('.settings-custom-field-add-btn').forEach(btn => {
     btn.addEventListener('click', () => _addCustomField(btn.dataset.boardId));
   });
@@ -1915,7 +1938,6 @@ function _renderCustomFieldsConfig(boardId, customFields) {
   }
   fields.forEach((field, idx) => {
     const type = field.type === 'select' ? 'select' : 'text';
-    const optionsValue = (field.options || []).map(opt => opt.label || opt.id).join(', ');
     html += `
       <div class="settings-custom-field-row" data-field-index="${idx}" data-field-id="${_escHtml(field.id)}">
         <div class="settings-custom-field-main">
@@ -1928,13 +1950,37 @@ function _renderCustomFieldsConfig(boardId, customFields) {
           </label>
           <button class="settings-custom-field-remove-btn" data-board-id="${boardId}" data-field-id="${_escHtml(field.id)}" title="Remove field">&times;</button>
         </div>
-        <input class="settings-input board-custom-field-options ${type === 'select' ? '' : 'hidden'}" data-board-id="${boardId}" data-field-id="${_escHtml(field.id)}" value="${_escHtml(optionsValue)}" placeholder="Choices separated by commas" />
+        ${_renderCustomFieldOptionsEditor(boardId, field, type)}
       </div>`;
   });
   html += `
       </div>
       <button class="btn settings-custom-field-add-btn" data-board-id="${boardId}" style="margin-top:10px;font-size:0.82rem;padding:4px 14px">+ Add field</button>
     </div>`;
+  return html;
+}
+
+function _renderCustomFieldOptionsEditor(boardId, field, type) {
+  const options = Array.isArray(field.options) ? field.options : [];
+  let html = `<div class="settings-custom-field-options-editor ${type === 'select' ? '' : 'hidden'}" data-board-id="${boardId}" data-field-id="${_escHtml(field.id)}">`;
+  html += '<div class="settings-custom-field-options-list">';
+  options.forEach((opt, optIdx) => {
+    const optionId = opt.id || _slugifyCustomFieldId(opt.label || 'option');
+    const color = opt.color || CUSTOM_FIELD_OPTION_COLORS[optIdx % CUSTOM_FIELD_OPTION_COLORS.length];
+    html += `
+      <div class="settings-custom-field-option-row" data-option-index="${optIdx}" data-option-id="${_escHtml(optionId)}">
+        <button type="button" class="settings-custom-field-option-color-btn" data-board-id="${boardId}" data-field-id="${_escHtml(field.id)}" data-option-id="${_escHtml(optionId)}" style="background:${_escHtml(color)}" title="Change choice color"></button>
+        <input class="settings-input board-custom-field-option-label" data-board-id="${boardId}" data-field-id="${_escHtml(field.id)}" data-option-id="${_escHtml(optionId)}" value="${_escHtml(opt.label || optionId)}" placeholder="Choice label" />
+        <button type="button" class="settings-custom-field-option-remove-btn" data-board-id="${boardId}" data-field-id="${_escHtml(field.id)}" data-option-id="${_escHtml(optionId)}" title="Remove choice">&times;</button>
+      </div>`;
+  });
+  html += '</div>';
+  html += `
+    <div class="settings-custom-field-option-add">
+      <input class="settings-input settings-custom-field-option-new" data-board-id="${boardId}" data-field-id="${_escHtml(field.id)}" placeholder="New choice" />
+      <button type="button" class="btn settings-custom-field-option-add-btn" data-board-id="${boardId}" data-field-id="${_escHtml(field.id)}">+ Add choice</button>
+    </div>
+  </div>`;
   return html;
 }
 
@@ -1951,6 +1997,21 @@ function _uniqueCustomFieldId(slug, fields) {
   let n = 2;
   while (ids.has(slug + '-' + n)) n++;
   return slug + '-' + n;
+}
+
+function _uniqueCustomFieldOptionId(label, options) {
+  return _uniqueCustomFieldId(_slugifyCustomFieldId(label || 'option'), options || []);
+}
+
+function _nextCustomFieldOptionLabel(options) {
+  const existing = new Set((options || []).map(opt => String(opt.label || '').toLowerCase()));
+  let n = (options || []).length + 1;
+  let label = 'Choice ' + n;
+  while (existing.has(label.toLowerCase())) {
+    n++;
+    label = 'Choice ' + n;
+  }
+  return label;
 }
 
 function _customFieldsForBoard(board) {
@@ -1970,7 +2031,6 @@ function _collectCustomFieldsFromDOM(boardId) {
     const nameEl = row.querySelector('.board-custom-field-name');
     const typeEl = row.querySelector('.board-custom-field-type');
     const reqEl = row.querySelector('.board-custom-field-required');
-    const optEl = row.querySelector('.board-custom-field-options');
     const type = typeEl && typeEl.value === 'select' ? 'select' : 'text';
     const field = {
       id,
@@ -1979,14 +2039,18 @@ function _collectCustomFieldsFromDOM(boardId) {
       required: !!(reqEl && reqEl.checked),
     };
     if (type === 'select') {
-      const labels = (optEl && optEl.value ? optEl.value : '')
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean);
+      const optionRows = Array.from(row.querySelectorAll('.settings-custom-field-option-row'));
       const seen = new Set();
-      field.options = labels.map((label, optIdx) => {
-        const prevOpt = (prev.options || [])[optIdx] || (prev.options || []).find(o => o.label.toLowerCase() === label.toLowerCase()) || {};
-        let optId = prevOpt.id || _slugifyCustomFieldId(label);
+      field.options = optionRows.map((optionRow, optIdx) => {
+        const labelEl = optionRow.querySelector('.board-custom-field-option-label');
+        const label = (labelEl && labelEl.value.trim()) || '';
+        if (!label) return null;
+        const rowOptionId = optionRow.dataset.optionId || '';
+        const prevOpt = (prev.options || []).find(o => o.id === rowOptionId) ||
+          (prev.options || [])[optIdx] ||
+          (prev.options || []).find(o => String(o.label || '').toLowerCase() === label.toLowerCase()) ||
+          {};
+        let optId = prevOpt.id || rowOptionId || _slugifyCustomFieldId(label);
         while (seen.has(optId)) optId = optId + '-' + (seen.size + 1);
         seen.add(optId);
         return {
@@ -1994,7 +2058,7 @@ function _collectCustomFieldsFromDOM(boardId) {
           label,
           color: prevOpt.color || CUSTOM_FIELD_OPTION_COLORS[optIdx % CUSTOM_FIELD_OPTION_COLORS.length],
         };
-      });
+      }).filter(Boolean);
       if (field.options.length === 0) {
         field.options = [{ id: 'option', label: 'Option', color: CUSTOM_FIELD_OPTION_COLORS[idx % CUSTOM_FIELD_OPTION_COLORS.length] }];
       }
@@ -2091,6 +2155,97 @@ function _removeCustomField(boardId, fieldId) {
   board.settings = JSON.stringify(settings);
   _rerenderCustomFieldList(boardId);
   _saveBoardCustomFields(boardId, { silent: true, previousSettings: previous });
+}
+
+function _writeCustomFieldsToBoardSettings(board, fields) {
+  const settings = window.parseBoardSettings ? window.parseBoardSettings(board.settings) : JSON.parse(board.settings || '{}');
+  settings.custom_fields = fields;
+  board.settings = JSON.stringify(settings);
+}
+
+async function _addCustomFieldOption(boardId, fieldId) {
+  const board = window.boardList.find(b => b.id === boardId);
+  if (!board) return;
+  const previous = board.settings;
+  const fields = _collectCustomFieldsFromDOM(boardId);
+  const field = fields.find(f => f.id === fieldId);
+  if (!field || field.type !== 'select') return;
+  const input = document.querySelector(`.settings-custom-field-option-new[data-board-id="${boardId}"][data-field-id="${fieldId}"]`);
+  const label = (input && input.value.trim()) || _nextCustomFieldOptionLabel(field.options || []);
+  const existingLabels = new Set((field.options || []).map(opt => String(opt.label || '').toLowerCase()));
+  if (existingLabels.has(label.toLowerCase())) {
+    if (window.Toast) window.Toast.info('Choice already exists');
+    if (input) { input.focus(); input.select(); }
+    return;
+  }
+  field.options = field.options || [];
+  field.options.push({
+    id: _uniqueCustomFieldOptionId(label, field.options),
+    label,
+    color: CUSTOM_FIELD_OPTION_COLORS[field.options.length % CUSTOM_FIELD_OPTION_COLORS.length],
+  });
+  _writeCustomFieldsToBoardSettings(board, fields);
+  _rerenderCustomFieldList(boardId);
+  await _saveBoardCustomFields(boardId, { silent: true, previousSettings: previous });
+  setTimeout(() => {
+    const added = document.querySelector(`.board-custom-field-option-label[data-board-id="${boardId}"][data-field-id="${fieldId}"][data-option-id="${field.options[field.options.length - 1].id}"]`);
+    if (added) { added.focus(); added.select(); }
+  }, 50);
+}
+
+async function _removeCustomFieldOption(boardId, fieldId, optionId) {
+  const board = window.boardList.find(b => b.id === boardId);
+  if (!board) return;
+  const previous = board.settings;
+  const fields = _collectCustomFieldsFromDOM(boardId);
+  const field = fields.find(f => f.id === fieldId);
+  if (!field || field.type !== 'select') return;
+  if ((field.options || []).length <= 1) {
+    if (window.Toast) window.Toast.error('Choice fields need at least one choice');
+    return;
+  }
+  field.options = (field.options || []).filter(opt => opt.id !== optionId);
+  _writeCustomFieldsToBoardSettings(board, fields);
+  _rerenderCustomFieldList(boardId);
+  await _saveBoardCustomFields(boardId, { silent: true, previousSettings: previous });
+}
+
+function _showCustomFieldOptionColorPicker(btn, boardId, fieldId, optionId) {
+  document.querySelectorAll('.settings-color-picker').forEach(p => p.remove());
+
+  const picker = document.createElement('div');
+  picker.className = 'settings-color-picker settings-custom-field-option-color-picker';
+  picker.style.cssText = 'position:absolute;display:flex;gap:6px;padding:8px;background:var(--surface-dropdown,#222);border:1px solid var(--border-light);border-radius:8px;box-shadow:var(--shadow-md);z-index:200';
+
+  CUSTOM_FIELD_OPTION_COLORS.forEach(color => {
+    const swatch = document.createElement('button');
+    swatch.type = 'button';
+    swatch.style.cssText = 'width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;background:' + color;
+    swatch.addEventListener('click', async () => {
+      picker.remove();
+      const board = window.boardList.find(b => b.id === boardId);
+      if (!board) return;
+      const previous = board.settings;
+      const fields = _collectCustomFieldsFromDOM(boardId);
+      const field = fields.find(f => f.id === fieldId);
+      const option = field && (field.options || []).find(opt => opt.id === optionId);
+      if (!option) return;
+      option.color = color;
+      _writeCustomFieldsToBoardSettings(board, fields);
+      _rerenderCustomFieldList(boardId);
+      await _saveBoardCustomFields(boardId, { silent: true, previousSettings: previous });
+    });
+    picker.appendChild(swatch);
+  });
+
+  btn.style.position = 'relative';
+  btn.parentElement.style.position = 'relative';
+  btn.parentElement.appendChild(picker);
+  picker.style.top = btn.offsetTop + btn.offsetHeight + 4 + 'px';
+  picker.style.left = btn.offsetLeft + 'px';
+
+  const close = (e) => { if (!picker.contains(e.target) && e.target !== btn) { picker.remove(); document.removeEventListener('click', close); } };
+  setTimeout(() => document.addEventListener('click', close), 0);
 }
 
 function _saveBoardColumns(boardId, opts) {

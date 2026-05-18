@@ -1496,6 +1496,10 @@ body.light-theme .board-theme-preview-card {
   border-radius: 8px;
 }
 
+.settings-custom-field-type-dropdown .fn-dropdown-menu {
+  min-width: 100%;
+}
+
 .settings-custom-field-type-dropdown .fn-dropdown-search {
   display: none;
 }
@@ -1522,9 +1526,96 @@ body.light-theme .board-theme-preview-card {
   background: rgba(248,113,113,0.08);
 }
 
+.settings-custom-field-options-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.settings-custom-field-options-editor.hidden,
+.board-custom-field-options.hidden {
+  display: none;
+}
+
+.settings-custom-field-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.settings-custom-field-option-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.settings-custom-field-option-color-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border-light);
+  cursor: pointer;
+  padding: 0;
+  justify-self: center;
+}
+
+.settings-custom-field-option-color-btn:hover {
+  border-color: var(--text-secondary);
+}
+
+.settings-custom-field-option-remove-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dimmed);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.settings-custom-field-option-remove-btn:hover {
+  color: var(--accent-red);
+  background: rgba(248,113,113,0.08);
+}
+
+.settings-custom-field-option-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  min-width: 0;
+}
+
+.settings-custom-field-option-add .settings-input,
+.settings-custom-field-option-row .settings-input {
+  height: 30px;
+  min-width: 0;
+  font-size: 0.82rem;
+}
+
+.settings-custom-field-option-add-btn {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
 @media (max-width: 640px) {
   .settings-custom-field-main {
     grid-template-columns: minmax(0, 1fr) 92px 40px 30px;
     gap: 6px;
+  }
+
+  .settings-custom-field-option-add {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-custom-field-option-add-btn {
+    justify-self: start;
   }
 }
