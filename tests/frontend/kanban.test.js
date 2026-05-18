@@ -290,10 +290,34 @@ describe('clearCompleted bulk behavior', () => {
     assert.ok(src.includes('cardEls.length > CLEAR_DONE_ANIMATION_LIMIT'), 'large clears should go directly to the API path');
   });
 
+  it('calls the clear-done API before mutating local board state', () => {
+    const finishStart = src.indexOf('function _finishClear');
+    const finishEnd = src.indexOf('function esc', finishStart);
+    const body = src.slice(finishStart, finishEnd);
+    const apiCall = body.indexOf('window.API.clearDoneCards(currentBoardId)');
+    const stateMutation = body.indexOf('doneIds.forEach(id => {');
+    const saveCall = body.indexOf('save();');
+
+    assert.ok(apiCall !== -1, 'clear-done should call the API');
+    assert.ok(stateMutation > apiCall, 'local state should change only after the API succeeds');
+    assert.ok(saveCall > apiCall, 'cache writes should happen only after the API succeeds');
+    assert.ok(!body.includes('Optimistic local clear'), 'should not advertise or use local-only clear behavior');
+  });
+
   it('keeps small clear-done animations bounded', () => {
     assert.ok(src.includes('const CLEAR_DONE_STAGGER_MS = 24'), 'small clear animations should use a short stagger');
     assert.ok(src.includes('const CLEAR_DONE_MAX_WAIT_MS = 900'), 'animation fallback should have a hard max wait');
     assert.ok(!src.includes('const STAGGER = 60'), 'should not reintroduce the old long per-card delay');
+  });
+
+  it('does not let localStorage cache failures block clear-done API work', () => {
+    const saveStart = src.indexOf('function save()');
+    const saveEnd = src.indexOf('function _capitalize', saveStart);
+    const body = src.slice(saveStart, saveEnd);
+
+    assert.ok(body.includes('try {'), 'save should isolate cache writes');
+    assert.ok(body.includes('localStorage.setItem'), 'save should still cache board state');
+    assert.ok(body.includes('catch (err)'), 'cache failures should be caught');
   });
 });
 

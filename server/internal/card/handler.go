@@ -659,6 +659,10 @@ func (h *Handler) ClearDone(w http.ResponseWriter, r *http.Request) {
 			doneIDs = append(doneIDs, id)
 		}
 	}
+	if len(doneIDs) == 0 {
+		writeErr(w, http.StatusConflict, "board has no done columns")
+		return
+	}
 
 	cards, err := h.cards.ClearDone(r.Context(), boardID, doneIDs)
 	if err != nil {

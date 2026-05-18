@@ -362,7 +362,11 @@ function loadFromLocalStorage() {
 
 function save() {
   // Keep localStorage as cache for fast reload
-  localStorage.setItem('lwts-kanban', JSON.stringify(state));
+  try {
+    localStorage.setItem('lwts-kanban', JSON.stringify(state));
+  } catch (err) {
+    console.warn('Failed to cache board state', err);
+  }
 }
 
 function _capitalize(s) {
@@ -2433,21 +2437,15 @@ function clearCompleted() {
 }
 
 function _finishClear(doneIds, doneCards) {
-  // Optimistic local clear — the server call is authoritative.
-  doneIds.forEach(id => { state[id] = []; });
-  if (!state.cleared) state.cleared = [];
-  state.cleared.push(...doneCards);
-  save(); window.render();
-  if (typeof window.currentView !== 'undefined' && window.currentView === 'list' && typeof renderListView === 'function') {
-    window.renderListView();
-  }
-
   if (!currentBoardId || currentBoardId === 'all') return;
 
   window.API.clearDoneCards(currentBoardId).then(updated => {
     if (!Array.isArray(updated)) return;
-    // Reconcile local state with the server truth. The server may have moved
-    // cards we didn't have locally (e.g., out-of-sync state) — merge those in.
+    const movedIds = new Set(updated.map(c => c.id));
+    doneIds.forEach(id => {
+      state[id] = (state[id] || []).filter(c => !movedIds.has(c.id));
+    });
+    if (!state.cleared) state.cleared = [];
     updated.forEach(u => {
       cardIndex[u.id] = u;
       const local = fromAPI(u);
@@ -2455,11 +2453,19 @@ function _finishClear(doneIds, doneCards) {
       if (existing) {
         existing.version = u.version;
         existing.column_id = 'cleared';
+        existing.updated_at = u.updated_at || existing.updated_at;
       } else {
         state.cleared.push(local);
       }
     });
     save();
+    window.render();
+    if (typeof window.currentView !== 'undefined' && window.currentView === 'list' && typeof renderListView === 'function') {
+      window.renderListView();
+    }
+    if (updated.length === 0 && doneCards.length > 0) {
+      loadBoardCards(currentBoardId);
+    }
     if (window.Notifier && typeof window.Notifier.handleCardsBulkMoved === 'function') {
       window.Notifier.handleCardsBulkMoved({ cards: updated, column_id: 'cleared' });
     }

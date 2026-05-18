@@ -523,6 +523,31 @@ func TestClearDoneEmptyBoard(t *testing.T) {
 	}
 }
 
+func TestClearDoneRejectsBoardWithoutDoneColumns(t *testing.T) {
+	users, boards, cards, comments := setupTest(t)
+	h := NewHandler(cards, boards, comments, nil)
+	ctx := context.Background()
+
+	user, _ := users.Create(ctx, "User", "u@t.com", "h")
+	board, _ := boards.Create(ctx, "B", "LWTS", user.ID)
+	columns := `[{"id":"backlog","label":"Backlog","type":"start"},{"id":"todo","label":"To Do","type":"active"}]`
+	if _, err := boards.Update(ctx, board.ID, repo.BoardUpdate{Columns: &columns}); err != nil {
+		t.Fatalf("update board columns: %v", err)
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle("POST /api/v1/boards/{boardId}/clear-done", noopAuth(http.HandlerFunc(h.ClearDone)))
+
+	req := httptest.NewRequest("POST", "/api/v1/boards/"+board.ID+"/clear-done", nil)
+	req = withUser(req, user)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status: %d, body: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestClearDoneHandlesLargeDoneCardSet(t *testing.T) {
 	ds, users, boards, cards, comments := setupTestWithDS(t)
 	h := NewHandler(cards, boards, comments, nil)
