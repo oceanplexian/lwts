@@ -345,4 +345,12 @@ describe('.detail-custom-text-input CSS', () => {
     assert.ok(/box-sizing\s*:\s*border-box/.test(block), 'should have box-sizing: border-box');
     assert.ok(/max-width\s*:\s*100%/.test(block), 'should cap width at the cell');
   });
+
+  it('uses theme dropdown focus tokens instead of a fixed accent color', () => {
+    const focusMatch = css.match(/\.detail-custom-text-input:focus\s*\{([^}]+)\}/);
+    assert.ok(focusMatch, '.detail-custom-text-input:focus rule should exist');
+    assert.ok(/--dropdown-focus-border/.test(focusMatch[1]), 'focus border should use theme dropdown token');
+    assert.ok(/--dropdown-focus-ring/.test(focusMatch[1]), 'focus ring should use theme dropdown token');
+    assert.ok(!/--accent-blue/.test(focusMatch[1]), 'focus style should not hard-code the blue accent');
+  });
 });

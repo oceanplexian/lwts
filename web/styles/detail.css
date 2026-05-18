@@ -924,8 +924,8 @@ body.light-theme .lwts-modal a[href]:hover {
 }
 
 .detail-custom-text-input:focus {
-  border-color: var(--accent-blue);
-  box-shadow: 0 0 0 3px var(--accent-blue-bg);
+  border-color: var(--dropdown-focus-border, rgba(130,177,255,0.5));
+  box-shadow: 0 0 0 2px var(--dropdown-focus-ring, rgba(130,177,255,0.15));
 }
 
 /* ── Mobile ── */
