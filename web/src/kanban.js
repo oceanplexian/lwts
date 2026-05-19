@@ -9,6 +9,19 @@ const COLUMNS = [
 ];
 const _COL_PALETTE = ['#8c8c8c','#579DFF','#fb8c00','#4ade80','#f44336','#9f8fef','#6cc3e0','#f5cd47'];
 function _colColor(col, idx) { return col.color || _COL_PALETTE[idx % _COL_PALETTE.length]; }
+function _columnType(col, idx, total) {
+  if (col && col.type) return col.type;
+  const lastIdx = (typeof total === 'number' ? total : COLUMNS.length) - 1;
+  if (idx === 0) return 'start';
+  if (idx === lastIdx) return 'done';
+  return 'active';
+}
+function _isClosedColumn(col, idx, total) { return _columnType(col, idx, total) === 'done'; }
+function _isEpicCard(card) { return !!(card && card.tag === 'epic'); }
+function _isBoardCard(card) { return !!(card && card.tag !== 'epic'); }
+function _isUngroupedBoardCard(card, epicIds) {
+  return _isBoardCard(card) && (!card.epic_id || (epicIds && !epicIds.has(card.epic_id)));
+}
 
 const TAG_LABELS = { blue: 'feature', green: 'fix', orange: 'infra', red: 'bug', epic: 'epic' };
 const TAG_COLORS = {
@@ -569,11 +582,12 @@ function _renderStandardBoard(frag) {
 }
 
 function _renderEpicBoard(frag, epics) {
+  const layout = _buildEpicLayout(epics);
+
   // Sticky column headers
   const headerRow = document.createElement('div');
   headerRow.className = 'board-column-headers';
   COLUMNS.forEach((col, ci) => {
-    const total = (state[col.id] || []).length;
     const hdr = document.createElement('div');
     hdr.className = 'column-header';
     hdr.innerHTML = `
@@ -581,40 +595,41 @@ function _renderEpicBoard(frag, epics) {
         <span class="column-dot" data-col="${col.id}" style="background:${_colColor(col, ci)}"></span>
         ${col.label}
       </span>
-      <span class="column-count">${total}</span>
+      <span class="column-count">${layout.columnTotals[ci] || 0}</span>
     `;
     headerRow.appendChild(hdr);
   });
   frag.appendChild(headerRow);
 
   // Epic lanes
-  epics.forEach((epic, ei) => {
-    const color = EPIC_LANE_COLORS[ei % EPIC_LANE_COLORS.length];
+  layout.lanes.forEach((laneModel) => {
+    const { epic, color, cardsByColumn, totalCount, collapsed } = laneModel;
     const lane = document.createElement('div');
-    lane.className = 'epic-lane';
+    lane.className = collapsed ? 'epic-lane epic-lane-collapsed' : 'epic-lane';
     lane.dataset.epicId = epic.id;
     lane.style.background = color.bg;
-
-    const laneCount = COLUMNS.reduce((n, col) => {
-      return n + (state[col.id] || []).filter(c => c.epic_id === epic.id && c.tag !== 'epic').length;
-    }, 0);
 
     const hdr = document.createElement('div');
     hdr.className = 'epic-lane-header';
     hdr.innerHTML = `
       <span class="epic-lane-key">${esc(epic.key)}</span>
       <span class="epic-lane-title">${esc(epic.title)}</span>
-      <span class="epic-lane-count">${laneCount} card${laneCount !== 1 ? 's' : ''}</span>
+      <span class="epic-lane-count">${collapsed && totalCount > 0 ? totalCount + ' closed' : totalCount + ' card' + (totalCount !== 1 ? 's' : '')}</span>
     `;
     hdr.title = epic.description || epic.title;
     hdr.style.cursor = 'pointer';
     hdr.addEventListener('click', () => window.openDetail(epic.id));
     lane.appendChild(hdr);
 
+    if (collapsed) {
+      frag.appendChild(lane);
+      return;
+    }
+
     const cols = document.createElement('div');
     cols.className = 'epic-lane-columns';
 
-    COLUMNS.forEach(col => {
+    COLUMNS.forEach((col, ci) => {
       const cell = document.createElement('div');
       cell.className = 'epic-lane-cell';
 
@@ -623,7 +638,7 @@ function _renderEpicBoard(frag, epics) {
       body.dataset.col = col.id;
       body.dataset.epic = epic.id;
 
-      const laneCards = (state[col.id] || []).filter(c => c.epic_id === epic.id && c.tag !== 'epic');
+      const laneCards = cardsByColumn[ci] || [];
       laneCards.forEach((card, idx) => {
         body.appendChild(createCardEl(card, col.id, idx));
       });
@@ -641,9 +656,7 @@ function _renderEpicBoard(frag, epics) {
   });
 
   // Ungrouped cards — no lane header, just standard columns
-  const hasUngrouped = COLUMNS.some(col =>
-    (state[col.id] || []).some(c => !c.epic_id || c.tag === 'epic')
-  );
+  const hasUngrouped = layout.ungroupedByColumn.some(cards => cards.length > 0);
 
   if (hasUngrouped) {
     const lane = document.createElement('div');
@@ -652,7 +665,7 @@ function _renderEpicBoard(frag, epics) {
     const cols = document.createElement('div');
     cols.className = 'epic-lane-columns';
 
-    COLUMNS.forEach(col => {
+    COLUMNS.forEach((col, ci) => {
       const cell = document.createElement('div');
       cell.className = 'epic-lane-cell';
 
@@ -661,7 +674,7 @@ function _renderEpicBoard(frag, epics) {
       body.dataset.col = col.id;
       body.dataset.epic = '';
 
-      const ungroupedCards = (state[col.id] || []).filter(c => !c.epic_id || c.tag === 'epic');
+      const ungroupedCards = layout.ungroupedByColumn[ci] || [];
       ungroupedCards.forEach((card, idx) => {
         body.appendChild(createCardEl(card, col.id, idx));
       });
@@ -677,6 +690,40 @@ function _renderEpicBoard(frag, epics) {
     lane.appendChild(cols);
     frag.appendChild(lane);
   }
+}
+
+function _buildEpicLayout(epics) {
+  const epicIds = new Set((epics || []).map(epic => epic.id));
+  const lanes = (epics || []).map((epic, ei) => {
+    const cardsByColumn = COLUMNS.map(col => (state[col.id] || []).filter(card => {
+      return _isBoardCard(card) && card.epic_id === epic.id;
+    }));
+    const totalCount = cardsByColumn.reduce((n, cards) => n + cards.length, 0);
+    const openCount = cardsByColumn.reduce((n, cards, ci) => {
+      return _isClosedColumn(COLUMNS[ci], ci, COLUMNS.length) ? n : n + cards.length;
+    }, 0);
+    return {
+      epic,
+      color: EPIC_LANE_COLORS[ei % EPIC_LANE_COLORS.length],
+      cardsByColumn,
+      totalCount,
+      openCount,
+      collapsed: openCount === 0,
+    };
+  });
+
+  const ungroupedByColumn = COLUMNS.map(col => {
+    return (state[col.id] || []).filter(card => _isUngroupedBoardCard(card, epicIds));
+  });
+  const columnTotals = COLUMNS.map((col, ci) => {
+    const ungroupedCount = (ungroupedByColumn[ci] || []).length;
+    const epicCount = lanes.reduce((n, lane) => {
+      return lane.collapsed ? n : n + (lane.cardsByColumn[ci] || []).length;
+    }, 0);
+    return ungroupedCount + epicCount;
+  });
+
+  return { lanes, ungroupedByColumn, columnTotals };
 }
 
 function createCardEl(card, colId, idx) {

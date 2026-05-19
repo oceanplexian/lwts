@@ -64,7 +64,22 @@ const wrapped = `
 
   ${src}
 
-  module.exports = { esc, _inlineMd, renderMarkdownInline, _capitalize, parseGithubUrls, fromAPI, COLUMNS, TAG_LABELS };
+  module.exports = {
+    esc,
+    _inlineMd,
+    renderMarkdownInline,
+    _capitalize,
+    parseGithubUrls,
+    fromAPI,
+    COLUMNS,
+    TAG_LABELS,
+    _columnType,
+    _isClosedColumn,
+    _isBoardCard,
+    _isUngroupedBoardCard,
+    _buildEpicLayout,
+    _setStateForTest(v) { state = v; },
+  };
 `;
 
 const mod = {};
@@ -281,6 +296,61 @@ describe('fromAPI custom fields', () => {
   it('defaults missing custom_fields to an object', () => {
     const card = K.fromAPI({ id: 'c1', title: 'Card' });
     assert.deepEqual(card.custom_fields, {});
+  });
+});
+
+describe('epic board helpers', () => {
+  it('treats explicit done-type columns as closed', () => {
+    assert.equal(K._isClosedColumn({ id: 'wont-do', type: 'done' }, 4, 5), true);
+  });
+
+  it('infers the final column as closed when no type is configured', () => {
+    assert.equal(K._columnType({ id: 'done' }, 3, 4), 'done');
+  });
+
+  it('keeps epic cards out of board card lanes', () => {
+    assert.equal(K._isBoardCard({ tag: 'epic' }), false);
+    assert.equal(K._isUngroupedBoardCard({ tag: 'epic' }, new Set()), false);
+  });
+
+  it('keeps cards assigned to known epics out of the ungrouped lane', () => {
+    const epicIds = new Set(['epic-1']);
+    assert.equal(K._isUngroupedBoardCard({ tag: 'blue', epic_id: 'epic-1' }, epicIds), false);
+    assert.equal(K._isUngroupedBoardCard({ tag: 'blue', epic_id: 'missing-epic' }, epicIds), true);
+  });
+
+  it('collapses an epic lane whose only child cards are in closed columns', () => {
+    const epic = { id: 'epic-1', key: 'T-1', title: 'Epic', tag: 'epic' };
+    K._setStateForTest({
+      backlog: [epic],
+      todo: [],
+      'in-progress': [],
+      done: [{ id: 'card-1', tag: 'blue', epic_id: 'epic-1' }],
+      'wont-do': [],
+      cleared: [],
+    });
+
+    const layout = K._buildEpicLayout([epic]);
+    assert.equal(layout.lanes[0].collapsed, true);
+    assert.equal(layout.lanes[0].totalCount, 1);
+    assert.equal(layout.columnTotals[3], 0);
+  });
+
+  it('hides the epic card itself when the lane is expanded', () => {
+    const epic = { id: 'epic-1', key: 'T-1', title: 'Epic', tag: 'epic' };
+    K._setStateForTest({
+      backlog: [epic],
+      todo: [{ id: 'card-1', tag: 'blue', epic_id: 'epic-1' }],
+      'in-progress': [],
+      done: [],
+      'wont-do': [],
+      cleared: [],
+    });
+
+    const layout = K._buildEpicLayout([epic]);
+    assert.equal(layout.lanes[0].collapsed, false);
+    assert.equal(layout.columnTotals[0], 0);
+    assert.equal(layout.columnTotals[1], 1);
   });
 });
 

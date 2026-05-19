@@ -542,6 +542,14 @@ body.light-theme .epic-lane {
   padding: 8px 16px 6px;
   cursor: default;
 }
+.epic-lane-collapsed {
+  padding: 0;
+  border-radius: 8px;
+}
+.epic-lane-collapsed .epic-lane-header {
+  min-height: 32px;
+  padding: 5px 16px;
+}
 .epic-lane-header:hover .epic-lane-key {
   border-color: var(--border-medium);
 }
