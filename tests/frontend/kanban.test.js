@@ -78,6 +78,9 @@ const wrapped = `
     _isBoardCard,
     _isUngroupedBoardCard,
     _buildEpicLayout,
+    _unfurlDelayMs,
+    _UNFURL_STAGGER_MAX,
+    _UNFURL_STAGGER_STEP,
     _setStateForTest(v) { state = v; },
   };
 `;
@@ -460,5 +463,39 @@ describe('.detail-custom-text-input CSS', () => {
     assert.ok(/--dropdown-focus-border/.test(focusMatch[1]), 'focus border should use theme dropdown token');
     assert.ok(/--dropdown-focus-ring/.test(focusMatch[1]), 'focus ring should use theme dropdown token');
     assert.ok(!/--accent-blue/.test(focusMatch[1]), 'focus style should not hard-code the blue accent');
+  });
+});
+
+// ── _unfurlDelayMs (capped card-unfurl stagger) ──────────────────────
+describe('_unfurlDelayMs', () => {
+  const { _unfurlDelayMs, _UNFURL_STAGGER_MAX, _UNFURL_STAGGER_STEP } = K;
+
+  it('staggers the first card at 0ms', () => {
+    assert.equal(_unfurlDelayMs(0), 0);
+  });
+
+  it('staggers by a fixed step per card', () => {
+    assert.equal(_unfurlDelayMs(1), _UNFURL_STAGGER_STEP);
+    assert.equal(_unfurlDelayMs(5), 5 * _UNFURL_STAGGER_STEP);
+  });
+
+  it('animates the last in-cap card', () => {
+    const last = _UNFURL_STAGGER_MAX - 1;
+    assert.equal(_unfurlDelayMs(last), last * _UNFURL_STAGGER_STEP);
+  });
+
+  it('returns null past the cap so big boards paint instantly', () => {
+    assert.equal(_unfurlDelayMs(_UNFURL_STAGGER_MAX), null);
+    assert.equal(_unfurlDelayMs(570), null);   // FNAI scale
+    assert.equal(_unfurlDelayMs(2020), null);  // NAG scale
+  });
+
+  it('caps the worst-case visible delay under ~1s', () => {
+    const maxDelay = (_UNFURL_STAGGER_MAX - 1) * _UNFURL_STAGGER_STEP;
+    assert.ok(maxDelay < 1000, `last animated card should fade in <1s, got ${maxDelay}ms`);
+  });
+
+  it('treats negative indices as non-animated', () => {
+    assert.equal(_unfurlDelayMs(-1), null);
   });
 });

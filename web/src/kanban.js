@@ -450,6 +450,21 @@ let commentEditor = null;
 let _renderAnimateCards = true;
 let _columnHeightSyncFrame = 0;
 
+// Cap the staggered card-unfurl on load. The per-card delay used to grow
+// unbounded (`globalIdx * 18ms`), and because `.card.unfurl` holds opacity:0
+// during its delay (`both` fill mode), a big board's later cards stayed
+// invisible for seconds before fading in — 571 cards => last card at 10.3s,
+// 2021 => 36s — so the board appeared to "load slowly" as cards dribbled in.
+// (It also stalls SSE updates, which _sseRender defers while any card unfurls.)
+// We now stagger only the first screenful; cards past the cap appear at once.
+const _UNFURL_STAGGER_MAX = 40;   // cards to animate (last fades in at ~700ms)
+const _UNFURL_STAGGER_STEP = 18;  // ms between successive cards
+// Animation delay (ms) for the Nth animated card, or null past the cap.
+function _unfurlDelayMs(index) {
+  if (index < 0 || index >= _UNFURL_STAGGER_MAX) return null;
+  return index * _UNFURL_STAGGER_STEP;
+}
+
 function _syncEqualHeightGroup(items, floorHeight) {
   const elements = (items || []).filter(Boolean);
   if (elements.length === 0) return;
@@ -524,16 +539,21 @@ function render() {
     _renderEpicBoard(frag, epics);
   }
 
-  // Add unfurl classes BEFORE appending to DOM to avoid 1-frame flash
-  if (animate) {
+  // Add unfurl classes BEFORE appending to DOM to avoid 1-frame flash.
+  // Stagger is capped (see _unfurlDelayMs) so a big board paints in <1s, and
+  // honors prefers-reduced-motion.
+  const reduceMotion = typeof window !== 'undefined' && window.matchMedia
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (animate && !reduceMotion) {
     let globalIdx = 0;
-    frag.querySelectorAll('.column-body').forEach(col => {
-      col.querySelectorAll('.card').forEach((card) => {
-        card.style.animationDelay = (globalIdx++ * 18) + 'ms';
-        card.classList.add('unfurl');
-        card.addEventListener('animationend', () => card.classList.remove('unfurl'), { once: true });
-      });
-    });
+    const cards = frag.querySelectorAll('.column-body .card');
+    for (const card of cards) {
+      const delay = _unfurlDelayMs(globalIdx++);
+      if (delay === null) break; // past the cap — remaining cards appear instantly
+      card.style.animationDelay = delay + 'ms';
+      card.classList.add('unfurl');
+      card.addEventListener('animationend', () => card.classList.remove('unfurl'), { once: true });
+    }
   }
 
   board.innerHTML = '';
