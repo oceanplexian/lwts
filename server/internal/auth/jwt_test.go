@@ -49,8 +49,10 @@ func TestParseAccessToken(t *testing.T) {
 		t.Fatal("ExpiresAt is nil")
 	}
 	ttl := time.Until(claims.ExpiresAt.Time)
-	if ttl < 6*24*time.Hour || ttl > 8*24*time.Hour {
-		t.Errorf("TTL = %v, want ~7 days", ttl)
+	// Access tokens are short-lived and fixed at 1h, independent of the
+	// configurable session length (which drives the refresh-token TTL).
+	if ttl < 55*time.Minute || ttl > 65*time.Minute {
+		t.Errorf("TTL = %v, want ~1 hour", ttl)
 	}
 }
 
