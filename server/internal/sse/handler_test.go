@@ -2,15 +2,95 @@ package sse
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/oceanplexian/lwts/server/internal/auth"
+	"github.com/oceanplexian/lwts/server/internal/middleware"
 )
+
+// deadlineRecorder is a ResponseWriter that records SetWriteDeadline calls so a
+// test can assert the SSE handler cleared the server WriteTimeout. It also
+// implements http.Flusher so the handler's streaming path is exercised.
+type deadlineRecorder struct {
+	mu           sync.Mutex
+	header       http.Header
+	body         bytes.Buffer
+	deadlineSet  bool
+	zeroDeadline bool
+}
+
+func (d *deadlineRecorder) Header() http.Header {
+	if d.header == nil {
+		d.header = http.Header{}
+	}
+	return d.header
+}
+
+func (d *deadlineRecorder) Write(b []byte) (int, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.body.Write(b)
+}
+
+func (d *deadlineRecorder) WriteHeader(int) {}
+
+func (d *deadlineRecorder) Flush() {}
+
+func (d *deadlineRecorder) SetWriteDeadline(t time.Time) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.deadlineSet = true
+	d.zeroDeadline = t.IsZero()
+	return nil
+}
+
+// TestStreamHandler_ClearsWriteDeadline guards the fix for long-lived SSE
+// streams being killed by http.Server.WriteTimeout. The handler must clear the
+// write deadline, and it must do so through the logger middleware's wrapper
+// (which requires statusRecorder.Unwrap to forward to the real connection).
+func TestStreamHandler_ClearsWriteDeadline(t *testing.T) {
+	hub := startHub(t)
+	token := issueTestToken(t, "test-secret", "user-1", "alice@test.com")
+
+	// Wrap with the real Logger middleware so we also verify Unwrap traversal.
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	h := middleware.Logger(logger)(StreamHandler(hub, "test-secret"))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req := httptest.NewRequest("GET", "/api/v1/boards/board-1/stream", nil).WithContext(ctx)
+	req.SetPathValue("id", "board-1")
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	rec := &deadlineRecorder{}
+	done := make(chan struct{})
+	go func() {
+		h.ServeHTTP(rec, req)
+		close(done)
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+	<-done
+
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	if !rec.deadlineSet {
+		t.Fatal("SSE handler did not call SetWriteDeadline (WriteTimeout would kill the stream)")
+	}
+	if !rec.zeroDeadline {
+		t.Fatal("SSE handler set a non-zero write deadline; long-lived streams will be force-closed")
+	}
+}
 
 func issueTestToken(t *testing.T, secret, userID, email string) string {
 	t.Helper()

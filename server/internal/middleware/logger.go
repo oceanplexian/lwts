@@ -41,6 +41,12 @@ func (r *statusRecorder) Flush() {
 	}
 }
 
+// Unwrap exposes the wrapped ResponseWriter so http.NewResponseController can
+// reach the underlying connection (e.g. for SetWriteDeadline on SSE streams).
+func (r *statusRecorder) Unwrap() http.ResponseWriter {
+	return r.ResponseWriter
+}
+
 func Logger(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

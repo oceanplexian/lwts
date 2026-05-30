@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/oceanplexian/lwts/server/internal/auth"
 	"github.com/oceanplexian/lwts/server/internal/db"
@@ -38,6 +39,12 @@ func StreamHandler(hub *Hub, jwtSecret string) http.HandlerFunc {
 		w.Header().Set("Connection", "keep-alive")
 		w.Header().Set("X-Accel-Buffering", "no")
 
+		// SSE streams are long-lived. Clear the server's WriteTimeout for this
+		// response, otherwise http.Server.WriteTimeout force-closes the stream
+		// after 30s and every board client reconnects on a 30s cycle.
+		rc := http.NewResponseController(w)
+		_ = rc.SetWriteDeadline(time.Time{})
+
 		client := &Client{
 			BoardID:  boardID,
 			UserID:   claims.Subject,
@@ -50,7 +57,9 @@ func StreamHandler(hub *Hub, jwtSecret string) http.HandlerFunc {
 
 		// Send initial connected event
 		connData, _ := json.Marshal(map[string]string{"status": "connected", "board_id": boardID})
-		_, _ = w.Write(formatSSE("connected", connData))
+		if _, err := w.Write(formatSSE("connected", connData)); err != nil {
+			return
+		}
 		flusher.Flush()
 
 		ctx := r.Context()
@@ -61,7 +70,10 @@ func StreamHandler(hub *Hub, jwtSecret string) http.HandlerFunc {
 					// Channel closed (slow client disconnect)
 					return
 				}
-				_, _ = w.Write(msg)
+				if _, err := w.Write(msg); err != nil {
+					// Client/connection gone — stop spinning and release resources.
+					return
+				}
 				flusher.Flush()
 			case <-ctx.Done():
 				return
@@ -173,6 +185,12 @@ func EventsHandler(hub *Hub, store EventStore, jwtSecret string, ds db.Datasourc
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
 		w.Header().Set("X-Accel-Buffering", "no")
+
+		// SSE streams are long-lived. Clear the server's WriteTimeout for this
+		// response, otherwise http.Server.WriteTimeout force-closes the stream
+		// after 30s and every board client reconnects on a 30s cycle.
+		rc := http.NewResponseController(w)
+		_ = rc.SetWriteDeadline(time.Time{})
 
 		ctx := r.Context()
 		lastSeen := extractLastEventID(r)
