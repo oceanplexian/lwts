@@ -9,13 +9,21 @@ import (
 )
 
 var (
-	AccessTokenTTL  = 7 * 24 * time.Hour
+	// AccessTokenTTL is intentionally short and fixed. Access tokens are
+	// refreshed transparently by the client, so a leaked one is only useful
+	// briefly. It is deliberately NOT tied to the session length.
+	AccessTokenTTL = 1 * time.Hour
+	// RefreshTokenTTL is the session length: how long a session can be kept
+	// alive by refreshing before the user must log in again.
 	RefreshTokenTTL = 7 * 24 * time.Hour
 )
 
-// SetSessionLength updates both access and refresh token TTLs.
+// SetSessionLength sets the refresh-token lifetime (the configurable session
+// length). The access-token TTL is left short and fixed: if access and refresh
+// tokens expire at the same instant, a reactive refresh-on-401 can never
+// succeed and every session hard-ends at the boundary — the bug this
+// separation fixes.
 func SetSessionLength(d time.Duration) {
-	AccessTokenTTL = d
 	RefreshTokenTTL = d
 }
 
