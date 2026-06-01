@@ -52,6 +52,7 @@ type Handler struct {
 	hub      *sse.Hub
 	discord  *discord.Notifier
 	embed    CardEmbedder
+	images   *repo.CardImageRepository
 }
 
 func NewHandler(cards *repo.CardRepository, boards *repo.BoardRepository, comments *repo.CommentRepository, hub *sse.Hub) *Handler {
@@ -88,6 +89,12 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMW func(http.Handler) h
 	mux.Handle("PUT /api/v1/cards/{id}", memberMW(http.HandlerFunc(h.Update)))
 	mux.Handle("POST /api/v1/cards/{id}/move", memberMW(http.HandlerFunc(h.Move)))
 	mux.Handle("DELETE /api/v1/cards/{id}", memberMW(http.HandlerFunc(h.Delete)))
+
+	// Card images — attach (member), list/fetch (any authed), delete (member).
+	mux.Handle("POST /api/v1/cards/{id}/images", memberMW(http.HandlerFunc(h.UploadImage)))
+	mux.Handle("GET /api/v1/cards/{id}/images", authMW(http.HandlerFunc(h.ListImages)))
+	mux.Handle("GET /api/v1/cards/{id}/images/{imageId}", authMW(http.HandlerFunc(h.GetImage)))
+	mux.Handle("DELETE /api/v1/cards/{id}/images/{imageId}", memberMW(http.HandlerFunc(h.DeleteImage)))
 }
 
 type createCardReq struct {
@@ -244,6 +251,7 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"card":     card,
 		"comments": comments,
+		"images":   h.cardImages(r, id),
 	})
 }
 

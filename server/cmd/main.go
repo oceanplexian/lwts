@@ -200,6 +200,7 @@ func main() {
 	boardRepo := repo.NewBoardRepository(ds)
 	cardRepo := repo.NewCardRepository(ds)
 	commentRepo := repo.NewCommentRepository(ds)
+	cardImageRepo := repo.NewCardImageRepository(ds)
 
 	// Auth
 	userAdapter := auth.NewUserRepoAdapter(userRepo)
@@ -228,6 +229,7 @@ func main() {
 	// Card routes
 	ch := cardhandler.NewHandler(cardRepo, boardRepo, commentRepo, sseHub)
 	ch.SetDiscord(discordN)
+	ch.SetImages(cardImageRepo)
 	if embedSvc != nil {
 		ch.SetEmbed(embedSvc)
 	}
