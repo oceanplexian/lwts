@@ -92,6 +92,20 @@ type Card struct {
 	UpdatedAt       time.Time         `json:"updated_at"`
 }
 
+// CardImage is an image attached to a card. The raw bytes (the `data` column)
+// are never serialized — only metadata is returned, plus URL pointing at the
+// raw-bytes endpoint.
+type CardImage struct {
+	ID          string    `json:"id"`
+	CardID      string    `json:"card_id"`
+	Filename    string    `json:"filename"`
+	ContentType string    `json:"content_type"`
+	SizeBytes   int       `json:"size_bytes"`
+	UploadedBy  *string   `json:"uploaded_by"`
+	CreatedAt   time.Time `json:"created_at"`
+	URL         string    `json:"url"`
+}
+
 type Comment struct {
 	ID        string    `json:"id"`
 	CardID    string    `json:"card_id"`

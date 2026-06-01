@@ -278,6 +278,9 @@ func adaptForSQLite(sql string) string {
 	// JSONB → TEXT
 	r = regexp.MustCompile(`(?i)\bJSONB\b`).ReplaceAllString(r, "TEXT")
 
+	// BYTEA → BLOB
+	r = regexp.MustCompile(`(?i)\bBYTEA\b`).ReplaceAllString(r, "BLOB")
+
 	// BOOLEAN → INTEGER
 	r = regexp.MustCompile(`(?i)\bBOOLEAN\b`).ReplaceAllString(r, "INTEGER")
 
