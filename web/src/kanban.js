@@ -174,6 +174,23 @@ function getBoardById(boardId) {
   return (boardList || []).find(b => b.id === boardId) || null;
 }
 
+// Resolve a human column label for a card that may live on a different board
+// than the one currently loaded (search now spans all boards, so the global
+// COLUMNS array can't be trusted for foreign cards). Falls back to COLUMNS,
+// then the raw id.
+function columnLabelFor(boardId, columnId) {
+  const board = getBoardById(boardId);
+  if (board && board.columns) {
+    try {
+      const cols = JSON.parse(board.columns);
+      const col = Array.isArray(cols) && cols.find(c => c.id === columnId);
+      if (col && col.label) return col.label;
+    } catch (e) { /* fall through */ }
+  }
+  const col = COLUMNS.find(c => c.id === columnId);
+  return col ? col.label : columnId;
+}
+
 function getBoardCustomFields(boardId) {
   const board = getBoardById(boardId || currentBoardId);
   if (!board) return [];
@@ -2375,9 +2392,11 @@ function closeBoardPickerOnClick(e) {
 }
 
 function switchBoard(id, name) {
+  // Returns the card-load promise so callers can await the board being ready.
+  let loadPromise;
   // Delegate to selectBoard (features.js) if available — it handles SSE + presence
   if (typeof window.selectBoard === "function") {
-    window.selectBoard(id, name || id);
+    loadPromise = window.selectBoard(id, name || id);
   } else {
     const isAllBoards = id === 'all';
     currentBoardId = id;
@@ -2393,15 +2412,16 @@ function switchBoard(id, name) {
     document.getElementById('board-picker-label').textContent = isAllBoards ? 'All Boards' : _capitalize(name || id);
     closeBoardPicker();
     if (isAllBoards) {
-      loadAllBoardCards();
+      loadPromise = loadAllBoardCards();
     } else {
-      loadBoardCards(id);
+      loadPromise = loadBoardCards(id);
     }
     if (typeof window.syncCurrentBoardTheme === 'function') {
       window.syncCurrentBoardTheme(id);
     }
   }
   window.renderBoardPicker();
+  return loadPromise;
 }
 
 function createBoard() {
@@ -2797,13 +2817,35 @@ function filterCardsInline(query) {
   });
 }
 
+// Open a card chosen from the (now workspace-wide) search results. If the card
+// lives on a board other than the one currently loaded, switch to that board
+// and wait for its cards to land in `state` before opening the detail modal —
+// openDetail() only looks in the loaded board's state. In "All Boards" mode
+// every board's cards are already loaded, so no switch is needed.
+async function openCardFromSearch(card) {
+  const targetBoard = card && card.board_id;
+  const needSwitch = targetBoard && targetBoard !== currentBoardId && currentBoardId !== 'all';
+  if (needSwitch) {
+    const board = getBoardById(targetBoard);
+    try {
+      await switchBoard(targetBoard, board ? board.name : undefined);
+    } catch (e) {
+      window.Toast.error('Failed to open board for ' + (card.key || 'card'));
+      return;
+    }
+  }
+  window.openDetail(card.id);
+}
+
 async function doGlobalSearch(query) {
   const results = document.getElementById('header-search-results');
   results.classList.remove('hidden');
   results.innerHTML = '<div class="search-loading">Searching...</div>';
 
   try {
-    const cards = await window.API.searchCards(query, currentBoardId);
+    // Search every board, not just the active one, so results surface tickets
+    // from anywhere in the workspace.
+    const cards = await window.API.searchCards(query, 'all');
     // Server matches (including semantic + exact-key hits) also drive the
     // inline filter so cards whose visible text doesn't substring-match the
     // query are still revealed.
@@ -2826,12 +2868,15 @@ async function doGlobalSearch(query) {
     }
     results.innerHTML = '';
     cards.slice(0, 10).forEach((card, i) => {
-      const col = COLUMNS.find(c => c.id === card.column_id);
+      const board = getBoardById(card.board_id);
+      const boardName = board ? _capitalize(board.name) : '';
+      const colLabel = columnLabelFor(card.board_id, card.column_id);
       const el = document.createElement('div');
       el.className = 'search-result-item' + (i === 0 ? ' active' : '');
       el.innerHTML = '<span class="search-result-key">' + esc(card.key || '') + '</span>' +
         '<span class="search-result-title">' + esc(card.title) + '</span>' +
-        '<span class="search-result-col">' + esc(col ? col.label : card.column_id) + '</span>';
+        (boardName ? '<span class="search-result-board">' + esc(boardName) + '</span>' : '') +
+        '<span class="search-result-col">' + esc(colLabel) + '</span>';
       el.addEventListener('mouseenter', () => {
         results.querySelectorAll('.search-result-item.active').forEach(a => a.classList.remove('active'));
         el.classList.add('active');
@@ -2843,9 +2888,9 @@ async function doGlobalSearch(query) {
         const settingsPage = document.getElementById('settings-page');
         if (settingsPage && settingsPage.classList.contains('active')) {
           window.closeSettings();
-          setTimeout(() => window.openDetail(card.id), 150);
+          setTimeout(() => openCardFromSearch(card), 150);
         } else {
-          window.openDetail(card.id);
+          openCardFromSearch(card);
         }
       });
       results.appendChild(el);
