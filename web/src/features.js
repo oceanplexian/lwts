@@ -193,6 +193,9 @@ function selectBoard(boardId, boardName) {
   // Close picker
   if (typeof window.closeBoardPicker === 'function') window.closeBoardPicker();
 
+  // Capture the card-load promise so callers (e.g. cross-board search open)
+  // can await the new board's cards being in `state` before acting on them.
+  let loadPromise;
   if (isAllBoards) {
     if (currentBoardStream) {
       currentBoardStream.disconnect();
@@ -207,18 +210,19 @@ function selectBoard(boardId, boardName) {
       if (listView) listView.innerHTML = '';
       window.switchView('list');
     }
-    window.loadAllBoardCards();
+    loadPromise = window.loadAllBoardCards();
   } else {
     // Disconnect old SSE stream, connect new
     connectBoardStream(boardId);
     // Load presence
     if (typeof window.loadPresence === 'function') window.loadPresence(boardId);
     // Fetch cards for this board
-    window.loadBoardCards(boardId);
+    loadPromise = window.loadBoardCards(boardId);
   }
 
   // Update picker highlight
   renderBoardPicker();
+  return loadPromise;
 }
 
 // loadBoardCards is defined in kanban.js — don't redefine it here.
