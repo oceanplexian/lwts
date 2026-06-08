@@ -1590,14 +1590,19 @@ function refreshSidebarTexts() {
   if (epicTextEl && detailCard) {
     const epicId = detailCard.epic_id || (ddDetailEpic ? ddDetailEpic.getValue() : '');
     if (epicId) {
-      // Find the epic card to show its key
-      let epicCard = null;
-      for (const col of COLUMNS) {
-        epicCard = (state[col.id] || []).find(c => c.id === epicId);
-        if (epicCard) break;
+      // Resolve the epic to show its key. cardIndex spans every loaded card
+      // (all columns, cleared cards, and other boards in all-boards mode), so it
+      // finds epics the active board's columns don't hold. Without this we'd fall
+      // back to printing the raw 36-char UUID, which overflows the sidebar.
+      let epicCard = cardIndex[epicId];
+      if (!epicCard) {
+        for (const col of COLUMNS) {
+          epicCard = (state[col.id] || []).find(c => c.id === epicId);
+          if (epicCard) break;
+        }
       }
-      epicTextEl.textContent = epicCard ? epicCard.key : epicId;
-      epicTextEl.title = epicCard ? epicCard.title : '';
+      epicTextEl.textContent = epicCard ? epicCard.key : 'Epic';
+      epicTextEl.title = epicCard ? (epicCard.title || '') : epicId;
     } else {
       epicTextEl.textContent = 'None';
       epicTextEl.title = '';

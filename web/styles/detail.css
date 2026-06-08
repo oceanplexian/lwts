@@ -593,6 +593,10 @@ body.light-theme .lwts-modal a[href]:hover {
 .detail-fields-table {
   width: 100%;
   border-collapse: collapse;
+  /* Fixed layout pins the label column at 90px and caps the value column to the
+     remaining sidebar width, so an unbreakable value (e.g. a raw epic UUID)
+     can't grow the table past 320px and shift/clip the whole sidebar. */
+  table-layout: fixed;
 }
 
 .detail-field-row td {
@@ -645,6 +649,9 @@ body.light-theme .lwts-modal a[href]:hover {
   border: 1px solid transparent;
   height: 34px;
   white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .detail-field-text:hover {
