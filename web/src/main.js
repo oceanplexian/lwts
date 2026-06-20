@@ -16,6 +16,7 @@ import './listview.js';
 import './features.js';
 import './subtasks.js';
 import './a11y.js';
+import './plugins.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   const LP = window.LoginPage;

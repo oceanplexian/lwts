@@ -140,6 +140,29 @@ func main() {
 		_ = json.NewEncoder(w).Encode(map[string]bool{"lambda_demo": cfg.LambdaDemo})
 	})
 
+	// Header plugin manifest — advertised to the frontend so the plugin
+	// loader can <script>-load each entry. Public (no auth): the header
+	// plugin must render before login. See config.HeaderPlugins.
+	mux.HandleFunc("GET /api/v1/plugins", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		plugins := cfg.HeaderPlugins
+		if plugins == nil {
+			plugins = []string{}
+		}
+		_ = json.NewEncoder(w).Encode(map[string][]string{"headerPlugins": plugins})
+	})
+
+	// Plugin static files served from LWTS_PLUGINS_DIR (same-origin, so
+	// plugin scripts/CSS/SVGs avoid CORS). Disabled (404) when unset.
+	if cfg.PluginsDir != "" {
+		if _, err := os.Stat(cfg.PluginsDir); err == nil {
+			pluginsFS := http.StripPrefix("/plugins/", http.FileServer(http.Dir(cfg.PluginsDir)))
+			mux.Handle("GET /plugins/", pluginsFS)
+		} else {
+			logger.Warn("LWTS_PLUGINS_DIR set but not accessible; /plugins/ disabled", "dir", cfg.PluginsDir, "error", err)
+		}
+	}
+
 	if cfg.LambdaDemo {
 		if err := prepareLambdaDemoDB(cfg); err != nil {
 			logger.Error("lambda demo database setup failed", "error", err)

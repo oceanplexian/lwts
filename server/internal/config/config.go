@@ -39,6 +39,18 @@ type Config struct {
 	// for Last-Event-ID replay. Default 7 days. Set BOARD_EVENTS_RETENTION
 	// (Go duration) to override. Zero disables retention cleanup.
 	BoardEventsRetention time.Duration
+
+	// Header plugin system — lets an external plugin customize the board
+	// header's brand/title element (.header-title) without forking lwts.
+	//   PluginsDir    — directory served at /plugins/ (LWTS_PLUGINS_DIR).
+	//                   Empty = the /plugins/ route 404s.
+	//   HeaderPlugins — comma-separated plugin script paths/URLs to load
+	//                   (LWTS_HEADER_PLUGINS). Each is advertised to the
+	//                   frontend via GET /api/v1/plugins so the plugin
+	//                   loader can <script>-load it; the plugin then
+	//                   registers via window.lwts.registerHeaderPlugin.
+	PluginsDir    string
+	HeaderPlugins []string
 }
 
 func Load() (*Config, error) {
@@ -108,6 +120,15 @@ func Load() (*Config, error) {
 	c.StaticDir = os.Getenv("STATIC_DIR")
 	if c.StaticDir == "" {
 		c.StaticDir = "/static"
+	}
+
+	c.PluginsDir = os.Getenv("LWTS_PLUGINS_DIR")
+	if v := os.Getenv("LWTS_HEADER_PLUGINS"); v != "" {
+		for _, p := range strings.Split(v, ",") {
+			if p = strings.TrimSpace(p); p != "" {
+				c.HeaderPlugins = append(c.HeaderPlugins, p)
+			}
+		}
 	}
 
 	c.JWTSecret = os.Getenv("JWT_SECRET")
