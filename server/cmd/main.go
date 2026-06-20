@@ -345,13 +345,25 @@ func main() {
 			}
 		}))
 	} else {
-		// Production: serve Vite build output from STATIC_DIR, SPA fallback to index.html
+		// Production: serve Vite build output from STATIC_DIR, SPA fallback to index.html.
+		// index.html is pre-rendered once with the header-plugin <script defer> tags +
+		// a FOUC guard injected into <head> (see renderIndexHTML), so plugins load
+		// in parallel with the bundle and the default brand never flashes.
+		indexHTML, indexErr := renderIndexHTML(cfg)
+		if indexErr != nil {
+			logger.Warn("header plugin: could not pre-render index.html; serving raw", "error", indexErr)
+		}
 		staticFS := http.Dir(cfg.StaticDir)
 		fileServer := http.FileServer(staticFS)
 		mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// SPA fallback: serve index.html for missing paths that aren't API routes or files
+			// Serve the injected index.html for the root, /index.html, and SPA
+			// fallback routes (non-file, non-API). Other static assets pass through.
+			if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+				serveIndex(w, r, indexHTML, cfg.StaticDir)
+				return
+			}
 			if _, err := os.Stat(cfg.StaticDir + r.URL.Path); os.IsNotExist(err) && !strings.HasPrefix(r.URL.Path, "/api/") && !strings.Contains(r.URL.Path, ".") {
-				http.ServeFile(w, r, cfg.StaticDir+"/index.html")
+				serveIndex(w, r, indexHTML, cfg.StaticDir)
 				return
 			}
 			fileServer.ServeHTTP(w, r)
