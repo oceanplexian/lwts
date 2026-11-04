@@ -847,12 +847,9 @@ function openDueDatePicker() {
   picker.id = 'due-date-picker';
   picker.className = 'due-date-picker';
 
-  const rect = textEl.getBoundingClientRect();
-  picker.style.top = (rect.bottom + 6) + 'px';
-  picker.style.left = rect.left + 'px';
-
   _renderCalendar(picker);
   document.body.appendChild(picker);
+  _placeDueDatePicker(picker);
 
   requestAnimationFrame(() => picker.classList.add('visible'));
 
@@ -880,6 +877,26 @@ function _calendarOutsideClick(e) {
 
 function _calendarKeydown(e) {
   if (e.key === 'Escape') closeDueDatePicker();
+}
+
+// Open below the due date field; when that would run past the bottom of the window (the field is
+// the last row of the sidebar), open above it instead. Always keep the picker inside the window.
+// The height changes between 5- and 6-week months, so this also runs after each render.
+function _placeDueDatePicker(picker) {
+  const textEl = document.getElementById('detail-duedate-text');
+  if (!textEl || !picker.isConnected) return;
+  const rect = textEl.getBoundingClientRect();
+  const h = picker.offsetHeight, w = picker.offsetWidth, margin = 8, gap = 6;
+  let top = rect.bottom + gap;
+  let above = false;
+  if (top + h > window.innerHeight - margin && rect.top - gap - h >= margin) {
+    top = rect.top - gap - h;
+    above = true;
+  }
+  top = Math.max(margin, Math.min(top, window.innerHeight - h - margin));
+  picker.style.top = top + 'px';
+  picker.style.left = Math.max(margin, Math.min(rect.left, window.innerWidth - w - margin)) + 'px';
+  picker.style.transformOrigin = above ? 'bottom left' : 'top left';
 }
 
 function _renderCalendar(picker) {
@@ -930,6 +947,7 @@ function _renderCalendar(picker) {
   `;
 
   picker.innerHTML = html;
+  _placeDueDatePicker(picker);
 }
 
 function _calPrev() {
