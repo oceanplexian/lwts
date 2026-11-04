@@ -1291,6 +1291,9 @@ function _refreshEpicDropdown() {
 }
 
 function openDetail(cardId, _fromHash) {
+  // A card can be opened while the new-card form is open (browser Back/Forward, a #KEY link).
+  // Leave create mode first, otherwise the card loads into the create form and Create saves a copy.
+  if (_isCreateMode) closeCreateMode();
   let foundCard = null, foundCol = null;
   for (const col of COLUMNS) {
     const c = (state[col.id] || []).find(c => c.id === cardId);
